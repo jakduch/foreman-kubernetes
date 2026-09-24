@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative 'state_machine'
+require 'digest'
 require 'time'
 
 module ForemanRelease
@@ -26,6 +27,7 @@ module ForemanRelease
       'verificationSeconds' => 600,
       'proxyRolloutSeconds' => 900
     }.freeze
+    DEFAULT_DRIFT_CHECK_SECONDS = 60
     PHASE_HANDLERS = {
       'Preflight' => [:validate, 'ValidationSucceeded', 'ValidationFailed'],
       'AcquiringLock' => [:acquire_lease, 'LeaseAcquired', 'LeaseFailed'],
@@ -59,6 +61,7 @@ module ForemanRelease
         return persist_resume(resource, status) if paused?(status)
         return persist_observation(resource, status) if status['observedGeneration'] != resource.dig('metadata', 'generation')
         return prune_operation_history(resource, status) if phase == 'Ready' && history_cleanup_required?(resource, status)
+        return reconcile_ready_drift(resource, status) if phase == 'Ready' && drift_check_due?(resource, status)
 
         return :idle
       end
@@ -164,20 +167,21 @@ module ForemanRelease
       end
     end
 
-    def persist_start(resource)
+    def persist_start(resource, event: nil, operation_type: 'Release', details: {})
       status = resource.fetch('status', {})
       phase = status.fetch('phase', 'Pending')
-      event = case phase
-              when 'Pending' then 'Reconcile'
-              when 'Ready'
-                if status['currentSet'] != resource.dig('spec', 'compatibilitySet')
-                  'DesiredSetChanged'
-                else
-                  'ReconcileTokenChanged'
+      event ||= case phase
+                when 'Pending' then 'Reconcile'
+                when 'Ready'
+                  if status['currentSet'] != resource.dig('spec', 'compatibilitySet')
+                    'DesiredSetChanged'
+                  else
+                    'ReconcileTokenChanged'
+                  end
+                when 'Blocked' then 'RetryTokenChanged'
                 end
-              when 'Blocked' then 'RetryTokenChanged'
-              end
-      operation_id = "#{resource.dig('metadata', 'uid')}-g#{resource.dig('metadata', 'generation')}"
+      sequence = Integer(status['operationSequence'] || status.dig('operation', 'sequence') || 0) + 1
+      operation_id = operation_id(resource, sequence)
       decision = @state_machine.transition(
         status: status,
         event: event,
@@ -186,10 +190,17 @@ module ForemanRelease
         retry_token: resource.dig('spec', 'retryToken').to_s,
         reconcile_token: resource.dig('spec', 'reconcileToken').to_s,
         operation_id: operation_id,
-        now: @clock.call
+        now: @clock.call,
+        details: details.merge('type' => operation_type, 'sequence' => sequence)
       )
+      decision.status['operationSequence'] = sequence
       @status_writer.call(resource, decision.status)
       :requeue
+    end
+
+    def operation_id(resource, sequence)
+      owner = Digest::SHA256.hexdigest(resource.dig('metadata', 'uid').to_s)[0, 16]
+      "#{owner}-g#{Integer(resource.dig('metadata', 'generation'))}-o#{sequence}"
     end
 
     def persist_pause(resource, status)
@@ -263,6 +274,48 @@ module ForemanRelease
       cleaned_status['historyPrunedLimit'] = Integer(resource.dig('spec', 'operationHistoryLimit') || 3)
       @status_writer.call(resource, cleaned_status)
       :idle
+    end
+
+    def drift_check_due?(resource, status)
+      seconds = Integer(resource.dig('spec', 'driftCheckSeconds') || DEFAULT_DRIFT_CHECK_SECONDS)
+      checked_at = status['lastDriftCheckAt']
+      return true unless checked_at
+
+      Time.iso8601(@clock.call) - Time.iso8601(checked_at) >= seconds
+    rescue ArgumentError, TypeError
+      true
+    end
+
+    def reconcile_ready_drift(resource, status)
+      observation = observe(:audit_ready, resource, status.fetch('operation', {}))
+      case observation.state
+      when :succeeded
+        audited = Marshal.load(Marshal.dump(status))
+        audited['lastDriftCheckAt'] = @clock.call
+        audited['lastDriftCheckMessage'] = observation.message || 'declared release resources are present'
+        audited.delete('lastDriftCheckError')
+        @status_writer.call(resource, audited)
+        :idle
+      when :drifted
+        persist_start(
+          resource,
+          event: 'DriftDetected',
+          operation_type: 'Repair',
+          details: observation.details || {}
+        )
+      when :unsafe_drift
+        transition(resource, status, 'UnsafeDriftDetected', observation)
+        :blocked
+      when :failed
+        audited = Marshal.load(Marshal.dump(status))
+        audited['lastDriftCheckAt'] = @clock.call
+        audited['lastDriftCheckMessage'] = 'Ready drift audit could not be completed'
+        audited['lastDriftCheckError'] = observation.message || 'unknown drift audit failure'
+        @status_writer.call(resource, audited)
+        :audit_failed
+      else
+        raise ArgumentError, "audit_ready returned unsupported state #{observation.state.inspect}"
+      end
     end
 
     def observe(handler, resource, operation)

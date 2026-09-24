@@ -15,6 +15,7 @@ spec:
   paused: false
   retryToken: initial
   reconcileToken: initial
+  driftCheckSeconds: 60
   operationHistoryLimit: 3
   failurePolicy:
     afterMigration: Halt

@@ -38,6 +38,10 @@ after_migration = spec_schema.dig('properties', 'failurePolicy', 'properties', '
 raise 'post-migration failure policy must only permit Halt' unless after_migration.fetch('enum') == ['Halt']
 raise 'operator spec must expose an explicit retry token' unless spec_schema.dig('properties', 'retryToken', 'type') == 'string'
 raise 'operator spec must expose an explicit reconcile token' unless spec_schema.dig('properties', 'reconcileToken', 'type') == 'string'
+drift_interval = spec_schema.dig('properties', 'driftCheckSeconds')
+unless drift_interval.fetch('default') == 60 && drift_interval.fetch('minimum') == 30
+  raise 'operator spec must bound Ready drift checks'
+end
 history_limit = spec_schema.dig('properties', 'operationHistoryLimit')
 unless history_limit.fetch('default') == 3 && history_limit.fetch('minimum') == 1 && history_limit.fetch('maximum') == 20
   raise 'operator spec must bound retained operation history'
@@ -72,6 +76,14 @@ raise 'operation status does not retain timeout evidence' unless operation.dig('
                                                            operation.dig('timedOutPhase', 'type') == 'string'
 %w[applicationSubmittedRevision executionProxySubmittedRevision].each do |revision|
   raise "operation status does not retain #{revision}" unless operation.dig(revision, 'minimum') == 1
+end
+unless operation.dig('type', 'enum') == %w[Release Repair] && operation.dig('sequence', 'minimum') == 1
+  raise 'operation status does not distinguish uniquely sequenced repairs'
+end
+unless status_schema.dig('properties', 'lastDriftCheckAt', 'format') == 'date-time' &&
+       status_schema.dig('properties', 'lastDriftCheckError', 'type') == 'string' &&
+       status_schema.dig('properties', 'operationSequence', 'minimum') == 0
+  raise 'operator status does not checkpoint drift checks and operation sequencing'
 end
 
 phases = status_schema.dig('properties', 'phase', 'enum')
@@ -110,6 +122,14 @@ end
 reconcile_transition = transition_by_key.fetch(['Ready', 'ReconcileTokenChanged'])
 unless reconcile_transition.fetch('to') == 'Preflight' && reconcile_transition.fetch('action') == 'ValidateReleaseSet'
   raise 'a reconcile token change must start a fully validated release'
+end
+repair_transition = transition_by_key.fetch(['Ready', 'DriftDetected'])
+unless repair_transition.fetch('to') == 'Preflight' && repair_transition.fetch('action') == 'ValidateRepair'
+  raise 'detected drift must start a fully validated repair operation'
+end
+unsafe_drift_transition = transition_by_key.fetch(['Ready', 'UnsafeDriftDetected'])
+unless unsafe_drift_transition.fetch('to') == 'Blocked' && unsafe_drift_transition.fetch('action') == 'RecordBlocked'
+  raise 'missing stateful storage must block automatic drift repair'
 end
 
 lease_wait = transition_by_key.fetch(['AcquiringLock', 'LeaseBusy'])

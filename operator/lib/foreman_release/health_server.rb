@@ -123,6 +123,7 @@ module ForemanRelease
           foreman_release_status{#{labels}} 1
           foreman_release_metadata_generation{#{identity}} #{release.fetch(:generation)}
           foreman_release_observed_generation{#{identity}} #{release.fetch(:observed_generation)}
+          foreman_release_drift_check_healthy{#{identity}} #{release.fetch(:drift_check_healthy) ? 1 : 0}
           foreman_release_deleting{#{identity}} #{release.fetch(:deleting) ? 1 : 0}
         RELEASE
       end.join
@@ -135,6 +136,8 @@ module ForemanRelease
         # TYPE foreman_release_metadata_generation gauge
         # HELP foreman_release_observed_generation ForemanRelease generation acknowledged by the controller.
         # TYPE foreman_release_observed_generation gauge
+        # HELP foreman_release_drift_check_healthy Whether the most recent Ready drift audit completed successfully.
+        # TYPE foreman_release_drift_check_healthy gauge
         # HELP foreman_release_deleting Whether ForemanRelease deletion is waiting for safe finalization.
         # TYPE foreman_release_deleting gauge
       METRICS

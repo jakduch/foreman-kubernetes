@@ -65,6 +65,12 @@ spec:
                   type: string
                   maxLength: 128
                   description: Change this value to run a new validated release with the current compatibility set and values Secrets.
+                driftCheckSeconds:
+                  type: integer
+                  minimum: 30
+                  maximum: 3600
+                  default: 60
+                  description: Interval between read-only checks for missing Helm-managed resources while the release is Ready.
                 operationHistoryLimit:
                   type: integer
                   minimum: 1
@@ -210,6 +216,17 @@ spec:
                   type: string
                 observedReconcileToken:
                   type: string
+                operationSequence:
+                  type: integer
+                  format: int64
+                  minimum: 0
+                lastDriftCheckAt:
+                  type: string
+                  format: date-time
+                lastDriftCheckMessage:
+                  type: string
+                lastDriftCheckError:
+                  type: string
                 historyPrunedThroughOperation:
                   type: string
                 historyPrunedLimit:
@@ -224,6 +241,15 @@ spec:
                     startedAt:
                       type: string
                       format: date-time
+                    type:
+                      type: string
+                      enum:
+                        - Release
+                        - Repair
+                    sequence:
+                      type: integer
+                      format: int64
+                      minimum: 1
                     migrationJobs:
                       type: array
                       items:
@@ -244,6 +270,12 @@ spec:
                       type: integer
                       format: int64
                       minimum: 1
+                    migrationsSkippedForRepair:
+                      type: boolean
+                    driftedResources:
+                      type: array
+                      items:
+                        type: string
                     applicationValuesSha256:
                       type: string
                       pattern: ^[0-9a-f]{64}$

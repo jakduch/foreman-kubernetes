@@ -27,6 +27,7 @@ expected = %w[
   ForemanReleaseControllerCycleFailures
   ForemanReleaseBlocked
   ForemanReleaseGenerationStalled
+  ForemanReleaseDriftAuditFailed
 ]
 names = rules.map { |item| item['alert'] }
 abort "unexpected operator alerts: #{names.join(', ')}" unless names.sort == expected.sort
@@ -39,6 +40,7 @@ expressions = rules.map { |item| item['expr'].to_s }.join('\n')
   foreman_release_status
   foreman_release_metadata_generation
   foreman_release_observed_generation
+  foreman_release_drift_check_healthy
 ].each do |metric|
   abort "alerts do not consume #{metric}" unless expressions.include?(metric)
 end
@@ -62,8 +64,9 @@ end.join('\n')
   foreman_release_status
   foreman_release_metadata_generation
   foreman_release_observed_generation
+  foreman_release_drift_check_healthy
 ].each do |metric|
   abort "dashboard does not consume #{metric}" unless dashboard_expressions.include?(metric)
 end
 
-puts 'Operator monitoring packages six alerts and one opt-in Grafana dashboard.'
+puts 'Operator monitoring packages seven alerts and one opt-in Grafana dashboard.'

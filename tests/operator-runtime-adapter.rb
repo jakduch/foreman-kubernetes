@@ -465,6 +465,47 @@ raise 'four release verification Jobs did not receive distinct names' unless ver
 kubernetes.replace('jobs', kubernetes.resources('platform', 'jobs').map { |job| complete_job(job) })
 raise 'completed paired final smoke gate was not adopted' unless adapter.ensure_final_smoke(resource, operation).state == :succeeded
 
+runner.existing_releases = %w[foreman execution]
+all_rendered = runner.renders.fetch('foreman') + runner.renders.fetch('execution')
+ForemanRelease::RuntimeAdapter::DRIFT_RESOURCE_TYPES.each do |kind, type|
+  kubernetes.replace(type, all_rendered.select { |item| item['kind'] == kind })
+end
+audit = adapter.audit_ready(resource, operation)
+raise "complete Ready release was reported as drifted: #{audit.message}" unless audit.state == :succeeded
+revision_drift = adapter.audit_ready(
+  resource,
+  operation.merge('applicationRevision' => 1, 'executionProxyRevision' => 4)
+)
+unless revision_drift.state == :drifted &&
+       revision_drift.details.fetch('driftedResources').any? { |item| item.start_with?('HelmRevision/foreman:') }
+  raise 'out-of-band Helm revision was not detected'
+end
+
+claims = kubernetes.resources('platform', 'persistentvolumeclaims')
+missing_claim = claims.first
+kubernetes.replace('persistentvolumeclaims', claims.drop(1))
+stateful_drift = adapter.audit_ready(resource, operation)
+raise 'missing stateful claim was selected for automatic repair' unless stateful_drift.state == :unsafe_drift
+unless stateful_drift.details.fetch('driftedResources').include?("PersistentVolumeClaim/#{missing_claim.dig('metadata', 'name')}")
+  raise 'stateful drift evidence did not identify the missing claim'
+end
+kubernetes.replace('persistentvolumeclaims', claims)
+
+services = kubernetes.resources('platform', 'services')
+missing_service = services.first
+kubernetes.replace('services', services.drop(1))
+drift = adapter.audit_ready(resource, operation)
+raise 'missing declared Service was not detected' unless drift.state == :drifted
+unless drift.details.fetch('driftedResources').include?("Service/#{missing_service.dig('metadata', 'name')}")
+  raise 'drift evidence did not identify the missing Service'
+end
+
+created_before_repair = kubernetes.created.length
+repair = adapter.ensure_migrations(resource, operation.merge('type' => 'Repair'))
+raise 'repair operation did not preserve migrated database state' unless repair.state == :succeeded
+raise 'repair operation submitted database migration Jobs' unless kubernetes.created.length == created_before_repair
+raise 'repair did not record skipped migrations' unless repair.details.fetch(:migrationsSkippedForRepair)
+
 owner = resource.dig('metadata', 'uid')
 historical_jobs = (3..6).map do |generation|
   job = {

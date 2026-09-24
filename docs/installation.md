@@ -91,13 +91,15 @@ API cycles. Configure a Prometheus scraper through `service.annotations`, and
 alert on `foreman_release_controller_ready == 0`, increasing failed cycles, or
 an old `foreman_release_controller_last_success_timestamp_seconds`.
 The leader also exports `foreman_release_status`, desired and observed
-generation gauges, and deletion state for each CR. Standby and API-failed
-candidates clear that inventory instead of serving stale release state.
+generation gauges, drift-audit health, and deletion state for each CR. Standby
+and API-failed candidates clear that inventory instead of serving stale release
+state.
 The Service publishes NotReady Pod addresses deliberately so a monitoring
 system can still scrape the failure state. If the Prometheus Operator CRD is
 installed, `monitoring.prometheusRule.enabled=true` adds alerts for missing
 metrics, no ready candidate, unhealthy leader cardinality, and failed cycles;
-optional `monitoring.prometheusRule.labels` attach the labels selected by that
+it also reports a Ready release whose latest drift audit failed. Optional
+`monitoring.prometheusRule.labels` attach the labels selected by that
 Prometheus installation.
 Set `monitoring.grafanaDashboard.enabled=true` when a Grafana dashboard sidecar
 already watches labelled ConfigMaps. The default
@@ -117,6 +119,15 @@ controller reapplies the same release with migration Jobs suppressed. Change
 `spec.retryToken` only after correcting a `Blocked` condition. Set
 `spec.paused=true` to stop at the next safe phase boundary; it never terminates
 an active migration or rollout.
+
+While `Ready`, the controller checks for missing Helm-managed objects and
+out-of-band Helm revisions every `spec.driftCheckSeconds` (60 seconds by
+default). Missing stateless resources or a changed Helm revision start a
+uniquely identified repair: the normal preflight, lock, rollout, registration,
+and smoke gates run again, while schema migrations remain skipped. A missing
+PVC instead enters `Blocked` and requires explicit storage recovery. The check
+never adopts changed values Secret content; update `spec.reconcileToken` when
+that change is intentional.
 
 The values Secrets are deliberately not watched as implicit rollout triggers.
 After changing their content, including a `secretRolloutToken` used for

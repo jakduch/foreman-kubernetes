@@ -58,4 +58,12 @@ spec:
           annotations:
             summary: Foreman release generation is not observed
             description: ForemanRelease {{ "{{" }} $labels.namespace {{ "}}" }}/{{ "{{" }} $labels.name {{ "}}" }} has not acknowledged its current generation for ten minutes.
+        - alert: ForemanReleaseDriftAuditFailed
+          expr: min by (namespace, name) (foreman_release_drift_check_healthy) < 1
+          for: 2m
+          labels:
+            severity: warning
+          annotations:
+            summary: Foreman release drift audit is failing
+            description: ForemanRelease {{ "{{" }} $labels.namespace {{ "}}" }}/{{ "{{" }} $labels.name {{ "}}" }} cannot verify that all declared resources are still present.
 {{- end }}

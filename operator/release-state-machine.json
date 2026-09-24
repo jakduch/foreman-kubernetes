@@ -115,6 +115,18 @@
       "to": "Preflight"
     },
     {
+      "from": "Ready",
+      "event": "DriftDetected",
+      "action": "ValidateRepair",
+      "to": "Preflight"
+    },
+    {
+      "from": "Ready",
+      "event": "UnsafeDriftDetected",
+      "action": "RecordBlocked",
+      "to": "Blocked"
+    },
+    {
       "from": "Blocked",
       "event": "RetryTokenChanged",
       "action": "ValidateReleaseSet",

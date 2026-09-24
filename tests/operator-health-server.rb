@@ -24,7 +24,11 @@ status.role_changed(:leader)
 status.releases_observed([
   {
     'metadata' => {'namespace' => 'platform', 'name' => 'foreman', 'generation' => 4},
-    'status' => {'phase' => 'Blocked', 'observedGeneration' => 3}
+    'status' => {
+      'phase' => 'Blocked',
+      'observedGeneration' => 3,
+      'lastDriftCheckError' => 'cannot list Services'
+    }
   }
 ])
 status.cycle_succeeded
@@ -38,6 +42,9 @@ end
 unless metrics.include?('foreman_release_metadata_generation{namespace="platform",name="foreman"} 4') &&
        metrics.include?('foreman_release_observed_generation{namespace="platform",name="foreman"} 3')
   raise 'metrics omitted release generation convergence'
+end
+unless metrics.include?('foreman_release_drift_check_healthy{namespace="platform",name="foreman"} 0')
+  raise 'metrics omitted failed Ready drift audit'
 end
 
 status.cycle_failed
@@ -56,6 +63,9 @@ status.releases_observed([
 escaped_metrics = server.response('GET', '/metrics').last
 unless escaped_metrics.include?('name="quoted\\"release\\\\name\\n"')
   raise 'release metric label was not escaped'
+end
+unless escaped_metrics.include?('foreman_release_drift_check_healthy{namespace="platform",name="quoted\\"release\\\\name\\n"} 1')
+  raise 'release without a drift error was not reported healthy'
 end
 status.role_changed(:standby)
 raise 'standby retained leader release metrics' if server.response('GET', '/metrics').last.include?('foreman_release_status{')

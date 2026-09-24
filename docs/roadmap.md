@@ -109,11 +109,14 @@ The Ruby controller now executes that graph against the Kubernetes API and
 Helm. It resolves digest-pinned profiles, reads same-namespace values Secrets,
 persists status with an optimistic resource-version precondition, adopts
 deterministic migration and verification Jobs, observes rollout deadlines,
-and rolls and verifies the paired execution proxy. Two candidates use a
+rolls and verifies the paired execution proxy, and starts a migration-free
+repair after a Ready audit detects missing stateless resources or an
+out-of-band Helm revision, while missing stateful claims block for explicit
+recovery. Two candidates use a
 short-lived leader Lease while the separate renewable release Lease fences all
 controller and manual writers. Command-level simulations cover leader
 takeover, restart adoption, foreign-owner contention, expiration, renewal,
-race-safe release, and the no-rollback boundary.
+race-safe release, Ready drift repair, and the no-rollback boundary.
 
 The remaining operator work is real-cluster qualification of the published
 image and exact compatibility set, retained evidence, and API versioning rather

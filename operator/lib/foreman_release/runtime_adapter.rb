@@ -35,6 +35,18 @@ module ForemanRelease
       'PersistentVolumeClaim' => 'persistentvolumeclaim',
       'ServiceAccount' => 'serviceaccount'
     }.freeze
+    DRIFT_RESOURCE_TYPES = {
+      'ConfigMap' => 'configmaps',
+      'CronJob' => 'cronjobs',
+      'Deployment' => 'deployments',
+      'HorizontalPodAutoscaler' => 'horizontalpodautoscalers',
+      'Ingress' => 'ingresses',
+      'NetworkPolicy' => 'networkpolicies',
+      'PersistentVolumeClaim' => 'persistentvolumeclaims',
+      'PodDisruptionBudget' => 'poddisruptionbudgets',
+      'Service' => 'services',
+      'ServiceAccount' => 'serviceaccounts'
+    }.freeze
 
     ReleaseContext = Struct.new(
       :profiles,
@@ -112,7 +124,7 @@ module ForemanRelease
       retained = completed.keys.sort_by do |id|
         grouped = completed.fetch(id)
         timestamps = grouped.map { |job| job.dig('metadata', 'creationTimestamp') }.compact
-        [operation_generation(id), timestamps.max.to_s, id]
+        [*operation_order(id), timestamps.max.to_s, id]
       end.last(limit)
       retained << operation['id'] if operation['id']
       stale = completed.keys - retained
@@ -131,6 +143,14 @@ module ForemanRelease
     end
 
     def ensure_migrations(resource, operation)
+      if operation['type'] == 'Repair'
+        return Observation.new(
+          state: :succeeded,
+          message: 'repair operation preserves the already-migrated database state',
+          details: {migrationJobs: [], migrationsSkippedForRepair: true}
+        )
+      end
+
       with_rendered_application(resource, operation) do |context, values_path, resources|
         expected = jobs(resources, MIGRATION_COMPONENTS)
         raise InvalidRelease, 'application chart did not render all three migration Jobs' unless expected.length == 3
@@ -148,6 +168,51 @@ module ForemanRelease
 
         observe_jobs(matching, details: {migrationJobs: expected_names(expected).sort})
       end
+    end
+
+    def audit_ready(resource, operation)
+      missing = []
+      [
+        [application_release(resource), operation['applicationRevision']],
+        [execution_release(resource), operation['executionProxyRevision']]
+      ].each do |release_name, expected_revision|
+        unless helm_release_exists?(resource, release_name)
+          missing << "HelmRelease/#{release_name}"
+          next
+        end
+        next unless expected_revision
+
+        actual_revision = helm_revision(resource, release_name)
+        if actual_revision != Integer(expected_revision)
+          missing << "HelmRevision/#{release_name}:expected-#{expected_revision}-actual-#{actual_revision}"
+        end
+      end
+
+      with_rendered_application(resource, operation) do |_context, _values_path, resources|
+        missing.concat(missing_declared_resources(resource, resources))
+      end
+      with_rendered_execution(resource, operation) do |_context, _values_path, resources|
+        missing.concat(missing_declared_resources(resource, resources))
+      end
+
+      missing = missing.uniq.sort
+      stateful = missing.grep(/\APersistentVolumeClaim\//)
+      unless stateful.empty?
+        return Observation.new(
+          state: :unsafe_drift,
+          message: "stateful release resources are missing and require recovery: #{stateful.join(', ')}",
+          details: {'driftedResources' => missing}
+        )
+      end
+      unless missing.empty?
+        return Observation.new(
+          state: :drifted,
+          message: "declared release resources are missing: #{missing.join(', ')}",
+          details: {'driftedResources' => missing}
+        )
+      end
+
+      Observation.new(state: :succeeded, message: 'all declared release resources are present', details: {})
     end
 
     def ensure_application(resource, operation)
@@ -690,9 +755,20 @@ module ForemanRelease
       condition_true?(job, 'Complete') || condition_true?(job, 'Failed')
     end
 
-    def operation_generation(operation_id)
-      match = operation_id.match(/-g(\d+)\z/)
-      match ? Integer(match[1]) : -1
+    def operation_order(operation_id)
+      match = operation_id.match(/-g(\d+)(?:-o(\d+))?\z/)
+      match ? [Integer(match[1]), Integer(match[2] || 0)] : [-1, -1]
+    end
+
+    def missing_declared_resources(resource, rendered)
+      namespace = resource.dig('metadata', 'namespace')
+      rendered.group_by { |item| item['kind'] }.flat_map do |kind, expected|
+        type = DRIFT_RESOURCE_TYPES[kind]
+        next [] unless type
+
+        live_names = expected_names(@kubernetes_client.resources(namespace, type))
+        (expected_names(expected) - live_names).map { |name| "#{kind}/#{name}" }
+      end
     end
 
     def ensure_smoke(resource, operation, stage, source:)

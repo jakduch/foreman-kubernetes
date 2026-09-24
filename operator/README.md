@@ -20,17 +20,19 @@ cycle within the configured staleness window; a responsive process with a
 wedged or unreachable Kubernetes API therefore leaves Service endpoints
 without triggering an immediate liveness restart. Metrics expose only process
 state, current leader role, cycle counters, and the last successful timestamp,
-plus each observed release phase and generation convergence. Metric labels are
+plus each observed release phase, generation convergence, and drift-audit
+health. Metric labels are
 limited to namespace, release name, and the fixed phase vocabulary; they never
 contain release specs, Secret contents, or command output.
 The metrics Service keeps NotReady candidates discoverable. An opt-in
 `PrometheusRule` packages alerts only when its external CRD is explicitly
 available; the operator chart does not install or own a monitoring stack.
-The same opt-in rule group alerts on a `Blocked` release and on a generation
-that remains unobserved for ten minutes. An independent opt-in Grafana
-dashboard ConfigMap visualizes controller health, cycle outcomes, release
-phases, blocked releases, and generation convergence. Its discovery labels are
-configurable and the chart still does not install Grafana or a sidecar.
+The same opt-in rule group alerts on a `Blocked` release, a failed drift audit,
+and a generation that remains unobserved for ten minutes. An independent
+opt-in Grafana dashboard ConfigMap visualizes controller health, cycle outcomes,
+release phases, blocked releases, generation convergence, and drift-audit
+health. Its discovery labels are configurable and the chart still does not
+install Grafana or a sidecar.
 Every persisted phase transition and pause/resume condition also emits a
 namespaced `events.k8s.io/v1` Event, so `kubectl describe` exposes release
 progress without reading controller logs. Status remains authoritative: Event
@@ -54,6 +56,17 @@ missing member of an already submitted Deployment or registration-Job set
 causes the controller to idempotently resubmit that release with migration Jobs
 suppressed, instead of waiting until the phase timeout. This repairs partial
 resource deletion without re-running a schema change.
+After a release is `Ready`, the controller also audits both recorded Helm
+revisions and every non-Job object declared by the exact application and
+execution-proxy renders. The interval is bounded by `spec.driftCheckSeconds`
+(60 seconds by default). A missing release or stateless object, or an
+out-of-band Helm revision, starts a new uniquely sequenced `Repair` operation. It repeats
+preflight, Lease fencing, both rollouts, registration, and smoke verification,
+but deliberately skips database migrations because the compatibility set was
+already migrated. Changed values Secret content still fails the pinned-input
+check and must be applied explicitly with `spec.reconcileToken`. A missing PVC
+enters `Blocked` instead: silently creating empty replacement storage is not a
+valid recovery procedure.
 
 The adapter boundary now includes three concrete, tested primitives:
 
@@ -144,7 +157,8 @@ The controller owns release sequencing only:
 
 1. validate the selected compatibility set and referenced values;
 2. acquire and renew a Lease for this Foreman release;
-3. create revision-owned Candlepin, Pulp, and Foreman migration Jobs and wait;
+3. create revision-owned Candlepin, Pulp, and Foreman migration Jobs and wait
+   (or preserve the migrated schema for an automatically detected repair);
 4. roll and verify Foreman/Katello, Pulp, Candlepin, and Dynflow workloads;
 5. roll the paired execution proxy;
 6. run the final service and execution checks, then publish `Ready`.
@@ -199,9 +213,10 @@ stale controller report.
 The CRD and state graph are statically validated by `tests/operator-contract.rb`.
 `tests/operator-state-machine.rb` also executes the complete happy path, pause,
 blocked retry, busy Lease, invalid transition, conditions, and operation
-replacement and progress-checkpoint behavior. `tests/operator-reconciler.rb` simulates a controller
-restart during migration, safe-boundary pause, a failed validation, and an
-explicit retry. The two-candidate controller, leader takeover, bounded RBAC,
+replacement and progress-checkpoint behavior. `tests/operator-reconciler.rb`
+simulates a controller restart during migration, safe-boundary pause, a failed
+validation, an explicit retry, and a same-generation drift repair. The
+two-candidate controller, leader takeover, bounded RBAC,
 chart, and publication image are present and covered by command-level
 simulations. Real-cluster tests
 of the published image are still required before treating the controller path

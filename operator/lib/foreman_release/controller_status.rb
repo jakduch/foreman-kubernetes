@@ -43,6 +43,7 @@ module ForemanRelease
           phase: resource.dig('status', 'phase') || 'Pending',
           generation: Integer(resource.dig('metadata', 'generation') || 0),
           observed_generation: Integer(resource.dig('status', 'observedGeneration') || 0),
+          drift_check_healthy: resource.dig('status', 'lastDriftCheckError').to_s.empty?,
           deleting: !resource.dig('metadata', 'deletionTimestamp').nil?
         }
       end

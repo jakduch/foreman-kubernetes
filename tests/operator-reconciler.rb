@@ -20,7 +20,7 @@ class FakeAdapter
     @results[method] = states
   end
 
-  %i[validate acquire_lease renew_lease ensure_migrations ensure_application ensure_application_smoke ensure_proxy ensure_final_smoke].each do |method|
+  %i[validate acquire_lease renew_lease ensure_migrations ensure_application ensure_application_smoke ensure_proxy ensure_final_smoke audit_ready].each do |method|
     define_method(method) do |_resource, operation|
       @calls << method
       @migration_operations << operation.fetch('id') if method == :ensure_migrations
@@ -29,7 +29,13 @@ class FakeAdapter
       ForemanRelease::Observation.new(
         state: state,
         message: "#{method} is #{state}",
-        details: method == :ensure_migrations ? {migrationJobs: %w[job-a job-b job-c]} : {}
+        details: if method == :ensure_migrations
+                   {migrationJobs: %w[job-a job-b job-c]}
+                 elsif method == :audit_ready && %i[drifted unsafe_drift].include?(state)
+                   {driftedResources: ['Service/foreman']}
+                 else
+                   {}
+                 end
       )
     end
   end
@@ -89,8 +95,9 @@ expected_phases.each do |phase|
   raise "expected #{phase}, got #{actual}" unless actual == phase
 end
 
-operation_id = '12345678-1234-1234-1234-123456789abc-g1'
+operation_id = 'ae1908d5eef6b8c2-g1-o1'
 raise 'reconciliation did not use a deterministic operation ID' unless release.dig('status', 'operation', 'id') == operation_id
+raise 'initial operation was not sequenced' unless release.dig('status', 'operationSequence') == 1
 raise 'migration Jobs were not adopted with one operation ID' unless adapter.migration_operations == [operation_id, operation_id]
 raise 'successful migrations were not recorded' unless release.dig('status', 'operation', 'migrationJobs') == %w[job-a job-b job-c]
 raise 'ready reconciliation did not release the Lease' unless adapter.calls.include?([:release_lease, operation_id])
@@ -99,12 +106,14 @@ raise 'ready reconciliation did not prune old operation history' unless adapter.
 raise 'cleanup did not record its operation' unless release.dig('status', 'historyPrunedThroughOperation') == operation_id
 raise 'cleanup did not record its retention limit' unless release.dig('status', 'historyPrunedLimit') == 3
 raise 'ready reconciliation did not record the set' unless release.dig('status', 'currentSet') == 'candidate-1'
+raise 'ready reconciliation did not audit declared resources' unless reconciler.reconcile(release) == :idle
+raise 'successful drift check was not checkpointed' unless release.dig('status', 'lastDriftCheckAt') == '2026-09-24T12:00:00Z'
 
 release['spec']['reconcileToken'] = 'rotate-certificates'
 release['metadata']['generation'] = 2
 reconciler.reconcile(release)
 raise 'reconcile token did not restart validation' unless release.dig('status', 'phase') == 'Preflight'
-raise 'reconcile token did not create a new operation' unless release.dig('status', 'operation', 'id').end_with?('-g2')
+raise 'reconcile token did not create a new operation' unless release.dig('status', 'operation', 'id').end_with?('-g2-o2')
 unless release.dig('status', 'observedReconcileToken') == 'rotate-certificates'
   raise 'reconcile token was not recorded durably'
 end
@@ -125,6 +134,79 @@ release['spec']['timeouts'] = {'preflightSeconds' => 600}
 release['metadata']['generation'] = 5
 raise 'idle spec update did not remain idle' unless reconciler.reconcile(release) == :idle
 raise 'idle spec generation was not acknowledged' unless release.dig('status', 'observedGeneration') == 5
+
+drift_adapter = FakeAdapter.new
+drift_adapter.results(:audit_ready, :drifted)
+drift_release = resource(status: {
+  'phase' => 'Ready',
+  'currentSet' => 'candidate-1',
+  'observedGeneration' => 1,
+  'operationSequence' => 1,
+  'historyPrunedThroughOperation' => operation_id,
+  'historyPrunedLimit' => 3,
+  'lastDriftCheckAt' => '2026-09-24T11:58:00Z',
+  'operation' => {'id' => operation_id, 'sequence' => 1, 'startedAt' => '2026-09-24T11:00:00Z'}
+})
+drift_reconciler = ForemanRelease::Reconciler.new(
+  state_machine: machine,
+  adapter: drift_adapter,
+  status_writer: ->(item, status) { item['status'] = status },
+  clock: -> { '2026-09-24T12:00:00Z' }
+)
+raise 'detected drift did not start repair validation' unless drift_reconciler.reconcile(drift_release) == :requeue
+raise 'repair did not enter preflight' unless drift_release.dig('status', 'phase') == 'Preflight'
+raise 'repair operation was not distinguished' unless drift_release.dig('status', 'operation', 'type') == 'Repair'
+raise 'repair reused the completed operation ID' unless drift_release.dig('status', 'operation', 'id').end_with?('-g1-o2')
+unless drift_release.dig('status', 'operation', 'driftedResources') == ['Service/foreman']
+  raise 'repair did not preserve drift evidence'
+end
+
+unsafe_adapter = FakeAdapter.new
+unsafe_adapter.results(:audit_ready, :unsafe_drift)
+unsafe_release = resource(status: {
+  'phase' => 'Ready',
+  'currentSet' => 'candidate-1',
+  'observedGeneration' => 1,
+  'historyPrunedThroughOperation' => operation_id,
+  'historyPrunedLimit' => 3,
+  'operation' => {'id' => operation_id, 'startedAt' => '2026-09-24T11:00:00Z'}
+})
+unsafe_reconciler = ForemanRelease::Reconciler.new(
+  state_machine: machine,
+  adapter: unsafe_adapter,
+  status_writer: ->(item, status) { item['status'] = status },
+  clock: -> { '2026-09-24T12:00:00Z' }
+)
+raise 'unsafe stateful drift did not block automatic repair' unless unsafe_reconciler.reconcile(unsafe_release) == :blocked
+raise 'unsafe stateful drift did not degrade release status' unless unsafe_release.dig('status', 'phase') == 'Blocked'
+
+audit_clock = '2026-09-24T12:00:00Z'
+audit_failure_adapter = FakeAdapter.new
+audit_failure_adapter.results(:audit_ready, :failed)
+audit_failure_release = resource(status: {
+  'phase' => 'Ready',
+  'currentSet' => 'candidate-1',
+  'observedGeneration' => 1,
+  'historyPrunedThroughOperation' => operation_id,
+  'historyPrunedLimit' => 3,
+  'operation' => {'id' => operation_id, 'startedAt' => '2026-09-24T11:00:00Z'}
+})
+audit_failure_reconciler = ForemanRelease::Reconciler.new(
+  state_machine: machine,
+  adapter: audit_failure_adapter,
+  status_writer: ->(item, status) { item['status'] = status },
+  clock: -> { audit_clock }
+)
+unless audit_failure_reconciler.reconcile(audit_failure_release) == :audit_failed
+  raise 'failed Ready audit was not reported without changing release phase'
+end
+raise 'failed Ready audit degraded the release phase' unless audit_failure_release.dig('status', 'phase') == 'Ready'
+raise 'failed Ready audit was not checkpointed' if audit_failure_release.dig('status', 'lastDriftCheckError').to_s.empty?
+
+audit_failure_adapter.results(:audit_ready, :succeeded)
+audit_clock = '2026-09-24T12:01:01Z'
+audit_failure_reconciler.reconcile(audit_failure_release)
+raise 'successful Ready audit did not clear its previous error' if audit_failure_release.dig('status', 'lastDriftCheckError')
 
 cleanup_adapter = FakeAdapter.new
 cleanup_adapter.results(:prune_operation_history, :failed)
@@ -296,7 +378,7 @@ failed_release['spec']['retryToken'] = 'attempt-2'
 failed_release['metadata']['generation'] = 2
 failure_reconciler.reconcile(failed_release)
 raise 'changed retry token did not restart preflight' unless failed_release.dig('status', 'phase') == 'Preflight'
-raise 'retry reused the failed operation' unless failed_release.dig('status', 'operation', 'id').end_with?('-g2')
+raise 'retry reused the failed operation' unless failed_release.dig('status', 'operation', 'id').end_with?('-g2-o2')
 
 # A rollout that never reaches a terminal Deployment condition is bounded by
 # the CR phase timeout and releases its operation Lease.
