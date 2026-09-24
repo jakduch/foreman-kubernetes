@@ -312,6 +312,11 @@ smokeTest:
 
 recurringTasks:
   enabled: true
+  timeZone: Etc/UTC
+  startingDeadlineSeconds: 1800
+  # Prevent a permanently stuck task from blocking all later schedules through
+  # concurrencyPolicy=Forbid. Large installations may raise this value.
+  activeDeadlineSeconds: 21600
   tasks:
     - name: hourly
       schedule: "7 * * * *"

@@ -167,6 +167,12 @@ Foreman-derived workloads therefore default the daemon off; the dedicated pod
 is the only process that enables it and publishes a local health heartbeat.
 Events remain durable in PostgreSQL while that pod is unavailable.
 
+Recurring Foreman maintenance tasks run as separate CronJobs in an explicit
+IANA time zone. Missed starts and total runtime are bounded, and
+`concurrencyPolicy: Forbid` prevents overlap. The runtime limit avoids a stuck
+task blocking every later schedule indefinitely; each Job also waits for the
+Foreman schema migration barrier before loading application code.
+
 Foreman web, Dynflow, event, migration, registration, and cron processes share
 an RWX volume at `/usr/share/foreman/tmp`. Katello passes uploaded repository
 files and subscription manifests between web requests and asynchronous Dynflow

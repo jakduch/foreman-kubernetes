@@ -12,12 +12,15 @@ metadata:
     {{- include "foreman-stack.componentLabels" (dict "root" $root "component" "foreman-cron") | nindent 4 }}
 spec:
   schedule: {{ $task.schedule | quote }}
+  timeZone: {{ $root.Values.recurringTasks.timeZone | quote }}
+  startingDeadlineSeconds: {{ $root.Values.recurringTasks.startingDeadlineSeconds }}
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 3
   jobTemplate:
     spec:
       backoffLimit: 1
+      activeDeadlineSeconds: {{ $root.Values.recurringTasks.activeDeadlineSeconds }}
       ttlSecondsAfterFinished: 3600
       template:
         metadata:
