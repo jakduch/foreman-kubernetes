@@ -21,6 +21,9 @@ wedged or unreachable Kubernetes API therefore leaves Service endpoints
 without triggering an immediate liveness restart. Metrics expose only process
 state, current leader role, cycle counters, and the last successful timestamp,
 never release specs, Secret contents, or command output.
+The metrics Service keeps NotReady candidates discoverable. An opt-in
+`PrometheusRule` packages alerts only when its external CRD is explicitly
+available; the operator chart does not install or own a monitoring stack.
 
 `operator/lib/foreman_release/reconciler.rb` turns the transition contract into
 an idempotent reconciliation loop behind a side-effect adapter. It persists a

@@ -26,6 +26,11 @@ service:
   annotations: {}
   type: ClusterIP
 
+monitoring:
+  prometheusRule:
+    enabled: false
+    labels: {}
+
 serviceAccount:
   create: true
   name: ""

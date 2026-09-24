@@ -1,0 +1,45 @@
+{{- if .Values.monitoring.prometheusRule.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "foreman-release-operator.fullname" . }}
+  {{- $labels := mergeOverwrite (include "foreman-release-operator.labels" . | fromYaml) .Values.monitoring.prometheusRule.labels }}
+  labels:
+    {{- toYaml $labels | nindent 4 }}
+spec:
+  groups:
+    - name: foreman-release-operator
+      rules:
+        - alert: ForemanReleaseControllerMetricsMissing
+          expr: absent(foreman_release_controller_running)
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: Foreman release controller metrics are missing
+            description: No Foreman release controller candidate is being scraped.
+        - alert: ForemanReleaseControllerNotReady
+          expr: max(foreman_release_controller_ready) < 1
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: No Foreman release controller candidate is ready
+            description: Neither controller candidate has completed a recent Kubernetes API cycle.
+        - alert: ForemanReleaseControllerLeaderUnavailable
+          expr: sum(foreman_release_controller_leader) != 1
+          for: 2m
+          labels:
+            severity: warning
+          annotations:
+            summary: Foreman release controller leadership is unhealthy
+            description: The controller has either no elected leader or more than one candidate reporting leadership.
+        - alert: ForemanReleaseControllerCycleFailures
+          expr: sum(increase(foreman_release_controller_cycles_total{result="failure"}[10m])) > 0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: Foreman release controller cycles are failing
+            description: At least one controller cycle failed during the last ten minutes.
+{{- end }}
