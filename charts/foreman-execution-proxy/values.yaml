@@ -87,6 +87,19 @@ serviceAccount:
   create: true
   name: ""
 
+smokeTest:
+  # This must be the same Secret as foreman.existingCertificateSecret in the
+  # application release. Its client certificate CN must be in trustedHosts.
+  enabled: true
+  foremanCertificateSecret: foreman-certificates
+  activeDeadlineSeconds: 120
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      memory: 128Mi
+
 networkPolicy:
   enabled: true
   ingress:

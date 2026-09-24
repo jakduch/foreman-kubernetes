@@ -327,6 +327,7 @@ ruby "${repo_root}/tests/execution-release-operation-contract.rb" \
   "${rendered_execution_operation}" \
   uid-123-generation-7 \
   12345678-1234-1234-1234-123456789abc
+ruby "${repo_root}/tests/execution-smoke-contract.rb" "${rendered_execution}"
 ruby "${repo_root}/tests/secret-rollout-contract.rb" \
   "${rendered_execution}" "${rendered_execution_secret_rotation}"
 ruby "${repo_root}/tests/kubernetes-invariants.rb" "${rendered_operator}"

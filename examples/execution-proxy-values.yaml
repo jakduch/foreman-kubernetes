@@ -20,6 +20,11 @@ ansible:
 state:
   existingClaim: foreman-execution-proxy-state
 
+smokeTest:
+  # Must match foreman.existingCertificateSecret in the application release.
+  # The certificate CN must also appear in proxy.trustedHosts above.
+  foremanCertificateSecret: foreman-certificates
+
 networkPolicy:
   egress:
     enabled: true

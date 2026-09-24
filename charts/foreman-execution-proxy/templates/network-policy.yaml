@@ -20,6 +20,12 @@ spec:
   ingress:
     - from:
         {{- toYaml .Values.networkPolicy.ingress.peers | nindent 8 }}
+        {{- if .Values.smokeTest.enabled }}
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/instance: {{ .Release.Name }}
+              app.kubernetes.io/component: smoke-test
+        {{- end }}
       ports:
         - protocol: TCP
           port: {{ .Values.proxy.service.port }}
@@ -50,4 +56,38 @@ spec:
           port: {{ . }}
         {{- end }}
   {{- end }}
+{{- if .Values.smokeTest.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "foreman-execution-proxy.fullname" . }}-smoke-test-egress
+  labels:
+    {{- include "foreman-execution-proxy.componentLabels" (dict "root" . "component" "smoke-test-egress") | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: smoke-test
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            {{- toYaml .Values.networkPolicy.egress.dns.namespaceSelector | nindent 12 }}
+          podSelector:
+            {{- toYaml .Values.networkPolicy.egress.dns.podSelector | nindent 12 }}
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "foreman-execution-proxy.selectorLabels" . | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.proxy.service.port }}
+{{- end }}
 {{- end }}

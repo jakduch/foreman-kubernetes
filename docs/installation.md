@@ -131,8 +131,11 @@ The installer performs these gates before changing application resources:
 7. it rejects maintenance-only renders that omit normal migration workloads.
 
 It then waits for application migrations and Pulp registration, runs the
-application smoke test, installs the execution proxy, waits for its Pod, and
-runs the application smoke test once more.
+application smoke test, installs the execution proxy, and waits for its Pod.
+The final gate repeats the application smoke test and then calls the execution
+proxy `/features` endpoint through Service DNS with Foreman's client
+certificate. The release is accepted only when server TLS, client trust, and
+the exact `Ansible`, `Dynflow`, and `Script` feature boundary all match.
 
 `RELEASE_LEASE_NAME`, `RELEASE_HOLDER_ID`,
 `RELEASE_LEASE_DURATION_SECONDS`, and

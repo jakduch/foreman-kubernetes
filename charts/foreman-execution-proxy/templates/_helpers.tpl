@@ -11,16 +11,20 @@
 {{- end }}
 
 {{- define "foreman-execution-proxy.labels" -}}
-helm.sh/chart: {{ printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" }}
-app.kubernetes.io/name: {{ include "foreman-execution-proxy.name" . }}
-app.kubernetes.io/instance: {{ .Release.Name }}
-app.kubernetes.io/component: execution-proxy
-app.kubernetes.io/managed-by: {{ .Release.Service }}
+{{ include "foreman-execution-proxy.componentLabels" (dict "root" . "component" "execution-proxy") }}
+{{- end }}
+
+{{- define "foreman-execution-proxy.componentLabels" -}}
+helm.sh/chart: {{ printf "%s-%s" .root.Chart.Name .root.Chart.Version | replace "+" "_" }}
+app.kubernetes.io/name: {{ include "foreman-execution-proxy.name" .root }}
+app.kubernetes.io/instance: {{ .root.Release.Name }}
+app.kubernetes.io/component: {{ .component }}
+app.kubernetes.io/managed-by: {{ .root.Release.Service }}
 app.kubernetes.io/part-of: foreman
-platform.theforeman.org/compatibility-set: {{ .Values.compatibilitySet | quote }}
-{{- with .Values.releaseOperation.id }}
+platform.theforeman.org/compatibility-set: {{ .root.Values.compatibilitySet | quote }}
+{{- with .root.Values.releaseOperation.id }}
 platform.theforeman.org/release-operation: {{ . | quote }}
-platform.theforeman.org/release-owner: {{ $.Values.releaseOperation.ownerUid | quote }}
+platform.theforeman.org/release-owner: {{ $.root.Values.releaseOperation.ownerUid | quote }}
 {{- end }}
 {{- end }}
 
@@ -31,11 +35,17 @@ app.kubernetes.io/component: execution-proxy
 {{- end }}
 
 {{- define "foreman-execution-proxy.podLabels" -}}
-{{ include "foreman-execution-proxy.selectorLabels" . }}
-platform.theforeman.org/compatibility-set: {{ .Values.compatibilitySet | quote }}
-{{- with .Values.releaseOperation.id }}
+{{ include "foreman-execution-proxy.componentPodLabels" (dict "root" . "component" "execution-proxy") }}
+{{- end }}
+
+{{- define "foreman-execution-proxy.componentPodLabels" -}}
+app.kubernetes.io/name: {{ include "foreman-execution-proxy.name" .root }}
+app.kubernetes.io/instance: {{ .root.Release.Name }}
+app.kubernetes.io/component: {{ .component }}
+platform.theforeman.org/compatibility-set: {{ .root.Values.compatibilitySet | quote }}
+{{- with .root.Values.releaseOperation.id }}
 platform.theforeman.org/release-operation: {{ . | quote }}
-platform.theforeman.org/release-owner: {{ $.Values.releaseOperation.ownerUid | quote }}
+platform.theforeman.org/release-owner: {{ $.root.Values.releaseOperation.ownerUid | quote }}
 {{- end }}
 {{- end }}
 

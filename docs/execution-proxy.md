@@ -65,6 +65,7 @@ The chart consumes existing Secrets and never generates private keys:
 | `proxy.existingForemanClientSecret` | `ca.crt`, `tls.crt`, `tls.key` | mTLS client identity for callbacks to Foreman |
 | `ssh.existingKeySecret` | `id_rsa_foreman_proxy`, `id_rsa_foreman_proxy.pub` | authentication to managed hosts and public-key publication |
 | `ssh.hostKeyVerification.existingKnownHostsSecret` | `known_hosts` | optional pinned host keys or `@cert-authority` records |
+| `smokeTest.foremanCertificateSecret` | `client_cert.pem`, `client_key.pem` | Foreman identity used to verify the proxy mTLS boundary |
 
 Host-key verification is enabled by default and the trust Secret is therefore
 part of the normal installation preflight. Disabling it is intended only for a
@@ -119,7 +120,15 @@ helm lint charts/foreman-execution-proxy \
 helm upgrade --install execution charts/foreman-execution-proxy \
   --namespace foreman \
   --values examples/execution-proxy-values.yaml
+helm test execution --namespace foreman --logs
 ```
+
+The test connects to the proxy through its Service DNS name, verifies the
+server certificate against `proxy.existingTlsSecret`, presents Foreman's own
+client certificate, and requires the returned feature list to equal
+`ansible`, `dynflow`, and `script`. It therefore catches a wrong DNS SAN,
+untrusted Foreman identity, incorrect `trustedHosts`, and accidentally enabled
+network-facing proxy modules before the release is accepted.
 
 Register the Service URL in Foreman through Infrastructure > Smart Proxies or
 with Hammer, then refresh its features. Automatic registration is deliberately
@@ -153,7 +162,9 @@ actual management networks.
 ## Proof status
 
 Static Helm, schema, relationship, security-context, and negative feature
-boundary tests are implemented. The opt-in amd64 integration drill now also
+boundary tests are implemented. The release controller adopts both the
+application and execution `helm test` Jobs and does not mark the pair Ready
+until the external proxy mTLS/feature check passes. The opt-in amd64 integration drill now also
 installs the digest-pinned Smart Proxy, registers it through Foreman, requires
 the exact Ansible/Dynflow/Script feature set, and runs harmless SSH and Ansible
 commands against a disposable target. A short-lived content publisher writes a

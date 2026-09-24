@@ -263,7 +263,19 @@ raise "available execution proxy was not accepted: #{proxy.message}" unless prox
 raise 'execution proxy Helm revision was not recorded' unless proxy.details == {executionProxyRevision: 4}
 
 final_smoke = adapter.ensure_final_smoke(resource, operation)
-raise 'final smoke Job was not submitted asynchronously' unless final_smoke.state == :pending
-raise 'application and final smoke Jobs reused a name' unless kubernetes.created.map { |job| job.dig('metadata', 'name') }.uniq.length == 2
+raise 'final application smoke Job was not submitted asynchronously' unless final_smoke.state == :pending
+raise 'application smoke stages reused a Job name' unless kubernetes.created.map { |job| job.dig('metadata', 'name') }.uniq.length == 2
+kubernetes.replace('jobs', kubernetes.resources('platform', 'jobs').map { |job| complete_job(job) })
 
-puts 'Runtime adapter pins inputs, submits once, and adopts release Jobs and Deployments.'
+execution_smoke = adapter.ensure_final_smoke(resource, operation)
+raise 'execution mTLS smoke Job was not submitted asynchronously' unless execution_smoke.state == :pending
+execution_job = kubernetes.created.last
+raise 'execution smoke Job has the wrong Helm instance' unless execution_job.dig('metadata', 'labels', 'app.kubernetes.io/instance') == 'execution'
+raise 'execution smoke Job does not verify the proxy Service' unless execution_job.dig('spec', 'template', 'spec', 'containers', 0, 'env').any? do |entry|
+  entry['name'] == 'PROXY_FEATURES_URL' && entry['value'] == 'https://execution-foreman-execution-proxy:8443/features'
+end
+raise 'three verification Jobs did not receive distinct names' unless kubernetes.created.map { |job| job.dig('metadata', 'name') }.uniq.length == 3
+kubernetes.replace('jobs', kubernetes.resources('platform', 'jobs').map { |job| complete_job(job) })
+raise 'completed paired final smoke gate was not adopted' unless adapter.ensure_final_smoke(resource, operation).state == :succeeded
+
+puts 'Runtime adapter pins inputs and adopts application, proxy, and paired smoke resources.'

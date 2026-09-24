@@ -135,7 +135,7 @@ module ForemanRelease
     end
 
     def ensure_application_smoke(resource, operation)
-      ensure_smoke(resource, operation, 'application-smoke')
+      ensure_smoke(resource, operation, 'application-smoke', source: :application)
     end
 
     def ensure_proxy(resource, operation)
@@ -167,7 +167,10 @@ module ForemanRelease
       proxy = ensure_proxy(resource, operation)
       return proxy unless proxy.state == :succeeded
 
-      ensure_smoke(resource, operation, 'final-smoke')
+      application = ensure_smoke(resource, operation, 'final-application-smoke', source: :application)
+      return application unless application.state == :succeeded
+
+      ensure_smoke(resource, operation, 'final-execution-smoke', source: :execution)
     end
 
     private
@@ -324,6 +327,7 @@ module ForemanRelease
       raise InvalidRelease, 'application values must not enable maintenance mode' unless application.any? { |item| item['kind'] == 'Deployment' }
       raise InvalidRelease, 'application values must enable its smoke test' if jobs(application, ['smoke-test']).empty?
       raise InvalidRelease, 'execution proxy chart must render exactly one Deployment' unless execution.count { |item| item['kind'] == 'Deployment' } == 1
+      raise InvalidRelease, 'execution proxy values must enable its mTLS smoke test' if jobs(execution, ['smoke-test']).empty?
     end
 
     def upgrade(release_name, chart, values_path, profile_path, resource, operation)
@@ -420,13 +424,14 @@ module ForemanRelease
       condition(resource, type)&.fetch('status', nil) == 'True'
     end
 
-    def ensure_smoke(resource, operation, stage)
-      with_rendered_application(resource, operation) do |_context, _values_path, resources|
+    def ensure_smoke(resource, operation, stage, source:)
+      renderer, release_name = smoke_source(resource, source)
+      renderer.call(resource, operation) do |_context, _values_path, resources|
         template = jobs(resources, ['smoke-test']).first
-        raise InvalidRelease, 'application smoke-test Job is disabled' unless template
+        raise InvalidRelease, "#{source} smoke-test Job is disabled" unless template
 
-        smoke = smoke_job(template, resource, operation, stage)
-        live = operation_resources(resource, operation, 'jobs').select do |job|
+        smoke = smoke_job(template, resource, operation, stage, release_name)
+        live = operation_resources(resource, operation, 'jobs', instance: release_name).select do |job|
           job.dig('metadata', 'name') == smoke.dig('metadata', 'name')
         end
         if live.empty?
@@ -454,9 +459,20 @@ module ForemanRelease
       end
     end
 
-    def smoke_job(template, resource, operation, stage)
+    def smoke_source(resource, source)
+      case source
+      when :application
+        [method(:with_rendered_application), application_release(resource)]
+      when :execution
+        [method(:with_rendered_execution), execution_release(resource)]
+      else
+        raise ArgumentError, "unknown smoke source #{source.inspect}"
+      end
+    end
+
+    def smoke_job(template, resource, operation, stage, release_name)
       job = Marshal.load(Marshal.dump(template))
-      job['metadata']['name'] = bounded_name("#{application_release(resource)}-#{stage}-#{operation.fetch('id')}")
+      job['metadata']['name'] = bounded_name("#{release_name}-#{stage}-#{operation.fetch('id')}")
       job['metadata'].delete('namespace')
       annotations = job.dig('metadata', 'annotations') || {}
       annotations.delete_if { |key, _value| key.start_with?('helm.sh/hook') }

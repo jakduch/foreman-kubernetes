@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft-07/schema#",
   "type": "object",
   "additionalProperties": false,
-  "required": ["nameOverride", "fullnameOverride", "imagePullSecrets", "compatibilitySet", "releaseOperation", "secretRolloutToken", "image", "replicas", "proxy", "ssh", "ansible", "state", "serviceAccount", "networkPolicy", "resources", "initResources", "terminationGracePeriodSeconds"],
+  "required": ["nameOverride", "fullnameOverride", "imagePullSecrets", "compatibilitySet", "releaseOperation", "secretRolloutToken", "image", "replicas", "proxy", "ssh", "ansible", "state", "serviceAccount", "smokeTest", "networkPolicy", "resources", "initResources", "terminationGracePeriodSeconds"],
   "properties": {
     "nameOverride": { "type": "string" },
     "fullnameOverride": { "type": "string" },
@@ -143,6 +143,23 @@
         "create": { "type": "boolean" },
         "name": { "type": "string" }
       }
+    },
+    "smokeTest": {
+      "type": "object",
+      "required": ["enabled", "foremanCertificateSecret", "activeDeadlineSeconds", "resources"],
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "foremanCertificateSecret": { "type": "string" },
+        "activeDeadlineSeconds": { "type": "integer", "minimum": 30, "maximum": 1800 },
+        "resources": { "$ref": "#/definitions/resources" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "enabled": { "const": true } } },
+          "then": { "properties": { "foremanCertificateSecret": { "minLength": 1 } } }
+        }
+      ]
     },
     "networkPolicy": {
       "type": "object",
