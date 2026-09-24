@@ -42,6 +42,10 @@ grep -q 'nginx.ingress.kubernetes.io/auth-tls-verify-client: optional' "${render
 grep -Fq "X-CLIENT-CERT: \$ssl_client_escaped_cert" "${rendered_ingress}"
 grep -q 'path: /pulp/content' "${rendered_ingress}"
 grep -q 'path: /pulp_ansible/galaxy' "${rendered_ingress}"
+if [[ "$(grep -c '^kind: HorizontalPodAutoscaler$' "${rendered_ingress}")" -ne 3 ]]; then
+  echo 'expected Foreman, Pulp API, and Pulp content autoscalers' >&2
+  exit 1
+fi
 grep -q 'name: test-foreman-stack-pulp-api' "${rendered}"
 grep -q 'kind: NetworkPolicy' "${rendered}"
 grep -q 'app.kubernetes.io/component: pulp-control-proxy' "${rendered}"
@@ -68,6 +72,19 @@ fi
 
 if helm template test "${chart}" --set pulp.controlProxy.service.port=8443 >/dev/null 2>&1; then
   echo 'expected a non-standard Pulp control Service port to be rejected by the schema' >&2
+  exit 1
+fi
+
+if helm template test "${chart}" --set foreman.autoscaling.maxReplicas=1 >/dev/null 2>&1; then
+  echo 'expected an invalid autoscaling maximum to be rejected by the schema' >&2
+  exit 1
+fi
+
+if helm template test "${chart}" \
+  --set foreman.autoscaling.enabled=true \
+  --set foreman.autoscaling.minReplicas=5 \
+  --set foreman.autoscaling.maxReplicas=2 >/dev/null 2>&1; then
+  echo 'expected an inverted autoscaling range to be rejected' >&2
   exit 1
 fi
 

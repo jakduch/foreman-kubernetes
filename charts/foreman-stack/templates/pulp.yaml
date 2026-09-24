@@ -29,8 +29,8 @@ spec:
       targetPort: http
 {{- $root := . }}
 {{- $services := list
-  (dict "name" "api" "replicas" .Values.pulp.api.replicas "port" .Values.pulp.api.port "workers" .Values.pulp.api.gunicornWorkers)
-  (dict "name" "content" "replicas" .Values.pulp.content.replicas "port" .Values.pulp.content.port "workers" .Values.pulp.content.gunicornWorkers)
+  (dict "name" "api" "replicas" .Values.pulp.api.replicas "port" .Values.pulp.api.port "workers" .Values.pulp.api.gunicornWorkers "autoscaling" .Values.pulp.api.autoscaling)
+  (dict "name" "content" "replicas" .Values.pulp.content.replicas "port" .Values.pulp.content.port "workers" .Values.pulp.content.gunicornWorkers "autoscaling" .Values.pulp.content.autoscaling)
 -}}
 {{- range $service := $services }}
 ---
@@ -41,7 +41,9 @@ metadata:
   labels:
     {{- include "foreman-stack.componentLabels" (dict "root" $root "component" (printf "pulp-%s" $service.name)) | nindent 4 }}
 spec:
+  {{- if not $service.autoscaling.enabled }}
   replicas: {{ $service.replicas }}
+  {{- end }}
   selector:
     matchLabels:
       app.kubernetes.io/instance: {{ $root.Release.Name }}

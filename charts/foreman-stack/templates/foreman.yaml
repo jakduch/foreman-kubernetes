@@ -20,7 +20,9 @@ metadata:
   labels:
     {{- include "foreman-stack.componentLabels" (dict "root" . "component" "foreman") | nindent 4 }}
 spec:
+  {{- if not .Values.foreman.autoscaling.enabled }}
   replicas: {{ .Values.foreman.replicas }}
+  {{- end }}
   selector:
     matchLabels:
       app.kubernetes.io/instance: {{ .Release.Name }}

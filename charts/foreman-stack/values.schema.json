@@ -43,6 +43,7 @@
       "required": ["existingEnvSecret", "existingCertificateSecret"],
       "properties": {
         "replicas": { "type": "integer", "minimum": 1 },
+        "autoscaling": { "$ref": "#/definitions/autoscaling" },
         "existingEnvSecret": { "type": "string", "minLength": 1 },
         "existingCertificateSecret": { "type": "string", "minLength": 1 },
         "dynflow": {
@@ -79,6 +80,26 @@
         "existingConfigSecret": { "type": "string", "minLength": 1 },
         "database": { "$ref": "#/definitions/database" },
         "contentOrigin": { "type": "string", "pattern": "^https?://" },
+        "api": {
+          "type": "object",
+          "required": ["replicas", "port", "gunicornWorkers", "autoscaling"],
+          "properties": {
+            "replicas": { "type": "integer", "minimum": 1 },
+            "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+            "gunicornWorkers": { "type": "integer", "minimum": 1 },
+            "autoscaling": { "$ref": "#/definitions/autoscaling" }
+          }
+        },
+        "content": {
+          "type": "object",
+          "required": ["replicas", "port", "gunicornWorkers", "autoscaling"],
+          "properties": {
+            "replicas": { "type": "integer", "minimum": 1 },
+            "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+            "gunicornWorkers": { "type": "integer", "minimum": 1 },
+            "autoscaling": { "$ref": "#/definitions/autoscaling" }
+          }
+        },
         "controlProxy": {
           "type": "object",
           "required": ["replicas", "port", "service", "existingCertificateSecret", "registration"],
@@ -148,6 +169,16 @@
     }
   },
   "definitions": {
+    "autoscaling": {
+      "type": "object",
+      "required": ["enabled", "minReplicas", "maxReplicas", "targetCPUUtilizationPercentage"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "minReplicas": { "type": "integer", "minimum": 1 },
+        "maxReplicas": { "type": "integer", "minimum": 2 },
+        "targetCPUUtilizationPercentage": { "type": "integer", "minimum": 1, "maximum": 100 }
+      }
+    },
     "ingressEndpoint": {
       "type": "object",
       "required": ["host", "tlsSecret", "clientCaSecret"],

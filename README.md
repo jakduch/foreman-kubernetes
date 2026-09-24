@@ -18,6 +18,7 @@ The initial Helm chart is under [`charts/foreman-stack`](charts/foreman-stack). 
 - separate Pulp API, content, and worker Deployments backed by shared RWX storage;
 - a private, mutually authenticated Pulp control endpoint and automatic registration of Pulp in Foreman;
 - an optional ingress-nginx profile for Foreman and public Pulp content;
+- independent optional HPAs for Foreman web, Pulp API, and Pulp content replicas;
 - ordered Pulp and Foreman migration Jobs;
 - Foreman recurring tasks as non-overlapping CronJobs.
 

@@ -40,6 +40,8 @@ flowchart LR
 
 Katello is packaged and developed independently, but its runtime is a Foreman Rails plugin. The compatible Foreman image therefore contains both applications. Web replicas are stateless only when database, cache, certificates, and configuration are externalized.
 
+Foreman web replicas can use an `autoscaling/v2` HPA with a stabilization window. CPU is a usable first signal for request-serving pods because every container has a CPU request; queue workers are excluded from this policy.
+
 ### Dynflow
 
 The upstream Sidekiq entry point supports distinct queue configurations. Kubernetes uses three Deployments:
@@ -59,6 +61,8 @@ Future HA requires a shared Artemis service, stable unique node names, Quartz JD
 ### Pulp
 
 Pulp already exposes separate API, content, and worker commands. All three use the same database, Valkey, symmetric key, and content storage. The chart requires ReadWriteMany storage so replicas on different nodes see identical content.
+
+Pulp API and content Deployments have independent HPAs because their load profiles differ. Pulp workers remain explicitly sized until a queue-depth metric is available; CPU-only worker scaling can add pods after work has already saturated while scaling down active workers prematurely.
 
 Katello discovers Pulp through the `pulp_smart_proxy` endpoint served by Pulp itself. The chart therefore does not add an unrelated Foreman Smart Proxy pod. Instead, a private two-replica NGINX control service requires a trusted client certificate, restricts accepted certificate common names, and injects `REMOTE-USER: admin` before forwarding to Pulp API. A revision Job idempotently registers that endpoint in Foreman after migrations complete.
 

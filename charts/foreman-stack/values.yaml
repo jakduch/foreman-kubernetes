@@ -45,6 +45,11 @@ foreman:
     tag: nightly
     pullPolicy: IfNotPresent
   replicas: 2
+  autoscaling:
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
   service:
     port: 3000
   existingEnvSecret: foreman-runtime
@@ -146,10 +151,20 @@ pulp:
     replicas: 2
     port: 24817
     gunicornWorkers: 2
+    autoscaling:
+      enabled: false
+      minReplicas: 2
+      maxReplicas: 10
+      targetCPUUtilizationPercentage: 70
   content:
     replicas: 2
     port: 24816
     gunicornWorkers: 2
+    autoscaling:
+      enabled: false
+      minReplicas: 2
+      maxReplicas: 10
+      targetCPUUtilizationPercentage: 70
   workers:
     replicas: 4
   storage:

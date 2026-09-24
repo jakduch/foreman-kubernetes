@@ -14,6 +14,11 @@ foreman:
   image:
     tag: nightly
   replicas: 3
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
   dynflow:
     workers: 4
     hostsQueueWorkers: 2
@@ -29,9 +34,19 @@ pulp:
   api:
     replicas: 3
     gunicornWorkers: 2
+    autoscaling:
+      enabled: true
+      minReplicas: 3
+      maxReplicas: 12
+      targetCPUUtilizationPercentage: 70
   content:
     replicas: 3
     gunicornWorkers: 2
+    autoscaling:
+      enabled: true
+      minReplicas: 3
+      maxReplicas: 12
+      targetCPUUtilizationPercentage: 70
   workers:
     replicas: 8
   storage:

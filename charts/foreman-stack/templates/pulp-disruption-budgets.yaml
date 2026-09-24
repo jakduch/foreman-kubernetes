@@ -1,0 +1,20 @@
+{{- if .Values.podDisruptionBudget.enabled }}
+{{- $root := . }}
+{{- range $index, $component := list "pulp-api" "pulp-content" "pulp-worker" }}
+{{- if $index }}
+---
+{{- end }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "foreman-stack.fullname" $root }}-{{ $component }}
+  labels:
+    {{- include "foreman-stack.componentLabels" (dict "root" $root "component" $component) | nindent 4 }}
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ $root.Release.Name }}
+      app.kubernetes.io/component: {{ $component }}
+{{- end }}
+{{- end }}
