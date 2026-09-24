@@ -11,12 +11,17 @@
 - Foreman health both with and without the optional client certificate;
 - automatic Pulp Smart Proxy registration through the private mTLS endpoint;
 - absence of a public Pulp administrative API route;
+- a Katello content lifecycle against an in-cluster deterministic file source:
+  organization and product creation, repository synchronization, public Pulp
+  content delivery, Content View publication, and Activation Key assignment;
 - an encrypted Restic backup of all three PostgreSQL databases, Pulp storage,
   and the declared Secret escrow;
 - restoration after deliberately changing independent probes, deleting the
   entire application namespace, recreating empty databases and Pulp storage,
   and retaining application state only in the Restic repository;
 - Foreman readiness and Pulp registration after leaving restore maintenance;
+- the complete Katello object graph and published file after restoration, so
+  the recovery check covers real application state in addition to probes;
 - Dynflow worker scaling;
 - a second Helm revision with migration gates and a Foreman rollout.
 

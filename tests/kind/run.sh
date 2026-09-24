@@ -10,6 +10,7 @@ kind_node_image="${KIND_NODE_IMAGE:-kindest/node:v1.34.11@sha256:44e222ee2132dab
 created_cluster=false
 temporary_directory="$(mktemp -d)"
 skip_recovery_test="${SKIP_RECOVERY_TEST:-0}"
+content_lifecycle_state="${temporary_directory}/content-lifecycle.json"
 
 helm_apply() {
   helm upgrade --install "${release}" "${repo_root}/charts/foreman-stack" \
@@ -247,6 +248,7 @@ install_dependencies() {
   kubectl --namespace "${namespace}" rollout status deployment/postgresql --timeout=5m
   kubectl --namespace "${namespace}" rollout status deployment/valkey --timeout=5m
   kubectl --namespace "${namespace}" rollout status deployment/artemis --timeout=5m
+  kubectl --namespace "${namespace}" rollout status deployment/content-source --timeout=5m
   "${repo_root}/tests/kind/apply-secrets.sh" "${temporary_directory}"
 }
 
@@ -287,7 +289,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-for command_name in kind kubectl helm openssl curl; do
+for command_name in kind kubectl helm openssl curl jq; do
   if ! command -v "${command_name}" >/dev/null 2>&1; then
     echo "${command_name} is required" >&2
     exit 1
@@ -367,6 +369,8 @@ if [[ "${pulp_api_status}" != 404 ]]; then
 fi
 
 assert_pulp_registration
+"${repo_root}/tests/kind/content-lifecycle.sh" \
+  seed "${temporary_directory}" "${content_lifecycle_state}"
 
 if [[ "${skip_recovery_test}" != 1 ]]; then
   set_database_probes before-backup
@@ -403,6 +407,8 @@ if [[ "${skip_recovery_test}" != 1 ]]; then
   assert_foreman_ready
   assert_candlepin_ha
   assert_pulp_registration
+  "${repo_root}/tests/kind/content-lifecycle.sh" \
+    assert "${temporary_directory}" "${content_lifecycle_state}"
   assert_database_probes before-backup
   assert_pulp_probe before-backup
   assert_secret_probe before-backup

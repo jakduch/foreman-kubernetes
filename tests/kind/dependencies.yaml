@@ -178,6 +178,77 @@ spec:
           emptyDir: {}
 ---
 apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: content-source
+  namespace: foreman
+data:
+  PULP_MANIFEST: |
+    foreman-kubernetes-content.txt,d527380869e9487a3d860b253a6aa5d454b51c419415264e90f018396e419ac5,27
+  foreman-kubernetes-content.txt: |
+    foreman-kubernetes-content
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: content-source
+  namespace: foreman
+spec:
+  selector:
+    app: content-source
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: content-source
+  namespace: foreman
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: content-source
+  template:
+    metadata:
+      labels:
+        app: content-source
+    spec:
+      containers:
+        - name: nginx
+          image: nginxinc/nginx-unprivileged:stable-alpine
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /PULP_MANIFEST
+              port: http
+            periodSeconds: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            runAsNonRoot: true
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              memory: 64Mi
+          volumeMounts:
+            - name: content
+              mountPath: /usr/share/nginx/html
+              readOnly: true
+      volumes:
+        - name: content
+          configMap:
+            name: content-source
+---
+apiVersion: v1
 kind: PersistentVolume
 metadata:
   name: foreman-kind-pulp-data

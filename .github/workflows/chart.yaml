@@ -24,6 +24,6 @@ jobs:
         with:
           version: ${{ matrix.helm }}
       - name: Check shell scripts
-        run: shellcheck tests/render.sh tests/kind/run.sh tests/kind/apply-secrets.sh
+        run: shellcheck tests/render.sh tests/kind/run.sh tests/kind/apply-secrets.sh tests/kind/content-lifecycle.sh
       - name: Lint and render chart profiles
         run: tests/render.sh
