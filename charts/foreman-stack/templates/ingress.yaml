@@ -88,6 +88,7 @@ spec:
                 name: {{ include "foreman-stack.pulpContentServiceName" . }}
                 port:
                   number: {{ .Values.pulp.content.port }}
+          {{- if has "pulp_container" .Values.pulp.enabledPlugins }}
           - path: /pulp/container
             pathType: Prefix
             backend:
@@ -95,6 +96,8 @@ spec:
                 name: {{ include "foreman-stack.pulpContentServiceName" . }}
                 port:
                   number: {{ .Values.pulp.content.port }}
+          {{- end }}
+          {{- if has "pulp_deb" .Values.pulp.enabledPlugins }}
           - path: /pulp/deb
             pathType: Prefix
             backend:
@@ -102,6 +105,7 @@ spec:
                 name: {{ include "foreman-stack.pulpContentServiceName" . }}
                 port:
                   number: {{ .Values.pulp.content.port }}
+          {{- end }}
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -121,6 +125,7 @@ spec:
     - host: {{ .Values.ingress.pulpContent.host }}
       http:
         paths:
+          {{- if has "pulp_ansible" .Values.pulp.enabledPlugins }}
           - path: /pulp_ansible/galaxy
             pathType: Prefix
             backend:
@@ -128,6 +133,7 @@ spec:
                 name: {{ include "foreman-stack.pulpApiServiceName" . }}
                 port:
                   number: {{ .Values.pulp.api.port }}
+          {{- end }}
           - path: /pulp/assets
             pathType: Prefix
             backend:
@@ -135,6 +141,7 @@ spec:
                 name: {{ include "foreman-stack.pulpApiServiceName" . }}
                 port:
                   number: {{ .Values.pulp.api.port }}
+          {{- if has "pulp_container" .Values.pulp.enabledPlugins }}
           - path: /pulpcore_registry
             pathType: Prefix
             backend:
@@ -142,6 +149,7 @@ spec:
                 name: {{ include "foreman-stack.pulpApiServiceName" . }}
                 port:
                   number: {{ .Values.pulp.api.port }}
+          {{- end }}
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress

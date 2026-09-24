@@ -6,6 +6,7 @@ chart="${repo_root}/charts/foreman-stack"
 execution_chart="${repo_root}/charts/foreman-execution-proxy"
 rendered="$(mktemp)"
 rendered_ingress="$(mktemp)"
+rendered_minimal_pulp_ingress="$(mktemp)"
 rendered_backup="$(mktemp)"
 rendered_restore="$(mktemp)"
 rendered_egress="$(mktemp)"
@@ -22,7 +23,7 @@ rendered_execution="$(mktemp)"
 rendered_execution_egress="$(mktemp)"
 rendered_execution_kind="$(mktemp)"
 rendered_execution_secret_rotation="$(mktemp)"
-trap 'rm -f "${rendered}" "${rendered_ingress}" "${rendered_backup}" "${rendered_restore}" "${rendered_egress}" "${rendered_singletons}" "${rendered_ha}" "${rendered_candlepin_port}" "${rendered_foreman_service_port}" "${rendered_no_migrations}" "${rendered_secret_rotation}" "${rendered_s3}" "${rendered_s3_backup}" "${rendered_kind_backup}" "${rendered_execution}" "${rendered_execution_egress}" "${rendered_execution_kind}" "${rendered_execution_secret_rotation}"' EXIT
+trap 'rm -f "${rendered}" "${rendered_ingress}" "${rendered_minimal_pulp_ingress}" "${rendered_backup}" "${rendered_restore}" "${rendered_egress}" "${rendered_singletons}" "${rendered_ha}" "${rendered_candlepin_port}" "${rendered_foreman_service_port}" "${rendered_no_migrations}" "${rendered_secret_rotation}" "${rendered_s3}" "${rendered_s3_backup}" "${rendered_kind_backup}" "${rendered_execution}" "${rendered_execution_egress}" "${rendered_execution_kind}" "${rendered_execution_secret_rotation}"' EXIT
 
 ruby "${repo_root}/tests/yaml-duplicates.rb"
 ruby "${repo_root}/tests/operator-contract.rb"
@@ -48,6 +49,9 @@ helm lint "${chart}" --values "${repo_root}/examples/execution-control-plane-val
 helm template test "${chart}" \
   --values "${repo_root}/examples/execution-control-plane-values.yaml" >/dev/null
 helm template test "${chart}" --values "${repo_root}/examples/cluster-values.yaml" > "${rendered_ingress}"
+helm template test "${chart}" \
+  --values "${repo_root}/examples/cluster-values.yaml" \
+  --set-json 'pulp.enabledPlugins=["pulp_certguard","pulp_file","pulp_smart_proxy"]' > "${rendered_minimal_pulp_ingress}"
 helm lint "${chart}" --values "${repo_root}/tests/kind/values.yaml"
 helm lint "${chart}" --values "${repo_root}/profiles/nightly-candidate-2026-09-23.yaml"
 helm lint "${chart}" --values "${repo_root}/tests/egress-values.yaml"
@@ -129,6 +133,7 @@ fi
 
 ruby "${repo_root}/tests/candlepin-port.rb" "${rendered_candlepin_port}" 24443
 ruby "${repo_root}/tests/pulp-ingress-contract.rb" "${rendered_ingress}"
+ruby "${repo_root}/tests/pulp-ingress-contract.rb" "${rendered_minimal_pulp_ingress}"
 ruby "${repo_root}/tests/pulp-process-contract.rb" "${rendered}"
 ruby "${repo_root}/tests/katello-event-daemon-contract.rb" "${rendered_egress}"
 ruby "${repo_root}/tests/foreman-shared-tmp-contract.rb" "${rendered}" true
@@ -356,7 +361,10 @@ grep -q 'nginx.ingress.kubernetes.io/auth-tls-verify-client: optional' "${render
 grep -Fq "X-CLIENT-CERT: \$ssl_client_escaped_cert" "${rendered_ingress}"
 grep -q 'path: /pulp/content' "${rendered_ingress}"
 grep -q 'path: /pulp/deb' "${rendered_ingress}"
-grep -q 'path: /pulp_ansible/galaxy' "${rendered_ingress}"
+if grep -q 'path: /pulp_ansible/galaxy' "${rendered_ingress}"; then
+  echo 'disabled pulp_ansible must not publish a Galaxy endpoint' >&2
+  exit 1
+fi
 if [[ "$(grep -c '^kind: HorizontalPodAutoscaler$' "${rendered_ingress}")" -ne 3 ]]; then
   echo 'expected Foreman, Pulp API, and Pulp content autoscalers' >&2
   exit 1
