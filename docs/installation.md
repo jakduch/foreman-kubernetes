@@ -109,6 +109,14 @@ already watches labelled ConfigMaps. The default
 with the deployment's discovery label when necessary. The chart supplies only
 the dashboard and never installs Grafana.
 
+The release controller is a privileged in-namespace client of the Kubernetes
+API. Set `networkPolicy.egress.enabled=true` only after listing the in-cluster
+API Service CIDR or another exact endpoint under
+`networkPolicy.egress.apiServer.peers`. The resulting egress-only policy permits
+DNS and the declared API ports; it does not filter kubelet health probes or
+Prometheus ingress. The chart refuses to enable isolation with an empty API
+destination.
+
 Two candidates run by default. A short namespaced leader Lease allows only the
 Pod whose UID is the current holder to list and reconcile releases; the standby
 takes over only after that Lease expires or is explicitly released. A separate

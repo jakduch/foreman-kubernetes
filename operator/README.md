@@ -31,6 +31,10 @@ not install or own a monitoring stack. The ServiceMonitor selects the exact
 metrics Service labels and supplies bounded scrape timing, so the packaged
 alerts have a native discovery path without relying on installation-specific
 annotation scraping.
+The controller's optional egress-only NetworkPolicy permits DNS and an explicit
+Kubernetes API destination. It has no permissive fallback and does not add an
+ingress policy, so kubelet health checks and metrics discovery stay independent
+of cluster-specific source labels.
 The same opt-in rule group alerts on a `Blocked` release, a failed drift audit,
 and a generation that remains unobserved for ten minutes. An independent
 opt-in Grafana dashboard ConfigMap visualizes controller health, cycle outcomes,

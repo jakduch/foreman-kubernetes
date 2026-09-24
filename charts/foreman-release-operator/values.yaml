@@ -40,6 +40,23 @@ monitoring:
     labels:
       grafana_dashboard: "1"
 
+networkPolicy:
+  egress:
+    # Enable only after identifying the in-cluster Kubernetes Service address
+    # or another API endpoint by selector or CIDR.
+    enabled: false
+    dns:
+      namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+      podSelector:
+        matchLabels:
+          k8s-app: kube-dns
+    apiServer:
+      peers: []
+      ports:
+        - 443
+
 serviceAccount:
   create: true
   name: ""

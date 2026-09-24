@@ -40,7 +40,8 @@ rendered_execution_operation="$(mktemp)"
 rendered_execution_secret_rotation="$(mktemp)"
 rendered_operator="$(mktemp)"
 rendered_operator_monitoring="$(mktemp)"
-trap 'rm -f "${rendered}" "${rendered_ingress}" "${rendered_execution_registration}" "${rendered_ingress_overrides}" "${rendered_minimal_pulp_ingress}" "${rendered_backup}" "${rendered_restore}" "${rendered_egress}" "${rendered_egress_backup}" "${rendered_egress_backup_local}" "${rendered_singletons}" "${rendered_ha}" "${rendered_candlepin_port}" "${rendered_foreman_service_port}" "${rendered_foreman_secret_contract}" "${rendered_database_tls_disabled}" "${rendered_image_pull_secrets}" "${rendered_no_migrations}" "${rendered_release_operation}" "${rendered_release_application}" "${rendered_manual_migration_stage}" "${rendered_secret_rotation}" "${rendered_s3}" "${rendered_s3_backup}" "${rendered_smtp}" "${rendered_smtp_backup}" "${rendered_kind}" "${rendered_kind_backup}" "${rendered_execution}" "${rendered_execution_egress}" "${rendered_execution_kind}" "${rendered_execution_operation}" "${rendered_execution_secret_rotation}" "${rendered_operator}" "${rendered_operator_monitoring}"' EXIT
+rendered_operator_egress="$(mktemp)"
+trap 'rm -f "${rendered}" "${rendered_ingress}" "${rendered_execution_registration}" "${rendered_ingress_overrides}" "${rendered_minimal_pulp_ingress}" "${rendered_backup}" "${rendered_restore}" "${rendered_egress}" "${rendered_egress_backup}" "${rendered_egress_backup_local}" "${rendered_singletons}" "${rendered_ha}" "${rendered_candlepin_port}" "${rendered_foreman_service_port}" "${rendered_foreman_secret_contract}" "${rendered_database_tls_disabled}" "${rendered_image_pull_secrets}" "${rendered_no_migrations}" "${rendered_release_operation}" "${rendered_release_application}" "${rendered_manual_migration_stage}" "${rendered_secret_rotation}" "${rendered_s3}" "${rendered_s3_backup}" "${rendered_smtp}" "${rendered_smtp_backup}" "${rendered_kind}" "${rendered_kind_backup}" "${rendered_execution}" "${rendered_execution_egress}" "${rendered_execution_kind}" "${rendered_execution_operation}" "${rendered_execution_secret_rotation}" "${rendered_operator}" "${rendered_operator_monitoring}" "${rendered_operator_egress}"' EXIT
 
 ruby "${repo_root}/tests/yaml-duplicates.rb"
 ruby "${repo_root}/tests/workflow-action-pins.rb" "${repo_root}/.github/workflows"
@@ -98,6 +99,14 @@ helm template release-controller "${operator_chart}" --namespace foreman \
   --set monitoring.grafanaDashboard.enabled=true \
   --set-string monitoring.serviceMonitor.labels.release=platform-monitoring \
   --set-string monitoring.prometheusRule.labels.release=platform-monitoring > "${rendered_operator_monitoring}"
+if helm template release-controller "${operator_chart}" --namespace foreman \
+  --set networkPolicy.egress.enabled=true >/dev/null 2>&1; then
+  echo 'operator egress isolation accepted an unspecified Kubernetes API endpoint' >&2
+  exit 1
+fi
+helm template release-controller "${operator_chart}" --namespace foreman \
+  --set networkPolicy.egress.enabled=true \
+  --set 'networkPolicy.egress.apiServer.peers[0].ipBlock.cidr=192.0.2.20/32' > "${rendered_operator_egress}"
 if helm template release-controller "${operator_chart}" \
   --set controller.releaseLeaseDurationSeconds=240 >/dev/null 2>&1; then
   echo 'operator accepted a release Lease that can expire during bounded commands' >&2
@@ -372,7 +381,9 @@ ruby "${repo_root}/tests/execution-registration-contract.rb" "${rendered_executi
 ruby "${repo_root}/tests/secret-rollout-contract.rb" \
   "${rendered_execution}" "${rendered_execution_secret_rotation}"
 ruby "${repo_root}/tests/kubernetes-invariants.rb" "${rendered_operator}"
+ruby "${repo_root}/tests/kubernetes-invariants.rb" "${rendered_operator_egress}"
 ruby "${repo_root}/tests/operator-chart-contract.rb" "${rendered_operator}"
+ruby "${repo_root}/tests/operator-egress-contract.rb" "${rendered_operator_egress}"
 ruby "${repo_root}/tests/operator-rbac-coverage.rb" \
   "${rendered_operator}" "${rendered_ingress}" "${rendered_execution}"
 ruby "${repo_root}/tests/operator-monitoring-contract.rb" \
