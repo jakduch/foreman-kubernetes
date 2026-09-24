@@ -470,7 +470,7 @@ server {
 topologySpreadConstraints:
   - maxSkew: 1
     topologyKey: kubernetes.io/hostname
-    whenUnsatisfiable: ScheduleAnyway
+    whenUnsatisfiable: {{ .Values.affinity.whenUnsatisfiable }}
     labelSelector:
       matchLabels:
         app.kubernetes.io/instance: {{ .Release.Name }}

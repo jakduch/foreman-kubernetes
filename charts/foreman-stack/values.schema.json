@@ -495,9 +495,12 @@
     },
     "affinity": {
       "type": "object",
-      "required": ["spreadAcrossNodes"],
+      "required": ["spreadAcrossNodes", "whenUnsatisfiable"],
       "additionalProperties": false,
-      "properties": { "spreadAcrossNodes": { "type": "boolean" } }
+      "properties": {
+        "spreadAcrossNodes": { "type": "boolean" },
+        "whenUnsatisfiable": { "enum": ["DoNotSchedule", "ScheduleAnyway"] }
+      }
     },
     "maintenance": {
       "type": "object",

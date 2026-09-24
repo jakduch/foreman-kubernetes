@@ -153,6 +153,11 @@ singleton. No budget is created for the Dynflow orchestrator or default
 single-replica Candlepin: a `minAvailable: 1` budget on a singleton would block
 voluntary node drains without providing actual availability.
 
+Topology spread is soft by default so development and single-node clusters can
+start. Production profiles can switch it to `DoNotSchedule`; Kubernetes then
+refuses to co-locate replicas merely to satisfy capacity, making the requested
+node-level failure separation an enforceable scheduling contract.
+
 Readiness checks parse dependency-aware status responses before keeping an
 endpoint in traffic, while
 separate TCP startup and liveness checks answer a narrower question: whether

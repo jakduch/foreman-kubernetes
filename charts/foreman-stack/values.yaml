@@ -378,6 +378,8 @@ networkPolicy:
 
 affinity:
   spreadAcrossNodes: true
+  # Use DoNotSchedule in a production cluster that has enough failure domains.
+  whenUnsatisfiable: ScheduleAnyway
 
 maintenance:
   # Removes all database-writing workloads while retaining Services, Ingresses,

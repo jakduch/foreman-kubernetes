@@ -10,6 +10,11 @@ ingress:
     tlsSecret: pulp-content-ingress-tls
     clientCaSecret: ingress-client-ca
 
+affinity:
+  # This production-style profile expects enough nodes for every redundant
+  # component's minimum replica count.
+  whenUnsatisfiable: DoNotSchedule
+
 foreman:
   image:
     tag: nightly

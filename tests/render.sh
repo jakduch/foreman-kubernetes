@@ -442,6 +442,8 @@ if [[ "$(grep -c '^kind: HorizontalPodAutoscaler$' "${rendered_ingress}")" -ne 3
   echo 'expected Foreman, Pulp API, and Pulp content autoscalers' >&2
   exit 1
 fi
+grep -q 'whenUnsatisfiable: DoNotSchedule' "${rendered_ingress}"
+grep -q 'whenUnsatisfiable: ScheduleAnyway' "${rendered}"
 grep -q 'name: test-foreman-stack-pulp-api' "${rendered}"
 grep -q 'kind: NetworkPolicy' "${rendered}"
 grep -q 'app.kubernetes.io/component: pulp-control-proxy' "${rendered}"
