@@ -25,7 +25,8 @@ chart installs two namespaced controller candidates with Lease-based leader
 election for the durable
 `ForemanRelease` state machine. It validates the exact render and external
 dependencies, pins all input fingerprints, adopts deterministic migration and
-verification Jobs after restart, rolls the application before its paired
+verification Jobs after restart, runs migrations before changing application
+workloads, rolls the application before its paired
 execution proxy, and never performs an automatic post-migration rollback.
 
 The initial Helm chart is under [`charts/foreman-stack`](charts/foreman-stack). It renders:

@@ -43,7 +43,10 @@ render both releases from one compatibility set
 verify StorageClass, IngressClass, Metrics API, external PVC/ServiceAccount, and Secret contracts
                 |
                 v
-application upgrade -> migration Jobs -> application smoke test
+migration dependencies + Jobs (old workloads remain running)
+                |
+                v
+application upgrade with migration Jobs suppressed -> application smoke test
                 |
                 v
 execution-proxy upgrade -> proxy readiness -> final application smoke test
@@ -77,9 +80,11 @@ ALLOW_CANDIDATE=1 scripts/upgrade-release.sh \
 
 `APPLICATION_RELEASE`, `EXECUTION_RELEASE`, `UPGRADE_TIMEOUT`,
 `PREFLIGHT_TIMEOUT`, `RELEASE_LEASE_NAME`, `RELEASE_HOLDER_ID`,
-`RELEASE_LEASE_DURATION_SECONDS`, and
+`RELEASE_OPERATION_ID`, `RELEASE_LEASE_DURATION_SECONDS`, and
 `RELEASE_LEASE_RENEW_INTERVAL_SECONDS` may override their defaults. The
-renew interval must remain shorter than the duration.
+renew interval must remain shorter than the duration. The generated operation
+ID is deliberately unique; reuse an override only to inspect or resume the
+same already-created migration Jobs.
 
 Before the first Helm upgrade, the helper inspects the complete render of both
 releases. It verifies every referenced named or default StorageClass,
@@ -87,6 +92,10 @@ IngressClass, required resource Metrics API, external PVC, external ServiceAccou
 Secret, including explicitly referenced Secret keys. This is the same
 read-only cluster preflight used for a first installation. A missing dependency
 therefore fails before any migration Job can advance a database schema.
+It then extracts only the migration ServiceAccount, ConfigMaps, PVC, and three
+Jobs from that exact render. The dependencies carry the Helm ownership metadata
+needed for the following release, while the bounded Jobs are applied directly
+and observed before any new Deployment is submitted.
 
 ## Failure and rollback boundary
 
@@ -96,9 +105,12 @@ that an older application image cannot read. Automatically restoring only the
 Kubernetes manifests would therefore create a visually successful rollback
 with incompatible persistent state.
 
-Failure before the application upgrade leaves both releases unchanged. Failure
-during the application upgrade requires inspection of the three migration Jobs
-and workload status before retrying. Failure after the application becomes
+Failure before migration submission leaves both releases and schemas unchanged.
+A migration failure leaves the existing workload revision running and requires
+a roll-forward after the database problem is corrected. Once migrations
+succeed, the existing Pods are still running but schemas may already be newer;
+an application-upgrade failure must therefore also be repaired by rolling
+forward. Failure after the application becomes
 healthy but before the proxy upgrade leaves a visible split state: keep the
 application revision, repair the proxy, and roll it forward using the same set.
 Database rollback requires a separately validated recovery point and the

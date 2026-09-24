@@ -23,6 +23,7 @@ release_lease_name="${RELEASE_LEASE_NAME:-foreman-kubernetes-release}"
 release_holder_id="${RELEASE_HOLDER_ID:-${HOSTNAME:-install-host}-install-$$}"
 release_lease_duration_seconds="${RELEASE_LEASE_DURATION_SECONDS:-120}"
 release_lease_renew_interval_seconds="${RELEASE_LEASE_RENEW_INTERVAL_SECONDS:-30}"
+release_operation_id="${RELEASE_OPERATION_ID:-manual-$(date -u +%Y%m%d%H%M%S)-$$}"
 release_lease_acquired=false
 release_lease_renewal_pid=''
 
@@ -127,11 +128,29 @@ combined_resources="$(printf '%s\n---\n%s\n' "${application_resources}" "${execu
 check_required_cluster_resources "${combined_resources}" "${namespace}" "${repo_root}"
 check_required_secrets "${combined_resources}" "${namespace}" "${repo_root}"
 
-echo 'Install: applying application workloads and migration gates'
+echo 'Install: applying migration prerequisites and Jobs'
+migration_stage="$(helm template "${application_release}" "${repo_root}/charts/foreman-stack" \
+  --namespace "${namespace}" \
+  --values "${application_values}" \
+  --values "${application_profile}" \
+  --set-string "releaseOperation.id=${release_operation_id}" \
+  --set-string "releaseOperation.ownerUid=${release_operation_id}" | \
+  ruby "${repo_root}/scripts/render-migration-stage.rb" "${application_release}" "${namespace}")"
+printf '%s\n' "${migration_stage}" | kubectl --namespace "${namespace}" apply \
+  --filename -
+if ! kubectl --namespace "${namespace}" wait \
+  --for=condition=complete job \
+  --selector="platform.theforeman.org/release-operation=${release_operation_id}" \
+  --timeout="${wait_timeout}"; then
+  fail 'application migrations failed or timed out; workloads were not installed'
+fi
+
+echo 'Install: applying application workloads after successful migrations'
 if ! helm upgrade --install "${application_release}" "${repo_root}/charts/foreman-stack" \
   --namespace "${namespace}" \
   --values "${application_values}" \
   --values "${application_profile}" \
+  --set releaseOperation.skipMigrationJobs=true \
   --wait \
   --wait-for-jobs \
   --timeout "${wait_timeout}"; then

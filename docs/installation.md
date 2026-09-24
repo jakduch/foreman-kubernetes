@@ -187,7 +187,10 @@ The installer performs these gates before changing application resources:
    template and verifies both the Secret and each explicitly referenced key;
 7. it rejects maintenance-only renders that omit normal migration workloads.
 
-It then waits for application migrations and Pulp registration, runs the
+It then applies only the Helm-adoptable migration dependencies and three
+one-hour, operation-labelled migration Jobs. Application Deployments are not
+submitted until all three Jobs complete. The installer applies the application
+with migration rendering suppressed, waits for Pulp registration, runs the
 application smoke test, installs the execution proxy, and waits for its Pod.
 The final gate idempotently registers the proxy through Foreman's Rails model,
 repeats the application smoke test, and then calls the execution proxy
@@ -196,10 +199,12 @@ The release is accepted only when Foreman associates the proxy with exactly
 `Ansible`, `Dynflow`, and `Script`, server TLS and client trust match, and the
 external endpoint returns the same exact feature boundary.
 
-`RELEASE_LEASE_NAME`, `RELEASE_HOLDER_ID`,
+`RELEASE_LEASE_NAME`, `RELEASE_HOLDER_ID`, `RELEASE_OPERATION_ID`,
 `RELEASE_LEASE_DURATION_SECONDS`, and
 `RELEASE_LEASE_RENEW_INTERVAL_SECONDS` may override the Lease defaults. The
-renew interval must remain shorter than the duration.
+renew interval must remain shorter than the duration. A manually supplied
+operation ID must be a fresh Kubernetes label value for each attempt; normally
+the helper generates it.
 
 The controller additionally bounds Preflight, Lease acquisition, migrations,
 both workload rollouts, and verification through `spec.timeouts`. A phase that

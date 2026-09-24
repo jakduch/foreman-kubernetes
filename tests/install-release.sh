@@ -18,11 +18,32 @@ mkdir -p "${fake_bin}"
 : > "${execution_values}"
 : > "${tool_log}"
 export RELEASE_HOLDER_ID=test-holder
+export RELEASE_OPERATION_ID=test-operation
 
 cat > "${fake_bin}/helm" <<'SCRIPT'
 #!/usr/bin/env bash
 set -euo pipefail
 printf 'helm %s\n' "$*" >> "${FAKE_TOOL_LOG}"
+if [[ "$1" == template && "$2" == foreman && "$*" == *'releaseOperation.id=test-operation'* ]]; then
+  printf '%s\n' \
+    'apiVersion: v1' 'kind: ServiceAccount' 'metadata:' '  name: foreman-runtime' \
+    '---' 'apiVersion: v1' 'kind: ConfigMap' 'metadata:' '  name: migration-config' \
+    '---' 'apiVersion: v1' 'kind: PersistentVolumeClaim' 'metadata:' '  name: shared-tmp' \
+    '---'
+  for component in candlepin-migrate pulp-migrate foreman-migrate; do
+    printf '%s\n' \
+      'apiVersion: batch/v1' 'kind: Job' 'metadata:' "  name: ${component}-test-operation" \
+      '  annotations:' '    helm.sh/hook: pre-install,pre-upgrade' '  labels:' \
+      "    app.kubernetes.io/component: ${component}" '    app.kubernetes.io/instance: foreman' \
+      '    platform.theforeman.org/release-operation: test-operation' \
+      '    platform.theforeman.org/release-owner: test-operation' 'spec:' '  template:' '    spec:' \
+      '      serviceAccountName: foreman-runtime' '      volumes:' \
+      '        - name: config' '          configMap:' '            name: migration-config' \
+      '        - name: shared' '          persistentVolumeClaim:' '            claimName: shared-tmp' \
+      '---'
+  done
+  exit 0
+fi
 if [[ "$1" == list ]]; then
   [[ "${FAKE_HELM_LIST_FAIL:-0}" == 0 ]] || exit 1
   printf '%s\n' "${FAKE_HELM_LIST_JSON:-[]}"
@@ -186,11 +207,16 @@ PATH="${fake_bin}:${PATH}" \
   "${repo_root}/scripts/install-release.sh" \
     "${application_values}" "${execution_values}" >/dev/null
 
-application_install="helm upgrade --install foreman ${repo_root}/charts/foreman-stack --namespace foreman --values ${application_values} --values ${repo_root}/profiles/nightly-candidate-2026-09-23.yaml --wait --wait-for-jobs --timeout 30m"
+application_install="helm upgrade --install foreman ${repo_root}/charts/foreman-stack --namespace foreman --values ${application_values} --values ${repo_root}/profiles/nightly-candidate-2026-09-23.yaml --set releaseOperation.skipMigrationJobs=true --wait --wait-for-jobs --timeout 30m"
 execution_install="helm upgrade --install execution ${repo_root}/charts/foreman-execution-proxy --namespace foreman --values ${execution_values} --values ${repo_root}/profiles/execution-proxy-nightly-candidate-2026-09-24.yaml --wait --timeout 30m"
 
 grep -Fqx "${application_install}" "${tool_log}"
 grep -Fqx "${execution_install}" "${tool_log}"
+
+stage_render="helm template foreman ${repo_root}/charts/foreman-stack --namespace foreman --values ${application_values} --values ${repo_root}/profiles/nightly-candidate-2026-09-23.yaml --set-string releaseOperation.id=test-operation --set-string releaseOperation.ownerUid=test-operation"
+grep -Fqx "${stage_render}" "${tool_log}"
+grep -Fqx 'kubectl --namespace foreman apply --filename -' "${tool_log}"
+grep -Fqx 'kubectl --namespace foreman wait --for=condition=complete job --selector=platform.theforeman.org/release-operation=test-operation --timeout=30m' "${tool_log}"
 
 application_line="$(grep -Fn "${application_install}" "${tool_log}" | cut -d: -f1)"
 first_smoke_line="$(grep -Fn 'helm test foreman --namespace foreman --filter name=.*-smoke-test$ --logs --timeout 10m' "${tool_log}" | head -n 1 | cut -d: -f1)"
@@ -200,6 +226,21 @@ if ! (( application_line < first_smoke_line && first_smoke_line < execution_line
   exit 1
 fi
 grep -Fqx 'helm test execution --namespace foreman --logs --timeout 10m' "${tool_log}"
+
+: > "${tool_log}"
+if PATH="${fake_bin}:${PATH}" \
+  FAKE_TOOL_LOG="${tool_log}" \
+  FAKE_KUBECTL_FAIL_MATCH='wait --for=condition=complete job' \
+  ALLOW_CANDIDATE=1 \
+  "${repo_root}/scripts/install-release.sh" \
+    "${application_values}" "${execution_values}" >/dev/null 2>&1; then
+  echo 'failed migration stage unexpectedly succeeded' >&2
+  exit 1
+fi
+if grep -Fq 'helm upgrade --install foreman ' "${tool_log}"; then
+  echo 'application workloads were installed after migration failure' >&2
+  exit 1
+fi
 
 : > "${tool_log}"
 if PATH="${fake_bin}:${PATH}" \
