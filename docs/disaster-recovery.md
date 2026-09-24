@@ -112,34 +112,22 @@ first backup to a new repository additionally needs
 `backup.initializeRepository=true`; leave it false afterwards.
 
 ```sh
-helm upgrade foreman charts/foreman-stack \
-  --namespace foreman \
-  --values /secure/path/cluster-values.yaml \
-  --set maintenance.enabled=true \
-  --set backup.enabled=true \
-  --set backup.requestId=20260924-120000 \
-  --set backup.initializeRepository=true \
-  --wait \
-  --wait-for-jobs \
-  --timeout 6h
+INITIALIZE_REPOSITORY=1 \
+  scripts/recover-release.sh backup \
+    /secure/path/application-values.yaml \
+    /secure/path/execution-proxy-values.yaml \
+    20260924-120000
 ```
 
-The upgrade removes the database-writing Deployments and recurring tasks. The
-Job independently verifies that their pods are gone before reading any state.
-It fails instead of taking an online, potentially inconsistent copy.
-
-After the Job succeeds, return the release to service:
-
-```sh
-helm upgrade foreman charts/foreman-stack \
-  --namespace foreman \
-  --values /secure/path/cluster-values.yaml \
-  --set maintenance.enabled=false \
-  --set backup.enabled=false \
-  --wait \
-  --wait-for-jobs \
-  --timeout 30m
-```
+The helper resolves the same compatibility set as installation and upgrades,
+acquires their shared renewable Lease, checks the current application and
+execution proxy, and validates every recovery dependency before changing the
+release. It then removes the database-writing Deployments and recurring tasks.
+The Job independently verifies that their pods are gone before reading any
+state. It fails instead of taking an online, potentially inconsistent copy.
+After success, the helper restores the normal digest-pinned revision and runs
+the application smoke test. A failed Job deliberately leaves maintenance mode
+active for inspection.
 
 Retention removes snapshot metadata according to the configured daily, weekly,
 and monthly counts. Pruning repository packs is disabled by default because it
@@ -152,17 +140,11 @@ Secrets must let the restore Job connect to them. Use `latest` to select the
 newest snapshot for this Helm release, or supply a full snapshot ID.
 
 ```sh
-helm upgrade foreman charts/foreman-stack \
-  --namespace foreman \
-  --values /secure/path/cluster-values.yaml \
-  --set maintenance.enabled=true \
-  --set restore.enabled=true \
-  --set restore.requestId=20260924-130000 \
-  --set restore.snapshot=latest \
-  --set restore.confirmation=RESTORE \
-  --wait \
-  --wait-for-jobs \
-  --timeout 6h
+RESTORE_SNAPSHOT=latest \
+  scripts/recover-release.sh restore \
+    /secure/path/application-values.yaml \
+    /secure/path/execution-proxy-values.yaml \
+    20260924-130000
 ```
 
 The Job validates the snapshot owner, tag, storage backend, manifest, all three
@@ -182,9 +164,25 @@ recovery ServiceAccount may patch only the explicitly named Secrets and cannot
 create arbitrary ones. If database credentials changed after the snapshot,
 reconcile them before restarting the applications.
 
-Finally, disable restore and leave maintenance mode using the same second
-upgrade shown for backups. That revision recreates workloads, runs Pulp and
-Foreman migrations, and re-registers the private Pulp endpoint.
+Set `RESTORE_SECRETS=1` only when the encrypted Secret escrow should be applied.
+For S3 mode, set `OBJECT_STORAGE_CONFIRMATION=BUCKET_RESTORED` after restoring
+the bucket. A successful restore automatically recreates workloads, runs Pulp
+and Foreman migrations, re-registers the private Pulp endpoint, and executes
+the smoke test.
+
+After diagnosing a failed backup, restore, or interrupted recovery helper,
+leave maintenance mode through the same guarded path:
+
+```sh
+scripts/recover-release.sh resume \
+  /secure/path/application-values.yaml \
+  /secure/path/execution-proxy-values.yaml
+```
+
+`ALLOW_CANDIDATE`, `COMPATIBILITY_SET`, the release/namespace overrides, and
+the shared `RELEASE_LEASE_*` settings have the same meaning as in the install
+and upgrade helpers. `RECOVERY_TIMEOUT`, `RESUME_TIMEOUT`, and `SMOKE_TIMEOUT`
+control their respective waits.
 
 ## Required recovery drill
 

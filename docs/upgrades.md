@@ -119,7 +119,8 @@ complete pinned amd64 drill runs.
 
 ## Future operator boundary
 
-The renewable Lease serializes the supported install and upgrade helpers, but
+The renewable Lease serializes the supported install, upgrade, and recovery
+helpers, but
 it cannot prevent a second administrator from bypassing it with raw Helm,
 publish component health as durable status, or decide whether a failed schema
 migration is safe to retry. A future controller should adopt the same Lease

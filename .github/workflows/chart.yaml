@@ -34,6 +34,8 @@ jobs:
           tests/upgrade-release.sh
           scripts/install-release.sh
           scripts/upgrade-release.sh
+          scripts/recover-release.sh
+          tests/recover-release.sh
           images/ssh-target/entrypoint.sh
       - name: Lint and render chart profiles
         run: tests/render.sh

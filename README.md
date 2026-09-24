@@ -115,7 +115,9 @@ already migrated database automatically.
 
 The recovery Jobs are intentionally one-shot rather than scheduled online
 backups. They enter through an explicit maintenance revision, verify that all
-writers have stopped, and use an independently managed Restic repository. See
+writers have stopped, and use an independently managed Restic repository. The
+guarded recovery helper serializes them with installs/upgrades, preserves the
+digest-pinned release set, and resumes normal workloads only after success. See
 [`docs/disaster-recovery.md`](docs/disaster-recovery.md) for the backup, restore,
 credential, and recovery-drill contracts.
 
