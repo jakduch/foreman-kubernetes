@@ -115,11 +115,16 @@ module ForemanRelease
     def quiesce(resource)
       status = resource.fetch('status', {})
       phase = status.fetch('phase', 'Pending')
-      return :safe if %w[Pending Ready Blocked].include?(phase)
+      return :safe if phase == 'Pending'
+
+      operation = status.fetch('operation', {})
+      if %w[Ready Blocked].include?(phase)
+        return operation['id'] ? release_for_deletion(resource, operation) : :safe
+      end
 
       if paused?(status)
-        operation = status.fetch('operation', {})
-        @adapter.release_lease(resource, operation) if LEASED_PHASES.include?(phase) && operation['id']
+        return release_for_deletion(resource, operation) if LEASED_PHASES.include?(phase) && operation['id']
+
         return :safe
       end
 
@@ -131,6 +136,13 @@ module ForemanRelease
     private
 
     TransitionResult = Struct.new(:status, :operation, keyword_init: true)
+
+    def release_for_deletion(resource, operation)
+      ownership = observe(:renew_lease, resource, operation)
+      return :requeue unless ownership.state == :succeeded
+
+      @adapter.release_lease(resource, operation) ? :safe : :requeue
+    end
 
     def start_required?(resource, phase)
       spec = resource.fetch('spec')

@@ -195,6 +195,20 @@ raise 'safe deletion boundary was not persisted' unless paused_condition&.fetch(
 raise 'persisted safe boundary was not finalized' unless deletion_reconciler.quiesce(deleting_release) == :safe
 raise 'finalization did not release the operation Lease' unless deletion_adapter.calls.last == [:release_lease, operation_id]
 
+failover_deletion_adapter = FakeAdapter.new
+failover_deletion_adapter.results(:renew_lease, :busy, :succeeded)
+failover_release = resource(status: Marshal.load(Marshal.dump(deleting_release['status'])))
+failover_deletion = ForemanRelease::Reconciler.new(
+  state_machine: machine,
+  adapter: failover_deletion_adapter,
+  status_writer: ->(_item, _status) { raise 'fenced deletion wrote status' }
+)
+raise 'replacement leader bypassed the live operation holder' unless failover_deletion.quiesce(failover_release) == :requeue
+raise 'replacement leader released a foreign operation Lease' if failover_deletion_adapter.calls.any? do |call|
+  call.is_a?(Array) && call.first == :release_lease
+end
+raise 'replacement leader did not finalize after Lease takeover' unless failover_deletion.quiesce(failover_release) == :safe
+
 terminal_deletion_adapter = FakeAdapter.new
 terminal_deletion = ForemanRelease::Reconciler.new(
   state_machine: machine,
@@ -203,6 +217,13 @@ terminal_deletion = ForemanRelease::Reconciler.new(
 )
 ready_for_deletion = resource(status: {'phase' => 'Ready', 'currentSet' => 'candidate-1'})
 raise 'ready release was not immediately safe to delete' unless terminal_deletion.quiesce(ready_for_deletion) == :safe
+orphaned_terminal = resource(status: {
+  'phase' => 'Ready',
+  'currentSet' => 'candidate-1',
+  'operation' => {'id' => operation_id, 'startedAt' => '2026-09-24T12:00:00Z'}
+})
+raise 'terminal release did not clean up its operation Lease' unless terminal_deletion.quiesce(orphaned_terminal) == :safe
+raise 'terminal cleanup did not release its operation Lease' unless terminal_deletion_adapter.calls.last == [:release_lease, operation_id]
 
 # Failures block once and require a changed retry token to create a new operation.
 failure_adapter = FakeAdapter.new

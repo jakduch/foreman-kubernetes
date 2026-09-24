@@ -147,8 +147,10 @@ Every observed ForemanRelease receives the
 `platform.theforeman.org/release-protection` finalizer before work starts.
 Deleting the CR never uninstalls Helm releases or deletes application data. It
 first requests the same safe pause, waits for an active migration or rollout
-to reach its observable boundary, releases the operation Lease, and then
-removes the finalizer. A forced manual finalizer removal bypasses that safety
+to reach its observable boundary, proves ownership of the operation Lease,
+releases it, and then removes the finalizer. A replacement leader waits for a
+live previous holder and can finish deletion only after safely claiming an
+expired Lease. A forced manual finalizer removal bypasses that safety
 contract and is reserved for recovery when no controller can be restored.
 
 `spec.failurePolicy.afterMigration` intentionally accepts only `Halt`. A future
