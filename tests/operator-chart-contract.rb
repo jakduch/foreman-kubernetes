@@ -51,7 +51,7 @@ abort 'operator cannot manage the release protection finalizer' unless %w[patch 
   Array(release_rule&.fetch('verbs', [])).include?(verb)
 end
 resources = Array(role['rules']).flat_map { |rule| Array(rule['resources']) }
-%w[foremanreleases foremanreleases/status leases jobs deployments secrets].each do |required|
+%w[foremanreleases foremanreleases/status leases events jobs deployments secrets].each do |required|
   abort "operator Role is missing #{required}" unless resources.include?(required)
 end
 %w[nodes namespaces persistentvolumes].each do |forbidden|

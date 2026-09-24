@@ -51,6 +51,7 @@ special = {
   ['', 'secrets'] => required_verbs,
   ['', 'pods'] => %w[get list],
   ['coordination.k8s.io', 'leases'] => %w[get list create update patch],
+  ['events.k8s.io', 'events'] => %w[create],
   ['platform.theforeman.org', 'foremanreleases'] => %w[get list watch patch update],
   ['platform.theforeman.org', 'foremanreleases/status'] => %w[get patch update]
 }

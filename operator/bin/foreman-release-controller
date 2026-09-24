@@ -8,6 +8,7 @@ $LOAD_PATH.unshift(root.join('operator/lib').to_s)
 
 require 'foreman_release/controller'
 require 'foreman_release/controller_status'
+require 'foreman_release/event_recorder'
 require 'foreman_release/health_server'
 require 'foreman_release/kubernetes_client'
 require 'foreman_release/leader_elector'
@@ -15,6 +16,7 @@ require 'foreman_release/lease_manager'
 require 'foreman_release/reconciler'
 require 'foreman_release/runtime_adapter'
 require 'foreman_release/state_machine'
+require 'foreman_release/status_publisher'
 
 namespace = ENV.fetch('POD_NAMESPACE')
 poll_seconds = Integer(ENV.fetch('POLL_SECONDS', '5'))
@@ -31,6 +33,14 @@ runner = ForemanRelease::CommandRunner.new(
   termination_grace_seconds: command_termination_grace
 )
 kubernetes = ForemanRelease::KubernetesClient.new(runner: runner)
+event_recorder = ForemanRelease::EventRecorder.new(
+  kubernetes_client: kubernetes,
+  reporting_instance: pod_uid
+)
+status_publisher = ForemanRelease::StatusPublisher.new(
+  kubernetes_client: kubernetes,
+  event_recorder: event_recorder
+)
 lease_manager = ForemanRelease::LeaseManager.new(runner: runner, duration_seconds: lease_duration)
 leader_lease_manager = ForemanRelease::LeaseManager.new(
   runner: runner,
@@ -53,7 +63,7 @@ machine = ForemanRelease::StateMachine.load(root.join('operator/release-state-ma
 reconciler = ForemanRelease::Reconciler.new(
   state_machine: machine,
   adapter: adapter,
-  status_writer: ->(resource, status) { kubernetes.write_status(resource, status) }
+  status_writer: status_publisher
 )
 controller_status = ForemanRelease::ControllerStatus.new
 controller = ForemanRelease::Controller.new(
