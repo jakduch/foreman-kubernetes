@@ -181,10 +181,13 @@ Dynflow and runner state, a read-only Ansible content volume, mTLS and SSH
 identity mounts, target egress controls, and an exact positive feature
 readiness check. Network-control features remain forbidden in that profile.
 
-The implementation is still integration-pending: Smart Proxy Dynflow uses
-SQLite, REx retains process-local job data, and the runners have no active-job
-handoff protocol. The schema therefore fixes the executor to one replica and
-uses `Recreate`; pretending that a Service in front of multiple independent
-executors is HA would lose job ownership during failure. The detailed contract
-is in [`execution-proxy.md`](execution-proxy.md), and plugin placement remains
-tracked in [`plugin-compatibility.md`](plugin-compatibility.md).
+The implementation drill is prepared but still unrun against the published
+images. It covers proxy registration, the exact feature boundary, real SSH and
+Ansible commands, clean restoration, and successful new jobs after a proxy
+restart. Smart Proxy Dynflow still uses SQLite, REx retains process-local job
+data, and the runners have no active-job handoff protocol. The schema therefore
+fixes the executor to one replica and uses `Recreate`; pretending that a Service
+in front of multiple independent executors is HA would lose job ownership
+during failure. The detailed contract is in
+[`execution-proxy.md`](execution-proxy.md), and plugin placement remains tracked
+in [`plugin-compatibility.md`](plugin-compatibility.md).

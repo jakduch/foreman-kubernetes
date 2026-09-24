@@ -96,3 +96,6 @@ recovery:
     existingClaim: recovery-repository
   extraSecretNames:
     - recovery-probe
+    - foreman-execution-proxy-tls
+    - foreman-execution-proxy-foreman-client
+    - foreman-execution-proxy-ssh

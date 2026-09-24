@@ -85,7 +85,7 @@ helm upgrade --install foreman charts/foreman-stack \
   --values examples/cluster-values.yaml
 ```
 
-Static render checks are available as `tests/render.sh` and run in the lightweight pull-request workflow together with ShellCheck. The opt-in disposable integration harness under `tests/kind/` exercises a real install, mTLS Pulp registration, clean-namespace disaster recovery, scaling, and a second Helm revision. It cleans up the generated cluster and PKI by default and is not run for every change. A manual `Full integration` workflow provides the intended amd64 execution environment.
+Static render checks are available as `tests/render.sh` and run in the lightweight pull-request workflow together with ShellCheck. The opt-in disposable integration harness under `tests/kind/` exercises a real install, mTLS Pulp registration, SSH and Ansible execution through the restricted central proxy, clean-namespace disaster recovery, scaling, proxy restart, and a second Helm revision. It cleans up the generated cluster and PKI by default and is not run for every change. A manual `Full integration` workflow provides the intended amd64 execution environment.
 
 The recovery Jobs are intentionally one-shot rather than scheduled online
 backups. They enter through an explicit maintenance revision, verify that all
@@ -114,6 +114,8 @@ The sibling `foreman-kubernetes-upstream/` directory is intentionally not part o
 | Foreman | `develop` | `a21273a13820103c2f569a4d5446806dfff3dae0` |
 | Katello | `master` | `49d8fcec35751d7e78a85cda5a0667239d17dcc9` |
 | Candlepin | `main` | `0928757731c4f5537207c860803fca2fbc7044f5` |
+| Foreman Remote Execution | `master` | `be391fd9ef3140df707eed4f320ce2ebd572648d` |
+| Foreman Ansible | `master` | `7ffc9e37344011554347ca9429fffdcf1f81816e` |
 | foremanctl | `master` | `cb135b25817fba875061a7d4495fe14ad2bd474e` |
 | Smart Proxy | `develop` | `c2af3d35497058fd7dc8146dcbca3adf60334b9e` |
 | Smart Proxy Dynflow | `master` | `a07e3fa37aca20f2038e8f469f88c545c39276ff` |

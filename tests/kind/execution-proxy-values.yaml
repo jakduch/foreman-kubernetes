@@ -1,0 +1,27 @@
+proxy:
+  foremanUrl: https://foreman.test
+  trustedHosts:
+    - foreman.test
+
+ssh:
+  user: foreman
+
+ansible:
+  size: 1Gi
+
+state:
+  size: 1Gi
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    memory: 1Gi
+
+initResources:
+  requests:
+    cpu: 10m
+    memory: 16Mi
+  limits:
+    memory: 64Mi

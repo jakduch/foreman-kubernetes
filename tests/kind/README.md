@@ -10,6 +10,11 @@
   stale cluster row;
 - Foreman health both with and without the optional client certificate;
 - automatic Pulp Smart Proxy registration through the private mTLS endpoint;
+- deployment and API registration of a separate, singleton execution Smart
+  Proxy whose advertised features must equal Ansible, Dynflow, and Script;
+- real SSH and Ansible command jobs from Foreman against a disposable
+  unprivileged target, including verification that Foreman selected the
+  registered execution proxy;
 - absence of a public Pulp administrative API route;
 - a Katello content lifecycle against an in-cluster deterministic file source:
   organization and product creation, repository synchronization, public Pulp
@@ -22,6 +27,8 @@
 - Foreman readiness and Pulp registration after leaving restore maintenance;
 - the complete Katello object graph and published file after restoration, so
   the recovery check covers real application state in addition to probes;
+- execution-proxy re-registration and successful new jobs after the clean
+  namespace restore and again after an execution-proxy Pod restart;
 - Dynflow worker scaling;
 - a second Helm revision with migration gates and a Foreman rollout.
 
@@ -42,10 +49,13 @@ artifact and always remove the disposable cluster.
 
 The temporary cluster and generated PKI are removed on success or failure. Set `KEEP_CLUSTER=1` only while diagnosing a failure. An existing cluster with the same name is never modified unless `REUSE_CLUSTER=1` is explicit.
 
-The harness builds `images/recovery-toolbox/Dockerfile` locally and loads it
-into kind; it does not publish that test image. Set `SKIP_RECOVERY_TEST=1` for a
-faster install-only diagnostic run that omits the toolbox build and recovery
-drill.
+The harness builds `images/recovery-toolbox/Dockerfile` and the test-only
+`images/ssh-target/Dockerfile` locally and loads them into kind; it publishes
+neither image. The SSH target permits only the generated short-lived public
+key for its unprivileged `foreman` user and exists solely inside the disposable
+namespace. Set `SKIP_RECOVERY_TEST=1` for a faster diagnostic run that omits
+the recovery toolbox build and recovery drill; the SSH target is still built
+because execution tests remain active.
 
 By default the harness uses the digest-pinned nightly candidate under
 `profiles/` and a digest-pinned Kubernetes 1.34 kind node. The published
@@ -53,3 +63,5 @@ application images are currently `linux/amd64` only. The script refuses an ARM
 host unless `ALLOW_EMULATION=1` explicitly opts into the slower, host-dependent
 emulation path. `IMAGE_PROFILE=/absolute/path/to/values.yaml` selects another
 candidate set; `KIND_NODE_IMAGE=...` selects another Kubernetes test image.
+`EXECUTION_PROXY_IMAGE_PROFILE=/absolute/path/to/values.yaml` selects another
+digest-pinned Smart Proxy candidate.

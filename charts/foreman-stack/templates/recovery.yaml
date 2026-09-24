@@ -30,7 +30,8 @@
 {{- $secretNames = append $secretNames .Values.pulp.storage.s3.existingCaSecret }}
 {{- end }}
 {{- if .Values.ingress.enabled }}
-{{- $secretNames = append $secretNames .Values.ingress.foreman.tlsSecret .Values.ingress.foreman.clientCaSecret .Values.ingress.pulpContent.tlsSecret .Values.ingress.pulpContent.clientCaSecret }}
+{{- $ingressSecretNames := list .Values.ingress.foreman.tlsSecret .Values.ingress.foreman.clientCaSecret .Values.ingress.pulpContent.tlsSecret .Values.ingress.pulpContent.clientCaSecret -}}
+{{- $secretNames = concat $secretNames $ingressSecretNames }}
 {{- end }}
 {{- range .Values.imagePullSecrets }}
 {{- $secretNames = append $secretNames .name }}

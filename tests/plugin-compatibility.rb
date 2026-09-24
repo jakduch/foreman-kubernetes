@@ -64,7 +64,7 @@ unless execution_control_plane.dig('foreman', 'enabledPlugins').sort ==
 end
 matrix.fetch('smartProxyImagePlugins').each do |plugin|
   expected_status = %w[remote_execution_ssh ansible].include?(plugin.fetch('name')) ?
-    'chart-wired-integration-pending' : 'packaged-not-deployed'
+    'integration-drill-implemented-unrun' : 'packaged-not-deployed'
   raise "Unexpected execution status for #{plugin.fetch('name')}" unless plugin.fetch('status') == expected_status
 end
 

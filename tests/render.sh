@@ -13,9 +13,11 @@ rendered_singletons="$(mktemp)"
 rendered_ha="$(mktemp)"
 rendered_s3="$(mktemp)"
 rendered_s3_backup="$(mktemp)"
+rendered_kind_backup="$(mktemp)"
 rendered_execution="$(mktemp)"
 rendered_execution_egress="$(mktemp)"
-trap 'rm -f "${rendered}" "${rendered_ingress}" "${rendered_backup}" "${rendered_restore}" "${rendered_egress}" "${rendered_singletons}" "${rendered_ha}" "${rendered_s3}" "${rendered_s3_backup}" "${rendered_execution}" "${rendered_execution_egress}"' EXIT
+rendered_execution_kind="$(mktemp)"
+trap 'rm -f "${rendered}" "${rendered_ingress}" "${rendered_backup}" "${rendered_restore}" "${rendered_egress}" "${rendered_singletons}" "${rendered_ha}" "${rendered_s3}" "${rendered_s3_backup}" "${rendered_kind_backup}" "${rendered_execution}" "${rendered_execution_egress}" "${rendered_execution_kind}"' EXIT
 
 ruby "${repo_root}/tests/yaml-duplicates.rb"
 
@@ -25,8 +27,14 @@ helm lint "${execution_chart}"
 helm template execution "${execution_chart}" > "${rendered_execution}"
 helm lint "${execution_chart}" --values "${repo_root}/examples/execution-proxy-values.yaml"
 helm lint "${execution_chart}" --values "${repo_root}/tests/execution-proxy-egress-values.yaml"
+helm lint "${execution_chart}" \
+  --values "${repo_root}/tests/kind/execution-proxy-values.yaml" \
+  --values "${repo_root}/profiles/execution-proxy-nightly-candidate-2026-09-24.yaml"
 helm template execution "${execution_chart}" \
   --values "${repo_root}/tests/execution-proxy-egress-values.yaml" > "${rendered_execution_egress}"
+helm template execution "${execution_chart}" \
+  --values "${repo_root}/tests/kind/execution-proxy-values.yaml" \
+  --values "${repo_root}/profiles/execution-proxy-nightly-candidate-2026-09-24.yaml" > "${rendered_execution_kind}"
 helm lint "${chart}" --values "${repo_root}/examples/cluster-values.yaml"
 helm lint "${chart}" --values "${repo_root}/examples/execution-control-plane-values.yaml"
 helm template test "${chart}" \
@@ -42,7 +50,15 @@ helm lint "${chart}" \
   --values "${repo_root}/examples/candlepin-ha-values.yaml"
 helm template foreman "${chart}" \
   --values "${repo_root}/tests/kind/values.yaml" \
+  --values "${repo_root}/examples/execution-control-plane-values.yaml" \
   --values "${repo_root}/profiles/nightly-candidate-2026-09-23.yaml" >/dev/null
+helm template foreman "${chart}" \
+  --values "${repo_root}/tests/kind/values.yaml" \
+  --values "${repo_root}/examples/execution-control-plane-values.yaml" \
+  --values "${repo_root}/profiles/nightly-candidate-2026-09-23.yaml" \
+  --set maintenance.enabled=true \
+  --set backup.enabled=true \
+  --set backup.requestId=execution-escrow > "${rendered_kind_backup}"
 helm template test "${chart}" \
   --set maintenance.enabled=true \
   --set backup.enabled=true \
@@ -80,12 +96,14 @@ for manifest in \
   "${rendered_s3}" \
   "${rendered_backup}" \
   "${rendered_restore}" \
-  "${rendered_s3_backup}"; do
+  "${rendered_s3_backup}" \
+  "${rendered_kind_backup}"; do
   ruby "${repo_root}/tests/kubernetes-invariants.rb" "${manifest}"
 done
 
 ruby "${repo_root}/tests/kubernetes-invariants.rb" "${rendered_execution}"
 ruby "${repo_root}/tests/kubernetes-invariants.rb" "${rendered_execution_egress}"
+ruby "${repo_root}/tests/kubernetes-invariants.rb" "${rendered_execution_kind}"
 ruby -c "${execution_chart}/files/check-features.rb"
 
 grep -q 'name: FOREMAN_PROXY_ENABLED_PLUGINS' "${rendered_execution}"
@@ -127,6 +145,8 @@ grep -q 'port: 2222' "${rendered_execution_egress}"
 grep -q ':ssh_user_ca_public_key_file: /var/run/foreman-proxy/ssh/ssh-user-ca.pub' "${rendered_execution_egress}"
 grep -q ':ssh_ca_known_hosts_file: /etc/foreman-proxy/ssh-host-keys/known_hosts' "${rendered_execution_egress}"
 grep -q 'ANSIBLE_HOST_KEY_CHECKING="True"' "${rendered_execution_egress}"
+grep -Fq 'quay.io/foreman/foreman-proxy:nightly@sha256:244c756844a137990779ad153998c426eb0326d8d6f376192ea6e84947affd47' "${rendered_execution_kind}"
+grep -Fq ':foreman_url: "https://foreman.test"' "${rendered_execution_kind}"
 
 if helm template execution "${execution_chart}" --set replicas=2 >/dev/null 2>&1; then
   echo 'expected multiple execution proxy replicas to be rejected' >&2
@@ -159,6 +179,16 @@ grep -Fq \
   "${repo_root}/tests/kind/dependencies.yaml"
 grep -Fq -- "--from-literal=artemis-broker-url='tcp://artemis:61616'" \
   "${repo_root}/tests/kind/apply-secrets.sh"
+grep -Fq \
+  'alpine:3.22@sha256:3e9b4b680bfc9fb5269227cffbd6d42be39fbf7c0b908123913864aa4447e764' \
+  "${repo_root}/images/ssh-target/Dockerfile"
+grep -Fq "expected 'Ansible,Dynflow,Script'" \
+  "${repo_root}/tests/kind/execution-plane.sh"
+grep -Fq "if [[ ! -s \"\${workdir}/ca.crt\" ]]" \
+  "${repo_root}/tests/kind/apply-secrets.sh"
+grep -Fq 'foreman-execution-proxy-tls' "${rendered_kind_backup}"
+grep -Fq 'foreman-execution-proxy-foreman-client' "${rendered_kind_backup}"
+grep -Fq 'foreman-execution-proxy-ssh' "${rendered_kind_backup}"
 
 grep -q 'name: test-foreman-stack-foreman' "${rendered}"
 grep -q 'name: test-foreman-stack-candlepin' "${rendered}"

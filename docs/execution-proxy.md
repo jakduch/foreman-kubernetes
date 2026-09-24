@@ -135,10 +135,17 @@ CIDR. The allowed Foreman peer must describe the address actually resolved by
 ## Proof status
 
 Static Helm, schema, relationship, security-context, and negative feature
-boundary tests are implemented. Still required before production support:
+boundary tests are implemented. The opt-in amd64 integration drill now also
+installs the digest-pinned Smart Proxy, registers it through Foreman, requires
+the exact Ansible/Dynflow/Script feature set, and runs harmless SSH and Ansible
+commands against a disposable target. It repeats those jobs after a clean
+namespace restore and after restarting the proxy Pod. The drill is implemented
+but has not yet been executed against the published candidate images.
 
-1. run the pinned amd64 image and verify its exact packaged feature list;
-2. execute SSH and Ansible jobs, including cancellation and a Pod restart;
+Still required before production support:
+
+1. run the complete pinned amd64 drill in CI and retain its evidence;
+2. test cancellation and an interrupted job across a Pod restart;
 3. verify role/collection refresh and SSH key or certificate rotation;
 4. validate restricted egress against real Foreman and target networks;
-5. test upgrade and recovery with an active and an interrupted job.
+5. test an application and proxy upgrade while jobs are active.

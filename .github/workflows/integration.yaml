@@ -8,7 +8,7 @@ permissions:
 
 jobs:
   kind:
-    name: Install HA stack, recover, and upgrade
+    name: Install HA stack, execute, recover, and upgrade
     runs-on: ubuntu-24.04
     timeout-minutes: 180
     env:
@@ -36,6 +36,8 @@ jobs:
           kubectl --namespace foreman get all,persistentvolumeclaims -o wide > artifacts/foreman.txt 2>&1 || true
           kubectl --namespace foreman describe pods,jobs > artifacts/foreman-describe.txt 2>&1 || true
           kubectl --namespace foreman logs deployment/artemis --all-containers > artifacts/artemis.log 2>&1 || true
+          kubectl --namespace foreman logs deployment/execution-foreman-execution-proxy --all-containers > artifacts/execution-proxy.log 2>&1 || true
+          kubectl --namespace foreman logs deployment/execution-target --all-containers > artifacts/execution-target.log 2>&1 || true
           kind export logs artifacts/kind --name foreman-stack-e2e || true
       - uses: actions/upload-artifact@v4
         if: failure()

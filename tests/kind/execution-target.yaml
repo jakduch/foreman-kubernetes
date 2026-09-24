@@ -1,0 +1,62 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: execution-target
+  namespace: foreman
+spec:
+  selector:
+    app: execution-target
+  ports:
+    - name: ssh
+      port: 22
+      targetPort: ssh
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: execution-target
+  namespace: foreman
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: execution-target
+  template:
+    metadata:
+      labels:
+        app: execution-target
+    spec:
+      automountServiceAccountToken: false
+      containers:
+        - name: sshd
+          image: foreman-kubernetes-ssh-target:test
+          imagePullPolicy: Never
+          ports:
+            - name: ssh
+              containerPort: 22
+          readinessProbe:
+            tcpSocket:
+              port: ssh
+            periodSeconds: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+            seccompProfile:
+              type: RuntimeDefault
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              memory: 64Mi
+          volumeMounts:
+            - name: authorized-key
+              mountPath: /keys
+              readOnly: true
+      volumes:
+        - name: authorized-key
+          secret:
+            secretName: foreman-execution-proxy-ssh
+            items:
+              - key: id_rsa_foreman_proxy.pub
+                path: authorized_key
+            defaultMode: 0444

@@ -6,6 +6,7 @@ cluster_name="${KIND_CLUSTER_NAME:-foreman-stack-e2e}"
 namespace="foreman"
 release="foreman"
 image_profile="${IMAGE_PROFILE:-${repo_root}/profiles/nightly-candidate-2026-09-23.yaml}"
+execution_proxy_image_profile="${EXECUTION_PROXY_IMAGE_PROFILE:-${repo_root}/profiles/execution-proxy-nightly-candidate-2026-09-24.yaml}"
 kind_node_image="${KIND_NODE_IMAGE:-kindest/node:v1.34.11@sha256:44e222ee2132dab25ff87301682f89eb82c7880ea3a1bf543bfe9708fd08d67d}"
 created_cluster=false
 temporary_directory="$(mktemp -d)"
@@ -16,11 +17,21 @@ helm_apply() {
   helm upgrade --install "${release}" "${repo_root}/charts/foreman-stack" \
     --namespace "${namespace}" \
     --values "${repo_root}/tests/kind/values.yaml" \
+    --values "${repo_root}/examples/execution-control-plane-values.yaml" \
     --values "${image_profile}" \
     --wait \
     --wait-for-jobs \
     --timeout 30m \
     "$@"
+}
+
+helm_execution_apply() {
+  helm upgrade --install execution "${repo_root}/charts/foreman-execution-proxy" \
+    --namespace "${namespace}" \
+    --values "${repo_root}/tests/kind/execution-proxy-values.yaml" \
+    --values "${execution_proxy_image_profile}" \
+    --wait \
+    --timeout 15m
 }
 
 foreman_pod() {
@@ -250,6 +261,31 @@ install_dependencies() {
   kubectl --namespace "${namespace}" rollout status deployment/artemis --timeout=5m
   kubectl --namespace "${namespace}" rollout status deployment/content-source --timeout=5m
   "${repo_root}/tests/kind/apply-secrets.sh" "${temporary_directory}"
+  kubectl apply --filename="${repo_root}/tests/kind/execution-target.yaml"
+  kubectl --namespace "${namespace}" rollout status deployment/execution-target --timeout=5m
+}
+
+configure_cluster_dns() {
+  local rewrite='rewrite name exact foreman.test ingress-nginx-controller.ingress-nginx.svc.cluster.local'
+
+  if kubectl --namespace kube-system get configmap coredns \
+    --output=jsonpath='{.data.Corefile}' | grep -Fq "${rewrite}"; then
+    return
+  fi
+
+  kubectl --namespace kube-system get configmap coredns --output=json | \
+    jq --arg rewrite "${rewrite}" \
+      '.data.Corefile |= sub("(?m)^    ready$"; "    ready\n    " + $rewrite)' | \
+    kubectl apply --filename=-
+
+  kubectl --namespace kube-system get configmap coredns \
+    --output=jsonpath='{.data.Corefile}' | grep -Fq "${rewrite}"
+  kubectl --namespace kube-system rollout restart deployment/coredns
+  kubectl --namespace kube-system rollout status deployment/coredns --timeout=5m
+}
+
+assert_execution_plane() {
+  "${repo_root}/tests/kind/execution-plane.sh" "${temporary_directory}"
 }
 
 reset_namespace_for_restore() {
@@ -289,7 +325,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-for command_name in kind kubectl helm openssl curl jq; do
+for command_name in kind kubectl helm openssl curl jq docker ssh-keygen; do
   if ! command -v "${command_name}" >/dev/null 2>&1; then
     echo "${command_name} is required" >&2
     exit 1
@@ -301,8 +337,8 @@ if [[ ! -f "${image_profile}" ]]; then
   exit 1
 fi
 
-if [[ "${skip_recovery_test}" != 1 ]] && ! command -v docker >/dev/null 2>&1; then
-  echo "docker is required unless SKIP_RECOVERY_TEST=1" >&2
+if [[ ! -f "${execution_proxy_image_profile}" ]]; then
+  echo "execution proxy image profile does not exist: ${execution_proxy_image_profile}" >&2
   exit 1
 fi
 
@@ -335,6 +371,14 @@ if [[ "${skip_recovery_test}" != 1 ]]; then
     foreman-kubernetes-recovery-toolbox:test
 fi
 
+docker build \
+  --file "${repo_root}/images/ssh-target/Dockerfile" \
+  --tag foreman-kubernetes-ssh-target:test \
+  "${repo_root}"
+kind load docker-image \
+  --name "${cluster_name}" \
+  foreman-kubernetes-ssh-target:test
+
 helm upgrade --install ingress-nginx ingress-nginx \
   --repo https://kubernetes.github.io/ingress-nginx \
   --namespace ingress-nginx \
@@ -345,9 +389,12 @@ helm upgrade --install ingress-nginx ingress-nginx \
   --wait \
   --timeout 10m
 
+configure_cluster_dns
+
 install_dependencies
 
 helm_apply
+helm_execution_apply
 
 kubectl --namespace "${namespace}" wait \
   --for=condition=complete \
@@ -369,6 +416,7 @@ if [[ "${pulp_api_status}" != 404 ]]; then
 fi
 
 assert_pulp_registration
+assert_execution_plane
 "${repo_root}/tests/kind/content-lifecycle.sh" \
   seed "${temporary_directory}" "${content_lifecycle_state}"
 
@@ -403,6 +451,7 @@ if [[ "${skip_recovery_test}" != 1 ]]; then
     --set restore.confirmation=RESTORE
 
   helm_apply
+  helm_execution_apply
 
   assert_foreman_ready
   assert_candlepin_ha
@@ -412,6 +461,7 @@ if [[ "${skip_recovery_test}" != 1 ]]; then
   assert_database_probes before-backup
   assert_pulp_probe before-backup
   assert_secret_probe before-backup
+  assert_execution_plane
 fi
 
 kubectl --namespace "${namespace}" scale \
@@ -429,8 +479,15 @@ kubectl --namespace "${namespace}" rollout status \
   deployment/foreman-foreman-stack-foreman \
   --timeout=10m
 
+kubectl --namespace "${namespace}" rollout restart \
+  deployment/execution-foreman-execution-proxy
+kubectl --namespace "${namespace}" rollout status \
+  deployment/execution-foreman-execution-proxy \
+  --timeout=10m
+assert_execution_plane
+
 if [[ "${skip_recovery_test}" == 1 ]]; then
-  echo "Kind install, Candlepin HA, mTLS, registration, scale, and upgrade checks passed; recovery drill skipped."
+  echo "Kind install, Candlepin HA, mTLS, content, execution, proxy restart, scale, and upgrade checks passed; recovery drill skipped."
 else
-  echo "Kind install, Candlepin HA, mTLS, registration, backup, restore, scale, and upgrade checks passed."
+  echo "Kind install, Candlepin HA, mTLS, content, execution, proxy restart, backup, restore, scale, and upgrade checks passed."
 fi
