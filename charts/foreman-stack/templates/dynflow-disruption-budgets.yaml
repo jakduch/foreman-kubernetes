@@ -1,0 +1,33 @@
+{{- if and .Values.podDisruptionBudget.enabled (not .Values.maintenance.enabled) }}
+{{- if gt (int .Values.foreman.dynflow.workers) 1 }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "foreman-stack.fullname" . }}-dynflow-worker
+  labels:
+    {{- include "foreman-stack.componentLabels" (dict "root" . "component" "dynflow-worker") | nindent 4 }}
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: dynflow-worker
+{{- end }}
+{{- if gt (int .Values.foreman.dynflow.hostsQueueWorkers) 1 }}
+{{- if gt (int .Values.foreman.dynflow.workers) 1 }}
+---
+{{- end }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "foreman-stack.fullname" . }}-dynflow-worker-hosts-queue
+  labels:
+    {{- include "foreman-stack.componentLabels" (dict "root" . "component" "dynflow-worker-hosts-queue") | nindent 4 }}
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: dynflow-worker-hosts-queue
+{{- end }}
+{{- end }}

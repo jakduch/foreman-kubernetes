@@ -4,6 +4,8 @@ These contracts were taken from the current upstream source snapshots listed in 
 
 ## Foreman image
 
+- Declares the `foreman` user and group as UID/GID 994 and ends its image build
+  with `USER foreman`.
 - Runs Rails in production on `0.0.0.0:3000`.
 - Accepts Puma worker/thread counts through `FOREMAN_PUMA_WORKERS`, `FOREMAN_PUMA_THREADS_MIN`, and `FOREMAN_PUMA_THREADS_MAX`.
 - Loads Katello through `FOREMAN_ENABLED_PLUGINS`; Katello is not a standalone server.
@@ -27,6 +29,8 @@ Katello extends Foreman's ping response. Its checks expect:
 
 ## Candlepin image
 
+- Ends its image build with `USER tomcat`; the chart requires that resolved
+  identity to be non-root but does not hard-code an RPM-owned UID.
 - Runs Tomcat using `/usr/libexec/tomcat/server start`.
 - Exposes an unauthenticated `/candlepin/status` endpoint.
 - Runs database management during application startup by default.
@@ -37,6 +41,8 @@ The chart consequently enforces exactly one Candlepin replica in phase 1.
 
 ## Pulp image
 
+- Declares the `pulp` user and group as UID/GID 700 and ends its image build
+  with `USER pulp:pulp`.
 - Provides separate `pulpcore-api`, `pulpcore-content`, and `pulpcore-worker` executables.
 - API defaults to port 24817 and content to port 24816 in the current foremanctl contract.
 - Migration command: `pulpcore-manager migrate --noinput`.
@@ -84,6 +90,10 @@ The chart generates `candlepin.conf`, `server.xml`, `tomcat.conf`, `logging.prop
 ### `pulp-runtime` and `pulp-config`
 
 `pulp-runtime` contains `database-password` and `django-secret-key`. `pulp-config` contains `database_fields.symmetric.key`. The chart generates all non-secret Dynaconf environment values, including database host, Valkey URL, content origin, and enabled plugins.
+
+An optional Pulp database CA Secret contains `db-ca.crt`. When configured, the
+same trust root is mounted into API, content, worker, migration, and recovery
+pods, and Dynaconf receives it as PostgreSQL's `sslrootcert` option.
 
 ### Edge and Pulp control certificates
 

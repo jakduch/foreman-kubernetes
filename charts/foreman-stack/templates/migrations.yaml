@@ -17,12 +17,21 @@ spec:
     spec:
       restartPolicy: OnFailure
       serviceAccountName: {{ include "foreman-stack.serviceAccountName" . }}
+      automountServiceAccountToken: false
       securityContext:
         fsGroup: 700
+        fsGroupChangePolicy: OnRootMismatch
+        runAsGroup: 700
+        runAsNonRoot: true
+        runAsUser: 700
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: migrate
           image: {{ include "foreman-stack.image" .Values.pulp.image }}
           imagePullPolicy: {{ .Values.pulp.image.pullPolicy }}
+          securityContext:
+            {{- include "foreman-stack.restrictedContainerSecurityContext" (dict "runAsUser" 700 "runAsGroup" 700) | nindent 12 }}
           command:
             - pulpcore-manager
             - migrate
@@ -59,14 +68,20 @@ spec:
     spec:
       restartPolicy: OnFailure
       serviceAccountName: {{ include "foreman-stack.serviceAccountName" . }}
+      automountServiceAccountToken: false
       securityContext:
         fsGroup: 994
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
       initContainers:
         {{- include "foreman-stack.pulpMigrationWait" . | nindent 8 }}
       containers:
         - name: migrate
           image: {{ include "foreman-stack.image" .Values.foreman.image }}
           imagePullPolicy: {{ .Values.foreman.image.pullPolicy }}
+          securityContext:
+            {{- include "foreman-stack.restrictedContainerSecurityContext" (dict "runAsUser" 994 "runAsGroup" 994) | nindent 12 }}
           command:
             - /bin/bash
             - -ec

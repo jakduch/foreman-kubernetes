@@ -57,9 +57,15 @@ spec:
         app.kubernetes.io/component: pulp-{{ $service.name }}
     spec:
       serviceAccountName: {{ include "foreman-stack.serviceAccountName" $root }}
+      automountServiceAccountToken: false
       securityContext:
         fsGroup: 700
         fsGroupChangePolicy: OnRootMismatch
+        runAsGroup: 700
+        runAsNonRoot: true
+        runAsUser: 700
+        seccompProfile:
+          type: RuntimeDefault
       {{- if $root.Values.migrations.enabled }}
       initContainers:
         {{- include "foreman-stack.pulpMigrationWait" $root | nindent 8 }}
@@ -68,6 +74,8 @@ spec:
         - name: pulp-{{ $service.name }}
           image: {{ include "foreman-stack.image" $root.Values.pulp.image }}
           imagePullPolicy: {{ $root.Values.pulp.image.pullPolicy }}
+          securityContext:
+            {{- include "foreman-stack.restrictedContainerSecurityContext" (dict "runAsUser" 700 "runAsGroup" 700) | nindent 12 }}
           command:
             - /usr/bin/pulpcore-{{ $service.name }}
           args:
@@ -136,9 +144,15 @@ spec:
         app.kubernetes.io/component: pulp-worker
     spec:
       serviceAccountName: {{ include "foreman-stack.serviceAccountName" . }}
+      automountServiceAccountToken: false
       securityContext:
         fsGroup: 700
         fsGroupChangePolicy: OnRootMismatch
+        runAsGroup: 700
+        runAsNonRoot: true
+        runAsUser: 700
+        seccompProfile:
+          type: RuntimeDefault
       {{- if .Values.migrations.enabled }}
       initContainers:
         {{- include "foreman-stack.pulpMigrationWait" . | nindent 8 }}
@@ -147,6 +161,8 @@ spec:
         - name: pulp-worker
           image: {{ include "foreman-stack.image" .Values.pulp.image }}
           imagePullPolicy: {{ .Values.pulp.image.pullPolicy }}
+          securityContext:
+            {{- include "foreman-stack.restrictedContainerSecurityContext" (dict "runAsUser" 700 "runAsGroup" 700) | nindent 12 }}
           command:
             - /usr/bin/pulp-worker
           env:

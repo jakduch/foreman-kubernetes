@@ -77,11 +77,49 @@ Pulp certificate guards require the URL-escaped client PEM in `X-CLIENT-CERT`. A
 
 Ingress NetworkPolicies make that header trust boundary enforceable. Pulp API accepts traffic only from the mTLS control proxy and the selected ingress controller; the public API-path ingress explicitly removes `REMOTE-USER` and certificate headers. Pulp content and Foreman accept ingress traffic only from the selected controller. Deployments using a differently labelled controller must override `networkPolicy.ingressController`.
 
+### Workload security
+
+The application images already declare non-root users. The chart makes those
+contracts explicit: Foreman and Dynflow run as UID/GID 994, Pulp runs as
+UID/GID 700, and Candlepin retains the image's `tomcat` identity while requiring
+a non-root runtime. Every normal container drops Linux capabilities, disables
+privilege escalation, and uses the runtime-default seccomp profile. Runtime,
+migration, registration, and recurring-task pods do not mount Kubernetes API
+tokens. Only the short-lived recovery ServiceAccount receives a token and its
+Secret permissions are constrained to the names included in the encrypted
+recovery set.
+
+Read-only root filesystems are enabled only where the current write paths are
+fully modelled: the unprivileged Pulp control proxy and recovery toolbox. The
+upstream application images still have package-defined cache and temporary
+write paths; switching them blindly to read-only would be a reliability change,
+so that remains gated on the full image integration test.
+
+Ingress isolation is enabled by default. Egress isolation is opt-in because
+standard Kubernetes NetworkPolicy cannot select DNS names. When enabled, the
+operator must identify PostgreSQL and Valkey by namespace/pod selectors or
+CIDRs and list every PostgreSQL listener port in
+`networkPolicy.egress.database.ports`. Separate policies then allow only DNS,
+declared database and Valkey
+ports, required in-release service calls, and explicitly declared Foreman or
+Pulp external destinations. This avoids pretending that a hostname in the
+application configuration can be safely converted into an IP policy by Helm.
+
+Disruption budgets protect redundant Foreman, Pulp, Pulp control, and Dynflow
+worker pools. No budget is created for the single Candlepin or Dynflow
+orchestrator replicas: a `minAvailable: 1` budget on a singleton would block
+voluntary node drains without providing actual availability.
+
 ## State and upgrades
 
 PostgreSQL, Valkey, object/shared storage, PKI, and Secrets are external contracts. This keeps the first application chart usable with existing operators and managed services.
 
 Pulp and Foreman migrations are release-revision Jobs with bounded retries. The Foreman migration Job waits until Pulp reports no pending migrations, preserving their dependency order. Application pods use init containers to wait for their own schema, so Helm can create configuration, Jobs, and workloads in one release without a pre-install hook referencing a ConfigMap that does not exist yet. Candlepin retains its upstream startup migration behavior while it is single-replica.
+
+Maintenance-gated recovery Jobs stop all database writers before making a
+logical dump of each database and an encrypted Restic snapshot of Pulp storage
+and application Secrets. Their lifecycle and external ownership boundaries are
+defined in [`disaster-recovery.md`](disaster-recovery.md).
 
 ## Network services
 

@@ -85,6 +85,7 @@ spec:
         checksum/config: {{ toJson (dict "fqdn" .Values.platform.fqdn "controlProxy" .Values.pulp.controlProxy "apiPort" .Values.pulp.api.port) | sha256sum }}
     spec:
       serviceAccountName: {{ include "foreman-stack.serviceAccountName" . }}
+      automountServiceAccountToken: false
       securityContext:
         runAsNonRoot: true
         seccompProfile:

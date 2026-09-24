@@ -35,6 +35,20 @@ app.kubernetes.io/component: {{ .component }}
 {{- printf "%s:%s" .repository .tag }}
 {{- end }}
 
+{{- define "foreman-stack.restrictedContainerSecurityContext" -}}
+allowPrivilegeEscalation: false
+capabilities:
+  drop:
+    - ALL
+runAsNonRoot: true
+{{- with .runAsUser }}
+runAsUser: {{ . }}
+{{- end }}
+{{- with .runAsGroup }}
+runAsGroup: {{ . }}
+{{- end }}
+{{- end }}
+
 {{- define "foreman-stack.foremanConfigName" -}}
 {{- printf "%s-foreman-config" (include "foreman-stack.fullname" .) }}
 {{- end }}
@@ -213,6 +227,8 @@ app.kubernetes.io/component: {{ .component }}
 - name: wait-for-foreman-migrations
   image: {{ include "foreman-stack.image" .Values.foreman.image }}
   imagePullPolicy: {{ .Values.foreman.image.pullPolicy }}
+  securityContext:
+    {{- include "foreman-stack.restrictedContainerSecurityContext" (dict "runAsUser" 994 "runAsGroup" 994) | nindent 4 }}
   command:
     - /bin/bash
     - -ec
@@ -230,6 +246,8 @@ app.kubernetes.io/component: {{ .component }}
 - name: wait-for-pulp-migrations
   image: {{ include "foreman-stack.image" .Values.pulp.image }}
   imagePullPolicy: {{ .Values.pulp.image.pullPolicy }}
+  securityContext:
+    {{- include "foreman-stack.restrictedContainerSecurityContext" (dict "runAsUser" 700 "runAsGroup" 700) | nindent 4 }}
   command:
     - /bin/bash
     - -ec

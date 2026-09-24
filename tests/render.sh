@@ -7,7 +7,8 @@ rendered="$(mktemp)"
 rendered_ingress="$(mktemp)"
 rendered_backup="$(mktemp)"
 rendered_restore="$(mktemp)"
-trap 'rm -f "${rendered}" "${rendered_ingress}" "${rendered_backup}" "${rendered_restore}"' EXIT
+rendered_egress="$(mktemp)"
+trap 'rm -f "${rendered}" "${rendered_ingress}" "${rendered_backup}" "${rendered_restore}" "${rendered_egress}"' EXIT
 
 helm lint "${chart}"
 helm template test "${chart}" > "${rendered}"
@@ -15,6 +16,7 @@ helm lint "${chart}" --values "${repo_root}/examples/cluster-values.yaml"
 helm template test "${chart}" --values "${repo_root}/examples/cluster-values.yaml" > "${rendered_ingress}"
 helm lint "${chart}" --values "${repo_root}/tests/kind/values.yaml"
 helm lint "${chart}" --values "${repo_root}/profiles/nightly-candidate-2026-09-23.yaml"
+helm lint "${chart}" --values "${repo_root}/tests/egress-values.yaml"
 helm template foreman "${chart}" \
   --values "${repo_root}/tests/kind/values.yaml" \
   --values "${repo_root}/profiles/nightly-candidate-2026-09-23.yaml" >/dev/null
@@ -27,6 +29,8 @@ helm template test "${chart}" \
   --set restore.enabled=true \
   --set restore.requestId=20260924-130000 \
   --set restore.confirmation=RESTORE > "${rendered_restore}"
+helm template test "${chart}" \
+  --values "${repo_root}/tests/egress-values.yaml" > "${rendered_egress}"
 
 shellcheck -x \
   -P "${chart}/files" \
@@ -66,6 +70,20 @@ fi
 grep -q 'name: test-foreman-stack-pulp-api' "${rendered}"
 grep -q 'kind: NetworkPolicy' "${rendered}"
 grep -q 'app.kubernetes.io/component: pulp-control-proxy' "${rendered}"
+grep -q 'automountServiceAccountToken: false' "${rendered}"
+grep -q 'runAsUser: 994' "${rendered}"
+grep -q 'runAsUser: 700' "${rendered}"
+grep -q 'type: RuntimeDefault' "${rendered}"
+grep -q 'name: test-foreman-stack-dynflow-worker' "${rendered}"
+
+if [[ "$(grep -c '^    - Egress$' "${rendered_egress}")" -ne 4 ]]; then
+  echo 'expected component-scoped Foreman, Pulp, Candlepin, and control-proxy egress policies' >&2
+  exit 1
+fi
+grep -q 'cidr: 192.0.2.10/32' "${rendered_egress}"
+grep -q 'cidr: 192.0.2.11/32' "${rendered_egress}"
+grep -q 'cidr: 198.51.100.0/24' "${rendered_egress}"
+grep -q 'cidr: 203.0.113.0/24' "${rendered_egress}"
 
 grep -q 'app.kubernetes.io/component: recovery-backup' "${rendered_backup}"
 grep -q 'name: BACKUP_REQUEST_ID' "${rendered_backup}"
@@ -125,6 +143,19 @@ if helm template test "${chart}" \
   --set foreman.autoscaling.minReplicas=5 \
   --set foreman.autoscaling.maxReplicas=2 >/dev/null 2>&1; then
   echo 'expected an inverted autoscaling range to be rejected' >&2
+  exit 1
+fi
+
+if helm template test "${chart}" \
+  --set networkPolicy.egress.enabled=true >/dev/null 2>&1; then
+  echo 'expected restricted egress without database and Valkey peers to be rejected' >&2
+  exit 1
+fi
+
+if helm template test "${chart}" \
+  --values "${repo_root}/tests/egress-values.yaml" \
+  --set networkPolicy.enabled=false >/dev/null 2>&1; then
+  echo 'expected egress isolation with all NetworkPolicies disabled to be rejected' >&2
   exit 1
 fi
 

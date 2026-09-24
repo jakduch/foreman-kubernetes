@@ -17,8 +17,15 @@ spec:
     spec:
       restartPolicy: OnFailure
       serviceAccountName: {{ include "foreman-stack.serviceAccountName" . }}
+      automountServiceAccountToken: false
       securityContext:
         fsGroup: 994
+        fsGroupChangePolicy: OnRootMismatch
+        runAsGroup: 994
+        runAsNonRoot: true
+        runAsUser: 994
+        seccompProfile:
+          type: RuntimeDefault
       {{- if .Values.migrations.enabled }}
       initContainers:
         {{- include "foreman-stack.foremanMigrationWait" . | nindent 8 }}
@@ -27,6 +34,8 @@ spec:
         - name: register
           image: {{ include "foreman-stack.image" .Values.foreman.image }}
           imagePullPolicy: {{ .Values.foreman.image.pullPolicy }}
+          securityContext:
+            {{- include "foreman-stack.restrictedContainerSecurityContext" (dict "runAsUser" 994 "runAsGroup" 994) | nindent 12 }}
           command:
             - /bin/bash
             - -ec

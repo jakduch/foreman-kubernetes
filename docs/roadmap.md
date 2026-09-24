@@ -5,7 +5,7 @@
 1. Run the opt-in kind integration harness against published image sets and record the first known-compatible digests.
 2. Publish the recovery toolbox and exercise the maintenance-gated backup and restore Jobs in the amd64 integration environment.
 3. Extend that drill to replace all state and prove a clean-namespace restore before calling disaster recovery verified.
-4. Complete the remaining workload security contexts, disruption budgets, and narrowly scoped egress policies.
+4. Prove restricted workload security contexts and opt-in egress policies in the amd64 integration environment before making egress isolation a default.
 5. Add optional public routes for additional Pulp plugins only when their route and authentication contracts are covered by tests.
 
 ## Implemented, pending integration proof
@@ -17,6 +17,10 @@
   ServiceAccounts.
 - PostgreSQL servers, database roles, Restic storage, repository credentials,
   and infrastructure-level backups remain external ownership boundaries.
+- Normal workloads now run with explicit non-root identities, dropped
+  capabilities, runtime-default seccomp, and no Kubernetes API token. Egress
+  isolation is implemented but remains opt-in until deployment-specific
+  PostgreSQL, Valkey, proxy, and repository destinations are supplied.
 
 ## Candlepin HA track
 

@@ -38,13 +38,19 @@ spec:
         checksum/config: {{ toJson (dict "database" .Values.candlepin.database "java" .Values.candlepin.java "service" .Values.candlepin.service) | sha256sum }}
     spec:
       serviceAccountName: {{ include "foreman-stack.serviceAccountName" . }}
+      automountServiceAccountToken: false
       securityContext:
         fsGroup: 53
         fsGroupChangePolicy: OnRootMismatch
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: candlepin
           image: {{ include "foreman-stack.image" .Values.candlepin.image }}
           imagePullPolicy: {{ .Values.candlepin.image.pullPolicy }}
+          securityContext:
+            {{- include "foreman-stack.restrictedContainerSecurityContext" (dict) | nindent 12 }}
           env:
             - name: CANDLEPIN_AUTH_OAUTH_CONSUMER_KATELLO_SECRET
               valueFrom:

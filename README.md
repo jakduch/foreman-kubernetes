@@ -23,6 +23,8 @@ The initial Helm chart is under [`charts/foreman-stack`](charts/foreman-stack). 
 - Foreman recurring tasks as non-overlapping CronJobs.
 - maintenance-gated, encrypted backup and restore Jobs covering all three
   PostgreSQL databases, Pulp content, and application Secrets.
+- explicit non-root identities, restricted container privileges, scoped
+  disruption budgets, and optional component-level egress isolation.
 
 ## Current status
 

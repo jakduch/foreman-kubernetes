@@ -156,7 +156,7 @@
     },
     "networkPolicy": {
       "type": "object",
-      "required": ["enabled", "ingressController"],
+      "required": ["enabled", "ingressController", "egress"],
       "properties": {
         "enabled": { "type": "boolean" },
         "ingressController": {
@@ -165,6 +165,37 @@
           "properties": {
             "namespaceSelector": { "type": "object" },
             "podSelector": { "type": "object" }
+          }
+        },
+        "egress": {
+          "type": "object",
+          "required": ["enabled", "dns", "database", "valkey", "external"],
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "dns": { "$ref": "#/definitions/networkPolicyPeer" },
+            "database": {
+              "type": "object",
+              "required": ["peers", "ports"],
+              "properties": {
+                "peers": { "$ref": "#/definitions/networkPolicyPeers" },
+                "ports": { "$ref": "#/definitions/networkPolicyPorts" }
+              }
+            },
+            "valkey": {
+              "type": "object",
+              "required": ["peers"],
+              "properties": {
+                "peers": { "$ref": "#/definitions/networkPolicyPeers" }
+              }
+            },
+            "external": {
+              "type": "object",
+              "required": ["foreman", "pulp"],
+              "properties": {
+                "foreman": { "$ref": "#/definitions/networkPolicyDestination" },
+                "pulp": { "$ref": "#/definitions/networkPolicyDestination" }
+              }
+            }
           }
         }
       }
@@ -274,6 +305,22 @@
           }
         }
       }
+    },
+    {
+      "if": {
+        "properties": {
+          "networkPolicy": {
+            "properties": {
+              "egress": { "properties": { "enabled": { "const": true } } }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "networkPolicy": { "properties": { "enabled": { "const": true } } }
+        }
+      }
     }
   ],
   "definitions": {
@@ -290,6 +337,44 @@
       "type": "string",
       "maxLength": 16,
       "pattern": "^$|^[a-z0-9]([a-z0-9-]*[a-z0-9])?$"
+    },
+    "networkPolicyPeer": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": false,
+      "properties": {
+        "ipBlock": {
+          "type": "object",
+          "required": ["cidr"],
+          "properties": {
+            "cidr": { "type": "string", "minLength": 1 },
+            "except": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 }
+            }
+          }
+        },
+        "namespaceSelector": { "type": "object" },
+        "podSelector": { "type": "object" }
+      }
+    },
+    "networkPolicyPeers": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/networkPolicyPeer" }
+    },
+    "networkPolicyPorts": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "type": "integer", "minimum": 1, "maximum": 65535 }
+    },
+    "networkPolicyDestination": {
+      "type": "object",
+      "required": ["peers", "ports"],
+      "properties": {
+        "peers": { "$ref": "#/definitions/networkPolicyPeers" },
+        "ports": { "$ref": "#/definitions/networkPolicyPorts" }
+      }
     },
     "autoscaling": {
       "type": "object",

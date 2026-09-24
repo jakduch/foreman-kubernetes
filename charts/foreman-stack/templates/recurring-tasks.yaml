@@ -27,12 +27,21 @@ spec:
         spec:
           restartPolicy: Never
           serviceAccountName: {{ include "foreman-stack.serviceAccountName" $root }}
+          automountServiceAccountToken: false
           securityContext:
             fsGroup: 994
+            fsGroupChangePolicy: OnRootMismatch
+            runAsGroup: 994
+            runAsNonRoot: true
+            runAsUser: 994
+            seccompProfile:
+              type: RuntimeDefault
           containers:
             - name: rake
               image: {{ include "foreman-stack.image" $root.Values.foreman.image }}
               imagePullPolicy: {{ $root.Values.foreman.image.pullPolicy }}
+              securityContext:
+                {{- include "foreman-stack.restrictedContainerSecurityContext" (dict "runAsUser" 994 "runAsGroup" 994) | nindent 16 }}
               command:
                 - foreman-rake
                 - {{ $task.rakeTask }}

@@ -29,9 +29,15 @@ spec:
         app.kubernetes.io/component: dynflow-{{ $worker.name }}
     spec:
       serviceAccountName: {{ include "foreman-stack.serviceAccountName" $root }}
+      automountServiceAccountToken: false
       securityContext:
         fsGroup: 994
         fsGroupChangePolicy: OnRootMismatch
+        runAsGroup: 994
+        runAsNonRoot: true
+        runAsUser: 994
+        seccompProfile:
+          type: RuntimeDefault
       {{- if $root.Values.migrations.enabled }}
       initContainers:
         {{- include "foreman-stack.foremanMigrationWait" $root | nindent 8 }}
@@ -40,6 +46,8 @@ spec:
         - name: dynflow
           image: {{ include "foreman-stack.image" $root.Values.foreman.image }}
           imagePullPolicy: {{ $root.Values.foreman.image.pullPolicy }}
+          securityContext:
+            {{- include "foreman-stack.restrictedContainerSecurityContext" (dict "runAsUser" 994 "runAsGroup" 994) | nindent 12 }}
           command:
             - /usr/libexec/foreman/sidekiq-selinux
           args:

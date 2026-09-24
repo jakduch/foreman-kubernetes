@@ -214,6 +214,34 @@ networkPolicy:
     podSelector:
       matchLabels:
         app.kubernetes.io/component: controller
+  egress:
+    # Standard NetworkPolicy cannot match DNS names. Enable only after declaring
+    # selectors or CIDRs for the PostgreSQL and Valkey endpoints.
+    enabled: false
+    dns:
+      namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+      podSelector:
+        matchLabels:
+          k8s-app: kube-dns
+    database:
+      peers: []
+      ports:
+        - 5432
+    valkey:
+      peers: []
+    external:
+      foreman:
+        peers: []
+        ports:
+          - 80
+          - 443
+      pulp:
+        peers: []
+        ports:
+          - 80
+          - 443
 
 affinity:
   spreadAcrossNodes: true

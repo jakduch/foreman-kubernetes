@@ -112,9 +112,12 @@ spec:
     spec:
       restartPolicy: Never
       serviceAccountName: {{ include "foreman-stack.fullname" . }}-recovery
+      automountServiceAccountToken: true
       securityContext:
         fsGroup: 700
         fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: {{ $operation }}
           image: {{ include "foreman-stack.image" .Values.recovery.image }}

@@ -38,9 +38,15 @@ spec:
         checksum/config: {{ toJson (dict "platform" .Values.platform "valkey" .Values.valkey "foreman" .Values.foreman "candlepinService" (include "foreman-stack.candlepinServiceName" .)) | sha256sum }}
     spec:
       serviceAccountName: {{ include "foreman-stack.serviceAccountName" . }}
+      automountServiceAccountToken: false
       securityContext:
         fsGroup: 994
         fsGroupChangePolicy: OnRootMismatch
+        runAsGroup: 994
+        runAsNonRoot: true
+        runAsUser: 994
+        seccompProfile:
+          type: RuntimeDefault
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
@@ -53,6 +59,8 @@ spec:
         - name: foreman
           image: {{ include "foreman-stack.image" .Values.foreman.image }}
           imagePullPolicy: {{ .Values.foreman.image.pullPolicy }}
+          securityContext:
+            {{- include "foreman-stack.restrictedContainerSecurityContext" (dict "runAsUser" 994 "runAsGroup" 994) | nindent 12 }}
           ports:
             - name: http
               containerPort: 3000
