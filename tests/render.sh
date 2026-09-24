@@ -27,8 +27,13 @@ trap 'rm -f "${rendered}" "${rendered_ingress}" "${rendered_minimal_pulp_ingress
 
 ruby "${repo_root}/tests/yaml-duplicates.rb"
 ruby "${repo_root}/tests/operator-contract.rb"
+ruby "${repo_root}/tests/values-schema-coverage.rb"
 
 helm lint "${chart}"
+if helm lint "${chart}" --set pulp.workres.replicas=2 >/dev/null 2>&1; then
+  echo 'values schema accepted an unknown Pulp key' >&2
+  exit 1
+fi
 helm template test "${chart}" > "${rendered}"
 helm lint "${execution_chart}"
 helm template execution "${execution_chart}" > "${rendered_execution}"
