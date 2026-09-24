@@ -5,7 +5,7 @@ require 'psych'
 
 root = File.expand_path('..', __dir__)
 files = Dir.glob(File.join(root, '**', '*.{yaml,yml}')).reject do |path|
-  path.include?('/charts/foreman-stack/templates/')
+  path.match?(%r{/charts/[^/]+/templates/})
 end
 errors = []
 

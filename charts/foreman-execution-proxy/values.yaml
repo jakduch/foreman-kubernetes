@@ -1,0 +1,124 @@
+nameOverride: ""
+fullnameOverride: ""
+
+imagePullSecrets: []
+
+image:
+  repository: quay.io/foreman/foreman-proxy
+  tag: nightly
+  pullPolicy: IfNotPresent
+
+# Smart Proxy Dynflow and the SSH provider retain process-local state. This
+# profile is deliberately a singleton until active-job handoff is supported.
+replicas: 1
+
+proxy:
+  foremanUrl: https://foreman.example.test
+  # Certificate common names that may call the Smart Proxy API.
+  trustedHosts:
+    - foreman.example.test
+  logLevel: INFO
+  tlsMinVersion: "1.2"
+  service:
+    port: 8443
+  existingTlsSecret: foreman-execution-proxy-tls
+  tlsSecretKeys:
+    ca: ca.crt
+    certificate: tls.crt
+    privateKey: tls.key
+  existingForemanClientSecret: foreman-execution-proxy-foreman-client
+  foremanClientSecretKeys:
+    ca: ca.crt
+    certificate: tls.crt
+    privateKey: tls.key
+
+ssh:
+  existingKeySecret: foreman-execution-proxy-ssh
+  privateKeyKey: id_rsa_foreman_proxy
+  publicKeyKey: id_rsa_foreman_proxy.pub
+  user: root
+  remoteWorkingDir: /var/tmp
+  cleanupWorkingDirs: true
+  userCertificate:
+    enabled: false
+    certificateKey: id_rsa_foreman_proxy-cert.pub
+    caPublicKeyKey: ssh-user-ca.pub
+  hostKeyVerification:
+    # Disabled matches the current foremanctl container profile. Production
+    # deployments should enable it and provide a known_hosts/SSH CA Secret.
+    enabled: false
+    existingKnownHostsSecret: ""
+    knownHostsKey: known_hosts
+
+ansible:
+  # The volume contains ansible.cfg plus roles/ and collections/. When empty,
+  # the chart creates a PVC that an external GitOps/content job can populate.
+  existingClaim: ""
+  storageClass: ""
+  accessMode: ReadWriteOnce
+  size: 5Gi
+
+state:
+  # Holds the proxy Dynflow SQLite database and transient REx/Ansible runner
+  # directories so a pod restart can recover the Dynflow execution plan.
+  existingClaim: ""
+  storageClass: ""
+  accessMode: ReadWriteOnce
+  size: 5Gi
+
+serviceAccount:
+  create: true
+  name: ""
+
+networkPolicy:
+  enabled: true
+  ingress:
+    # The defaults select Foreman web and all Dynflow roles in the same
+    # namespace. Override this list when the application release differs.
+    peers:
+      - podSelector:
+          matchLabels:
+            app.kubernetes.io/instance: foreman
+          matchExpressions:
+            - key: app.kubernetes.io/component
+              operator: In
+              values:
+                - foreman
+                - dynflow-orchestrator
+                - dynflow-worker
+                - dynflow-worker-hosts-queue
+  egress:
+    # Standard NetworkPolicy cannot resolve host names. Enable only after
+    # declaring the Foreman and managed-host destinations below.
+    enabled: false
+    dns:
+      namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+      podSelector:
+        matchLabels:
+          k8s-app: kube-dns
+    foreman:
+      peers: []
+      ports:
+        - 443
+    targets:
+      peers: []
+      ports:
+        - 22
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    memory: 2Gi
+
+initResources:
+  requests:
+    cpu: 25m
+    memory: 32Mi
+  limits:
+    memory: 128Mi
+
+terminationGracePeriodSeconds: 120

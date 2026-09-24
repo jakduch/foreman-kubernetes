@@ -9,6 +9,10 @@ root = File.expand_path('..', __dir__)
 matrix = JSON.parse(File.read(File.join(root, 'compatibility/plugin-matrix.json')))
 values = YAML.safe_load(File.read(File.join(root, 'charts/foreman-stack/values.yaml')))
 schema = JSON.parse(File.read(File.join(root, 'charts/foreman-stack/values.schema.json')))
+execution_values = YAML.safe_load(File.read(File.join(root, 'charts/foreman-execution-proxy/values.yaml')))
+execution_deployment = File.read(File.join(root, 'charts/foreman-execution-proxy/templates/deployment.yaml'))
+execution_health = File.read(File.join(root, 'charts/foreman-execution-proxy/files/check-features.rb'))
+execution_control_plane = YAML.safe_load(File.read(File.join(root, 'examples/execution-control-plane-values.yaml')))
 
 def names(entries)
   entries.map { |entry| entry.fetch('name') }.sort
@@ -47,6 +51,22 @@ raise 'Pulp plugin matrix and schema differ' unless expected_pulp == schema_pulp
 raise 'Pulp plugin matrix and default values differ' unless defaults(pulp_plugins) == values.dig('pulp', 'enabledPlugins').sort
 
 raise 'Smart Proxy must remain external to the application chart' unless values.dig('smartProxy', 'mode') == 'external'
+raise 'Execution proxy must remain a singleton' unless execution_values.fetch('replicas') == 1
+unless execution_deployment.include?('value: remote_execution_ssh ansible')
+  raise 'Execution proxy image plugin allow-list changed'
+end
+unless execution_health.include?('expected = %w[ansible dynflow script]')
+  raise 'Execution proxy advertised feature allow-list changed'
+end
+unless execution_control_plane.dig('foreman', 'enabledPlugins').sort ==
+       %w[foreman-tasks foreman_ansible foreman_remote_execution katello].sort
+  raise 'Execution proxy and Foreman control-plane plugin sets differ'
+end
+matrix.fetch('smartProxyImagePlugins').each do |plugin|
+  expected_status = %w[remote_execution_ssh ansible].include?(plugin.fetch('name')) ?
+    'chart-wired-integration-pending' : 'packaged-not-deployed'
+  raise "Unexpected execution status for #{plugin.fetch('name')}" unless plugin.fetch('status') == expected_status
+end
 
 upstream = File.expand_path('../foreman-kubernetes-upstream', root)
 if Dir.exist?(upstream)

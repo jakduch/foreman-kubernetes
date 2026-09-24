@@ -18,6 +18,36 @@ These contracts were taken from the current upstream source snapshots listed in 
 - `extras/dynflow-sidekiq.rb` allows only one active orchestrator through a Redis lock.
 - General and hosts-queue workers can be scaled separately from the orchestrator.
 
+## Central execution Smart Proxy
+
+The execution profile was reviewed against Smart Proxy
+`c2af3d35497058fd7dc8146dcbca3adf60334b9e`, Smart Proxy Dynflow
+`a07e3fa37aca20f2038e8f469f88c545c39276ff`, Remote Execution SSH
+`1ad66baae4498f7f3a5e3cc939ddf20e188336d2`, and Smart Proxy Ansible
+`080753705e26a6a9aaa68a413a6935c9ac48c8ad`.
+
+- The official proxy image runs as UID/GID 991, listens on HTTPS 8443, and
+  packages `remote_execution_ssh`, `ansible`, and `container_gateway`.
+- `FOREMAN_PROXY_ENABLED_PLUGINS` can keep `container_gateway` out of Bundler;
+  REx and Ansible bring the required `smart_proxy_dynflow` dependency.
+- The legacy `/features` endpoint returns only running plugin names. Current
+  REx advertises the feature name `script`, not its package name, so the exact
+  execution allow-list is `ansible`, `dynflow`, and `script`.
+- HTTPS requires a client certificate at the TLS layer. The local readiness
+  check uses the mounted Foreman client identity and compares that exact list.
+- Smart Proxy Dynflow is memory-only unless `:database` or
+  `DYNFLOW_DB_CONN_STRING` is configured. The chart uses SQLite on the state
+  claim.
+- Remote Execution SSH requires both the private key and adjacent `.pub` file.
+  SSH socket paths must remain at most 49 characters.
+- The REx provider retains some job storage in process memory, while Ansible
+  runner artifacts and working directories are local. No active-job handoff
+  protocol exists, so the current chart contract is one replica with
+  `Recreate`.
+- Ansible discovers roles and collections below `/etc/ansible` and the system
+  paths. Metadata imported into Foreman does not copy that content to the
+  executor.
+
 ## Katello health
 
 Katello extends Foreman's ping response. Its checks expect:

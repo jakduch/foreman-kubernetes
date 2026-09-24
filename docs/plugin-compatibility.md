@@ -27,8 +27,8 @@ from the reviewed official image.
 | --- | --- | --- | --- |
 | `foreman-tasks` | yes | Foreman and Dynflow pods | full integration run |
 | `katello` | yes | Foreman pods | full Katello content lifecycle |
-| `foreman_remote_execution` | no | Foreman plus an execution Smart Proxy | proxy lifecycle, keys, callbacks, HA |
-| `foreman_ansible` | no | Foreman plus an Ansible/REX Smart Proxy | role storage, runner artifacts, proxy lifecycle |
+| `foreman_remote_execution` | no | Foreman plus the execution Smart Proxy chart | real SSH workflow, cancellation, restart, interrupted-job recovery |
+| `foreman_ansible` | no | Foreman plus the execution Smart Proxy chart | real role workflow, content refresh, runner restart/recovery |
 | `foreman_google` | no | Foreman pods | provider credentials, egress, API test |
 | `foreman_azure_rm` | no | Foreman pods | provider credentials, egress, API test |
 | `foreman_kubevirt` | no | Foreman pods | KubeVirt credentials, egress, API test |
@@ -62,7 +62,7 @@ proxies, and each should be placed close to the resources it controls.
 | Function | Placement in this design | Reason |
 | --- | --- | --- |
 | Pulp content | Pulp control endpoint in Kubernetes | implemented as Pulp's `pulp_smart_proxy`, not a generic Smart Proxy pod |
-| Remote Execution / Ansible | future dedicated execution proxy; Kubernetes or edge | can run centrally only when target reachability, keys, artifacts, callbacks, and failure semantics are proven |
+| Remote Execution / Ansible | dedicated singleton execution-proxy chart or an external edge proxy | Kubernetes state, identity, feature, storage, and egress contracts are modelled; real workflow and failure proof is pending |
 | DHCP / DNS / TFTP | external edge proxy | tied to provisioning networks, stable endpoints, backend state, and often privileged host integration |
 | BMC / Redfish | external management-network proxy | must reach the isolated management network and handle privileged credentials |
 | Discovery | external provisioning-network proxy | requires direct placement on the discovery/PXE network |
@@ -76,12 +76,15 @@ does not grant host networking, privileged mode, or Linux capabilities to an
 application pod. Consequently those services cannot be enabled through this
 chart on the Foreman web Deployment.
 
-A future central-execution chart must use a positive feature allow-list rather
-than accepting arbitrary `settings.d` files. It must also fail readiness if
-`/v2/features` advertises DHCP, DNS, TFTP, BMC, Realm, Discovery, Puppet, or
-OpenSCAP. NetworkPolicy and the container security context are secondary
-controls; the primary control is that the forbidden modules are never rendered
-or configured.
+The central-execution chart uses a positive feature allow-list rather than
+accepting arbitrary `settings.d` files. The image loads only the REx SSH and
+Ansible plugin packages (Dynflow is their dependency), and only their three
+configuration files are enabled. Readiness calls the local mTLS `/features`
+endpoint and requires its complete result to equal `ansible`, `dynflow`, and
+`script`. NetworkPolicy and the restricted container security context are
+secondary controls; the primary controls are that forbidden modules are never
+configured and an accidental running feature removes the Pod from Service
+endpoints.
 
 ## Promotion test
 

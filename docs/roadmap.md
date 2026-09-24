@@ -13,9 +13,9 @@
 7. Promote packaged plugins individually from the machine-readable inventory;
    each needs migrations, runtime dependencies, one real workflow, restart,
    scale, and recovery proof.
-8. Build a separate central-execution proxy profile for Remote Execution and
-   Ansible. Keep DHCP, DNS, TFTP, BMC, Realm, Discovery, Puppet/OpenVox, and
-   OpenSCAP out of that profile through a positive feature allow-list.
+8. Exercise the central-execution proxy against the pinned amd64 image: SSH and
+   Ansible success/failure, cancellation, restart, role refresh, identity
+   rotation, restricted egress, and interrupted-job recovery.
 
 ## Implemented, pending integration proof
 
@@ -35,6 +35,10 @@
 - Pulp can use S3-compatible object storage with a dedicated workload identity,
   optional static credentials and private CA, per-pod scratch space, restricted
   egress validation, and an explicit external bucket recovery boundary.
+- A separate singleton execution Smart Proxy chart enables only Dynflow,
+  Remote Execution SSH, and Ansible. It persists the current recoverable state,
+  mounts Ansible content read-only, models mTLS/SSH identities and optional SSH
+  CA trust, and rejects any unexpected advertised feature through readiness.
 
 ## Candlepin HA track
 

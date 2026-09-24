@@ -3,7 +3,11 @@
     "reviewedOn": "2026-09-24",
     "foremanOciImagesCommit": "3aca77e57e1ccf5498312bea4fb9a66c7c1a40cb",
     "pulpOciImagesCommit": "8a1bb6250901853f8666c997bf39343e7a54a5a6",
-    "foremanctlCommit": "cb135b25817fba875061a7d4495fe14ad2bd474e"
+    "foremanctlCommit": "cb135b25817fba875061a7d4495fe14ad2bd474e",
+    "smartProxyCommit": "c2af3d35497058fd7dc8146dcbca3adf60334b9e",
+    "smartProxyDynflowCommit": "a07e3fa37aca20f2038e8f469f88c545c39276ff",
+    "smartProxyRemoteExecutionSshCommit": "1ad66baae4498f7f3a5e3cc939ddf20e188336d2",
+    "smartProxyAnsibleCommit": "080753705e26a6a9aaa68a413a6935c9ac48c8ad"
   },
   "foreman": [
     {
@@ -24,14 +28,14 @@
       "name": "foreman_remote_execution",
       "enabledByDefault": false,
       "placement": "application-plus-external-proxy",
-      "status": "packaged-runtime-contract-missing",
+      "status": "chart-wired-integration-pending",
       "requires": ["foreman-tasks", "smart_proxy_dynflow", "smart_proxy_remote_execution_ssh"]
     },
     {
       "name": "foreman_ansible",
       "enabledByDefault": false,
       "placement": "application-plus-external-proxy",
-      "status": "packaged-runtime-contract-missing",
+      "status": "chart-wired-integration-pending",
       "requires": ["foreman_remote_execution", "smart_proxy_ansible"]
     },
     {
@@ -92,12 +96,12 @@
     {
       "name": "remote_execution_ssh",
       "placement": "central-execution-or-edge",
-      "status": "packaged-not-deployed"
+      "status": "chart-wired-integration-pending"
     },
     {
       "name": "ansible",
       "placement": "central-execution-or-edge",
-      "status": "packaged-not-deployed"
+      "status": "chart-wired-integration-pending"
     },
     {
       "name": "container_gateway",

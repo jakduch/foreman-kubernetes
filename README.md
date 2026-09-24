@@ -13,6 +13,13 @@ This repository composes separately released Foreman, Katello, Candlepin, and Pu
   application chart never embeds DHCP, DNS, TFTP, or another generic proxy in
   the Foreman web pods.
 
+The separate [`charts/foreman-execution-proxy`](charts/foreman-execution-proxy)
+chart now models a central singleton executor for Remote Execution SSH and
+Ansible. Its positive feature check explicitly excludes every provisioning and
+network-control feature; see
+[`docs/execution-proxy.md`](docs/execution-proxy.md) for its state, identity,
+role-content, and network contracts.
+
 The initial Helm chart is under [`charts/foreman-stack`](charts/foreman-stack). It renders:
 
 - a scalable Foreman web Deployment;
@@ -48,7 +55,16 @@ covered but zero-downtime schema upgrades are not yet claimed.
 helm lint charts/foreman-stack
 helm template foreman charts/foreman-stack \
   --values examples/cluster-values.yaml
+
+helm lint charts/foreman-execution-proxy \
+  --values examples/execution-proxy-values.yaml
 ```
+
+The execution plane is opt-in on both sides: add
+[`examples/execution-control-plane-values.yaml`](examples/execution-control-plane-values.yaml)
+to the `foreman-stack` release and deploy the separate proxy values alongside
+it. This keeps Remote Execution and Ansible out of the default application
+profile until their real integration drill passes.
 
 The Candlepin HA contract is available as a separate overlay in
 [`examples/candlepin-ha-values.yaml`](examples/candlepin-ha-values.yaml); it
@@ -83,6 +99,7 @@ credential, and recovery-drill contracts.
 - [`docs/runtime-contracts.md`](docs/runtime-contracts.md) records the verified upstream runtime contracts and current scaling limits.
 - [`docs/compatibility.md`](docs/compatibility.md) records digest-pinned image candidates and their test status.
 - [`docs/plugin-compatibility.md`](docs/plugin-compatibility.md) records the packaged plugin inventory, proof level, and Smart Proxy placement policy.
+- [`docs/execution-proxy.md`](docs/execution-proxy.md) defines the restricted Kubernetes Remote Execution and Ansible proxy profile.
 - [`docs/disaster-recovery.md`](docs/disaster-recovery.md) defines portable recovery sets and the destructive restore gate.
 - [`docs/candlepin-ha.md`](docs/candlepin-ha.md) defines the external broker, clustered scheduler, and migration boundary.
 - [`docs/pulp-object-storage.md`](docs/pulp-object-storage.md) defines the optional S3-compatible artifact backend and its recovery boundary.
@@ -98,5 +115,9 @@ The sibling `foreman-kubernetes-upstream/` directory is intentionally not part o
 | Katello | `master` | `49d8fcec35751d7e78a85cda5a0667239d17dcc9` |
 | Candlepin | `main` | `0928757731c4f5537207c860803fca2fbc7044f5` |
 | foremanctl | `master` | `cb135b25817fba875061a7d4495fe14ad2bd474e` |
+| Smart Proxy | `develop` | `c2af3d35497058fd7dc8146dcbca3adf60334b9e` |
+| Smart Proxy Dynflow | `master` | `a07e3fa37aca20f2038e8f469f88c545c39276ff` |
+| Smart Proxy Remote Execution SSH | `master` | `1ad66baae4498f7f3a5e3cc939ddf20e188336d2` |
+| Smart Proxy Ansible | `master` | `080753705e26a6a9aaa68a413a6935c9ac48c8ad` |
 
 OCI image repositories for Foreman, Candlepin, and Pulp were reviewed separately as well.

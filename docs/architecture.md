@@ -175,8 +175,16 @@ privileged mode, or Linux capabilities. Functions historically co-located on
 an all-in-one Foreman server therefore do not silently move into the Foreman
 web container.
 
-A separate central execution proxy may later run Remote Execution and Ansible
-inside Kubernetes when its keys, artifacts, queues, callbacks, target egress,
-restart behavior, and scale semantics are proven. Network-control features
-remain forbidden in that profile. The detailed plugin and feature placement
-policy is in [`plugin-compatibility.md`](plugin-compatibility.md).
+A separate `foreman-execution-proxy` chart now models Remote Execution and
+Ansible inside Kubernetes. It owns a singleton Smart Proxy process, persistent
+Dynflow and runner state, a read-only Ansible content volume, mTLS and SSH
+identity mounts, target egress controls, and an exact positive feature
+readiness check. Network-control features remain forbidden in that profile.
+
+The implementation is still integration-pending: Smart Proxy Dynflow uses
+SQLite, REx retains process-local job data, and the runners have no active-job
+handoff protocol. The schema therefore fixes the executor to one replica and
+uses `Recreate`; pretending that a Service in front of multiple independent
+executors is HA would lose job ownership during failure. The detailed contract
+is in [`execution-proxy.md`](execution-proxy.md), and plugin placement remains
+tracked in [`plugin-compatibility.md`](plugin-compatibility.md).

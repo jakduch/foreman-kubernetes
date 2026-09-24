@@ -3,6 +3,7 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 chart="${repo_root}/charts/foreman-stack"
+execution_chart="${repo_root}/charts/foreman-execution-proxy"
 rendered="$(mktemp)"
 rendered_ingress="$(mktemp)"
 rendered_backup="$(mktemp)"
@@ -12,13 +13,24 @@ rendered_singletons="$(mktemp)"
 rendered_ha="$(mktemp)"
 rendered_s3="$(mktemp)"
 rendered_s3_backup="$(mktemp)"
-trap 'rm -f "${rendered}" "${rendered_ingress}" "${rendered_backup}" "${rendered_restore}" "${rendered_egress}" "${rendered_singletons}" "${rendered_ha}" "${rendered_s3}" "${rendered_s3_backup}"' EXIT
+rendered_execution="$(mktemp)"
+rendered_execution_egress="$(mktemp)"
+trap 'rm -f "${rendered}" "${rendered_ingress}" "${rendered_backup}" "${rendered_restore}" "${rendered_egress}" "${rendered_singletons}" "${rendered_ha}" "${rendered_s3}" "${rendered_s3_backup}" "${rendered_execution}" "${rendered_execution_egress}"' EXIT
 
 ruby "${repo_root}/tests/yaml-duplicates.rb"
 
 helm lint "${chart}"
 helm template test "${chart}" > "${rendered}"
+helm lint "${execution_chart}"
+helm template execution "${execution_chart}" > "${rendered_execution}"
+helm lint "${execution_chart}" --values "${repo_root}/examples/execution-proxy-values.yaml"
+helm lint "${execution_chart}" --values "${repo_root}/tests/execution-proxy-egress-values.yaml"
+helm template execution "${execution_chart}" \
+  --values "${repo_root}/tests/execution-proxy-egress-values.yaml" > "${rendered_execution_egress}"
 helm lint "${chart}" --values "${repo_root}/examples/cluster-values.yaml"
+helm lint "${chart}" --values "${repo_root}/examples/execution-control-plane-values.yaml"
+helm template test "${chart}" \
+  --values "${repo_root}/examples/execution-control-plane-values.yaml" >/dev/null
 helm template test "${chart}" --values "${repo_root}/examples/cluster-values.yaml" > "${rendered_ingress}"
 helm lint "${chart}" --values "${repo_root}/tests/kind/values.yaml"
 helm lint "${chart}" --values "${repo_root}/profiles/nightly-candidate-2026-09-23.yaml"
@@ -71,6 +83,67 @@ for manifest in \
   "${rendered_s3_backup}"; do
   ruby "${repo_root}/tests/kubernetes-invariants.rb" "${manifest}"
 done
+
+ruby "${repo_root}/tests/kubernetes-invariants.rb" "${rendered_execution}"
+ruby "${repo_root}/tests/kubernetes-invariants.rb" "${rendered_execution_egress}"
+ruby -c "${execution_chart}/files/check-features.rb"
+
+grep -q 'name: FOREMAN_PROXY_ENABLED_PLUGINS' "${rendered_execution}"
+grep -A1 'name: FOREMAN_PROXY_ENABLED_PLUGINS' "${rendered_execution}" | \
+  grep -q 'value: remote_execution_ssh ansible'
+grep -q 'expected = %w\[ansible dynflow script\]' "${rendered_execution}"
+grep -q 'unexpected Smart Proxy features' "${rendered_execution}"
+grep -q "http.verify_mode = OpenSSL::SSL::VERIFY_PEER" "${rendered_execution}"
+if grep -q 'OpenSSL::SSL::VERIFY_NONE' "${rendered_execution}"; then
+  echo 'execution proxy readiness must verify the local server certificate' >&2
+  exit 1
+fi
+grep -q ':database: /var/lib/foreman-proxy/dynflow/dynflow.sqlite' "${rendered_execution}"
+grep -q ':cockpit_integration: false' "${rendered_execution}"
+grep -q 'readOnlyRootFilesystem: true' "${rendered_execution}"
+grep -q 'runAsUser: 991' "${rendered_execution}"
+grep -q 'mountPath: /etc/ansible' "${rendered_execution}"
+grep -q 'mountPath: /var/lib/foreman-proxy' "${rendered_execution}"
+grep -q 'mountPath: /var/run/foreman-proxy/ssh' "${rendered_execution}"
+grep -q 'install -m 0600 /ssh-source/private' "${rendered_execution}"
+grep -q 'type: ClusterIP' "${rendered_execution}"
+grep -q 'app.kubernetes.io/instance: foreman' "${rendered_execution}"
+if grep -q 'hostNetwork:' "${rendered_execution}"; then
+  echo 'execution proxy must not use the host network' >&2
+  exit 1
+fi
+if grep -q 'privileged: true' "${rendered_execution}"; then
+  echo 'execution proxy must not be privileged' >&2
+  exit 1
+fi
+if [[ "$(grep -c '^kind: Deployment$' "${rendered_execution}")" -ne 1 ]]; then
+  echo 'execution proxy profile must contain one Deployment' >&2
+  exit 1
+fi
+grep -q 'cidr: 192.0.2.10/32' "${rendered_execution_egress}"
+grep -q 'cidr: 198.51.100.0/24' "${rendered_execution_egress}"
+grep -q 'port: 443' "${rendered_execution_egress}"
+grep -q 'port: 2222' "${rendered_execution_egress}"
+grep -q ':ssh_user_ca_public_key_file: /var/run/foreman-proxy/ssh/ssh-user-ca.pub' "${rendered_execution_egress}"
+grep -q ':ssh_ca_known_hosts_file: /etc/foreman-proxy/ssh-host-keys/known_hosts' "${rendered_execution_egress}"
+grep -q 'ANSIBLE_HOST_KEY_CHECKING="True"' "${rendered_execution_egress}"
+
+if helm template execution "${execution_chart}" --set replicas=2 >/dev/null 2>&1; then
+  echo 'expected multiple execution proxy replicas to be rejected' >&2
+  exit 1
+fi
+
+if helm template execution "${execution_chart}" \
+  --set ssh.hostKeyVerification.enabled=true >/dev/null 2>&1; then
+  echo 'expected strict host-key checking without a trust Secret to be rejected' >&2
+  exit 1
+fi
+
+if helm template execution "${execution_chart}" \
+  --set networkPolicy.egress.enabled=true >/dev/null 2>&1; then
+  echo 'expected restricted proxy egress without declared peers to be rejected' >&2
+  exit 1
+fi
 
 shellcheck -x \
   -P "${chart}/files" \
