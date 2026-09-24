@@ -134,6 +134,14 @@ Retention removes snapshot metadata according to the configured daily, weekly,
 and monthly counts. Pruning repository packs is disabled by default because it
 can be I/O intensive; enable it in a dedicated maintenance window.
 
+The backup Job consumes Restic's machine-readable completion record and fails
+unless it contains exactly one new snapshot ID. Before applying retention, it
+reopens that exact snapshot and verifies its release and request tags, declared
+roots, manifest, database dumps, avatar tree, every Secret escrow file, and the
+Pulp tree when filesystem storage is used. The full snapshot ID is emitted in
+the Job log only after this validation succeeds; retain it with the change or
+recovery record instead of relying only on `latest`.
+
 ## Restore a recovery point
 
 The target PostgreSQL databases and roles must already exist. Current runtime

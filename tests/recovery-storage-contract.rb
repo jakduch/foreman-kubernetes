@@ -39,6 +39,15 @@ common = scripts&.dig('data', 'recovery-common.sh').to_s
 abort 'backup manifest does not record Foreman avatars' unless backup.include?('includes_foreman_avatars: true')
 abort 'backup does not include Foreman avatars' unless backup.include?('set -- /work /var/lib/foreman/avatars')
 abort 'backup manifest does not record the compatibility set' unless backup.include?('compatibility_set: $compatibility_set')
+abort 'backup does not capture Restic JSON output' unless backup.include?('restic backup --json')
+abort 'backup does not extract the created snapshot ID' unless backup.include?('.snapshot_id')
+abort 'backup does not verify the request-specific snapshot tag' unless backup.include?('(.[0].tags | index($request_tag)) != null')
+abort 'backup does not inspect the created snapshot contents' unless backup.include?('restic ls --json "${snapshot_id}"')
+abort 'backup does not verify all three database dumps' unless backup.include?('/work/databases/foreman.dump') &&
+                                                         backup.include?('/work/databases/candlepin.dump') &&
+                                                         backup.include?('/work/databases/pulp.dump')
+abort 'backup reports completion before validation' unless backup.index('Validated encrypted recovery snapshot') <
+                                                           backup.index('Recovery snapshot completed:')
 abort 'restore does not require the release-aware schema' unless restore.include?('.schema_version == "3"')
 abort 'restore accepts a snapshot from another release set' unless restore.include?('.compatibility_set == $compatibility_set')
 abort 'restore does not replace Foreman avatars' unless restore.include?("--include '/var/lib/foreman/avatars/**'")

@@ -74,11 +74,75 @@ if [ "${PULP_STORAGE_BACKEND}" = filesystem ]; then
 else
   log "Pulp objects are external; the bucket must use an independently protected, coordinated recovery point"
 fi
-restic backup \
+backup_output=/tmp/restic-backup.jsonl
+restic backup --json \
   --host "${HELM_RELEASE}" \
   --tag foreman-stack \
   --tag "request-${BACKUP_REQUEST_ID}" \
-  "$@"
+  "$@" > "${backup_output}"
+
+snapshot_id="$(
+  jq -ers '
+    [
+      .[]
+      | select(.message_type == "summary")
+      | .snapshot_id
+      | select(type == "string" and length > 0)
+    ] as $snapshot_ids
+    | if ($snapshot_ids | length) == 1 then
+        $snapshot_ids[0]
+      else
+        error("backup did not report exactly one snapshot ID")
+      end
+  ' "${backup_output}"
+)"
+jq -c 'select(.message_type == "summary")' "${backup_output}"
+
+snapshot_json="$(restic snapshots --json "${snapshot_id}")"
+printf '%s' "${snapshot_json}" | jq -e \
+  --arg snapshot_id "${snapshot_id}" \
+  --arg release "${HELM_RELEASE}" \
+  --arg request_tag "request-${BACKUP_REQUEST_ID}" '
+    length == 1 and
+    .[0].id == $snapshot_id and
+    .[0].hostname == $release and
+    (.[0].tags | index("foreman-stack")) != null and
+    (.[0].tags | index($request_tag)) != null and
+    (.[0].paths | index("/work")) != null and
+    (.[0].paths | index("/var/lib/foreman/avatars")) != null
+  ' >/dev/null
+
+require_created_snapshot_path() {
+  required_path="$1"
+  listing_file=/tmp/restic-created-snapshot-path.jsonl
+
+  restic ls --json "${snapshot_id}" "${required_path}" > "${listing_file}"
+  jq -e --arg required_path "${required_path}" '
+    select(
+      (.message_type // .struct_type) == "node" and
+      .path == $required_path
+    )
+  ' "${listing_file}" >/dev/null
+}
+
+for required_file in \
+  /work/metadata/manifest.json \
+  /work/databases/foreman.dump \
+  /work/databases/candlepin.dump \
+  /work/databases/pulp.dump; do
+  require_created_snapshot_path "${required_file}"
+done
+require_created_snapshot_path /var/lib/foreman/avatars
+for secret_name in ${BACKUP_SECRET_NAMES}; do
+  require_created_snapshot_path "/work/secrets/${secret_name}.json"
+done
+if [ "${PULP_STORAGE_BACKEND}" = filesystem ]; then
+  printf '%s' "${snapshot_json}" |
+    jq -e '.[0].paths | index("/var/lib/pulp") != null' >/dev/null
+  require_created_snapshot_path /var/lib/pulp
+fi
+
+log "Validated encrypted recovery snapshot ${snapshot_id}"
 
 if [ "${RETENTION_ENABLED}" = true ]; then
   set -- \
@@ -94,4 +158,4 @@ if [ "${RETENTION_ENABLED}" = true ]; then
   restic forget "$@"
 fi
 
-log "Recovery snapshot completed"
+log "Recovery snapshot completed: ${snapshot_id}"
