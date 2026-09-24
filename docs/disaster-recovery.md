@@ -141,12 +141,15 @@ helm upgrade foreman charts/foreman-stack \
   --timeout 6h
 ```
 
-The Job validates the snapshot owner, tag, storage backend, manifest, and all
-three dumps before modifying state. In filesystem mode it then replaces Pulp
-content. In S3 mode it leaves objects untouched and requires the operator to
-restore the bucket to the coordinated point before leaving maintenance mode.
-It replaces objects inside the existing databases but never drops or creates
-the databases or their roles.
+The Job validates the snapshot owner, tag, storage backend, manifest, all three
+dumps, the avatar tree, the Pulp tree in filesystem mode, and every requested
+Secret escrow file before modifying state. It also verifies the paths against
+Restic's snapshot inventory, so stale files on a reused work volume cannot make
+an incomplete snapshot appear valid. Only after that preflight boundary does it
+delete or replace current data. In S3 mode it leaves objects untouched and
+requires the operator to restore the bucket to the coordinated point before
+leaving maintenance mode. It replaces objects inside the existing databases
+but never drops or creates the databases or their roles.
 
 Secret escrow is not applied by default. This avoids silently reverting rotated
 external database credentials. To restore it in the same environment, add

@@ -24,6 +24,26 @@ prepare_work_directory
 snapshot_id="$(resolve_snapshot)"
 log "Validated recovery snapshot ${snapshot_id}"
 
+require_snapshot_path() {
+  required_path="$1"
+  listing_file=/work/metadata/snapshot-path.jsonl
+
+  if ! restic ls --json "${snapshot_id}" "${required_path}" > "${listing_file}"; then
+    log "Unable to inspect recovery snapshot path: ${required_path}" >&2
+    exit 1
+  fi
+
+  if ! jq -e --arg required_path "${required_path}" '
+    select(
+      (.message_type // .struct_type) == "node" and
+      .path == $required_path
+    )
+  ' "${listing_file}" >/dev/null; then
+    log "Recovery snapshot is incomplete: ${required_path} is missing" >&2
+    exit 1
+  fi
+}
+
 restic restore "${snapshot_id}" \
   --target / \
   --include '/work/**'
@@ -37,6 +57,7 @@ for required_file in \
     log "Recovery snapshot is incomplete: ${required_file} is missing" >&2
     exit 1
   fi
+  require_snapshot_path "${required_file}"
 done
 
 jq -e \
@@ -46,9 +67,35 @@ jq -e \
   '.schema_version == "2" and
    .helm_release == $release and
    .namespace == $namespace and
+   (.databases | sort) == ["candlepin", "foreman", "pulp"] and
    .includes_foreman_avatars == true and
-   (.pulp_storage_backend // (if .includes_pulp_filesystem then "filesystem" else "unknown" end)) == $pulp_storage_backend' \
+   (.pulp_storage_backend // (if .includes_pulp_filesystem then "filesystem" else "unknown" end)) == $pulp_storage_backend and
+   (if $pulp_storage_backend == "filesystem" then .includes_pulp_filesystem == true else true end)' \
   /work/metadata/manifest.json >/dev/null
+
+require_snapshot_path /var/lib/foreman/avatars
+if [ "${PULP_STORAGE_BACKEND}" = filesystem ]; then
+  require_snapshot_path /var/lib/pulp
+fi
+
+if [ "${RESTORE_SECRETS}" = true ]; then
+  for secret_name in ${BACKUP_SECRET_NAMES}; do
+    secret_file="/work/secrets/${secret_name}.json"
+    if ! jq -e --arg secret_name "${secret_name}" \
+      '.secret_names | index($secret_name) != null' \
+      /work/metadata/manifest.json >/dev/null; then
+      log "Secret escrow manifest is incomplete: ${secret_name} is missing" >&2
+      exit 1
+    fi
+    if [ ! -s "${secret_file}" ]; then
+      log "Secret escrow is incomplete: ${secret_name} is missing" >&2
+      exit 1
+    fi
+    require_snapshot_path "${secret_file}"
+  done
+fi
+
+log "Snapshot validation completed; starting destructive restore"
 
 log "Replacing Foreman LDAP avatars from the selected recovery snapshot"
 find /var/lib/foreman/avatars -mindepth 1 -maxdepth 1 -exec rm -rf {} +
@@ -91,10 +138,6 @@ if [ "${RESTORE_SECRETS}" = true ]; then
   log "Restoring application Secrets"
   for secret_name in ${BACKUP_SECRET_NAMES}; do
     secret_file="/work/secrets/${secret_name}.json"
-    if [ ! -s "${secret_file}" ]; then
-      log "Secret escrow is incomplete: ${secret_name} is missing" >&2
-      exit 1
-    fi
     kubectl apply \
       --namespace "${POD_NAMESPACE}" \
       --server-side \

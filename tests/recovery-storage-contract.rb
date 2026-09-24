@@ -40,6 +40,15 @@ abort 'backup manifest does not record Foreman avatars' unless backup.include?('
 abort 'backup does not include Foreman avatars' unless backup.include?('set -- /work /var/lib/foreman/avatars')
 abort 'restore does not require the avatar-aware schema' unless restore.include?('.schema_version == "2"')
 abort 'restore does not replace Foreman avatars' unless restore.include?("--include '/var/lib/foreman/avatars/**'")
+abort 'restore does not inspect snapshot contents' unless restore.include?('restic ls --json')
+validation_boundary = restore.index('Snapshot validation completed; starting destructive restore')
+avatar_deletion = restore.index('find /var/lib/foreman/avatars')
+pulp_deletion = restore.index('find /var/lib/pulp')
+abort 'restore is missing the destructive validation boundary' unless validation_boundary
+abort 'restore validates the snapshot after deleting avatars' unless avatar_deletion && validation_boundary < avatar_deletion
+abort 'restore validates the snapshot after deleting Pulp data' unless pulp_deletion && validation_boundary < pulp_deletion
+secret_validation = restore.index('Secret escrow manifest is incomplete')
+abort 'restore validates Secret escrow after destructive changes' unless secret_validation && secret_validation < validation_boundary
 abort 'recovery quiescence omits the Katello event daemon' unless common.include?('$component == "katello-event-daemon"')
 
 puts "Recovery storage includes avatars; Pulp filesystem mounted=#{expect_pulp}."
