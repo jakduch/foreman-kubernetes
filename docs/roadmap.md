@@ -116,5 +116,6 @@ takeover, restart adoption, foreign-owner contention, expiration, renewal,
 race-safe release, and the no-rollback boundary.
 
 The remaining operator work is real-cluster qualification of the published
-image and exact compatibility set, retained evidence, operational dashboards,
-and API versioning rather than another parallel implementation.
+image and exact compatibility set, retained evidence, and API versioning rather
+than another parallel implementation. Prometheus alerts and an opt-in Grafana
+dashboard are now packaged, pending integration with a real monitoring stack.

@@ -99,6 +99,11 @@ installed, `monitoring.prometheusRule.enabled=true` adds alerts for missing
 metrics, no ready candidate, unhealthy leader cardinality, and failed cycles;
 optional `monitoring.prometheusRule.labels` attach the labels selected by that
 Prometheus installation.
+Set `monitoring.grafanaDashboard.enabled=true` when a Grafana dashboard sidecar
+already watches labelled ConfigMaps. The default
+`monitoring.grafanaDashboard.labels` uses `grafana_dashboard: "1"`; replace it
+with the deployment's discovery label when necessary. The chart supplies only
+the dashboard and never installs Grafana.
 
 Two candidates run by default. A short namespaced leader Lease allows only the
 Pod whose UID is the current holder to list and reconcile releases; the standby

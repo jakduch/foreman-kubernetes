@@ -30,6 +30,10 @@ monitoring:
   prometheusRule:
     enabled: false
     labels: {}
+  grafanaDashboard:
+    enabled: false
+    labels:
+      grafana_dashboard: "1"
 
 serviceAccount:
   create: true

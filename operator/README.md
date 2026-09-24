@@ -27,7 +27,10 @@ The metrics Service keeps NotReady candidates discoverable. An opt-in
 `PrometheusRule` packages alerts only when its external CRD is explicitly
 available; the operator chart does not install or own a monitoring stack.
 The same opt-in rule group alerts on a `Blocked` release and on a generation
-that remains unobserved for ten minutes.
+that remains unobserved for ten minutes. An independent opt-in Grafana
+dashboard ConfigMap visualizes controller health, cycle outcomes, release
+phases, blocked releases, and generation convergence. Its discovery labels are
+configurable and the chart still does not install Grafana or a sidecar.
 Every persisted phase transition and pause/resume condition also emits a
 namespaced `events.k8s.io/v1` Event, so `kubectl describe` exposes release
 progress without reading controller logs. Status remains authoritative: Event

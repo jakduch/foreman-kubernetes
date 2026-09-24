@@ -67,9 +67,18 @@
     "monitoring": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["prometheusRule"],
+      "required": ["prometheusRule", "grafanaDashboard"],
       "properties": {
         "prometheusRule": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["enabled", "labels"],
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "labels": { "type": "object", "additionalProperties": { "type": "string" } }
+          }
+        },
+        "grafanaDashboard": {
           "type": "object",
           "additionalProperties": false,
           "required": ["enabled", "labels"],

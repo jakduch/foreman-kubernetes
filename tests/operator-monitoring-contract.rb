@@ -1,6 +1,7 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
+require 'json'
 require 'yaml'
 
 abort "usage: #{$PROGRAM_NAME} DEFAULT_RENDER MONITORING_RENDER" unless ARGV.length == 2
@@ -12,6 +13,9 @@ service = default_documents.find { |item| item['kind'] == 'Service' }
 abort 'operator metrics Service is missing' unless service
 abort 'NotReady controller metrics disappear from discovery' unless service.dig('spec', 'publishNotReadyAddresses') == true
 abort 'PrometheusRule was enabled without an explicit dependency' if default_documents.any? { |item| item['kind'] == 'PrometheusRule' }
+abort 'Grafana dashboard was enabled without an explicit dependency' if default_documents.any? do |item|
+  item['kind'] == 'ConfigMap' && item.dig('metadata', 'name').to_s.end_with?('-dashboard')
+end
 
 rule = monitoring_documents.find { |item| item['kind'] == 'PrometheusRule' }
 abort 'enabled PrometheusRule is missing' unless rule
@@ -39,4 +43,27 @@ expressions = rules.map { |item| item['expr'].to_s }.join('\n')
   abort "alerts do not consume #{metric}" unless expressions.include?(metric)
 end
 
-puts 'Operator monitoring keeps failed candidates discoverable and packages six opt-in alerts.'
+dashboard = monitoring_documents.find do |item|
+  item['kind'] == 'ConfigMap' && item.dig('metadata', 'name').to_s.end_with?('-dashboard')
+end
+abort 'enabled Grafana dashboard is missing' unless dashboard
+abort 'Grafana sidecar discovery label is missing' unless dashboard.dig('metadata', 'labels', 'grafana_dashboard') == '1'
+dashboard_json = dashboard.dig('data', 'foreman-release-operator.json')
+abort 'Grafana dashboard payload is missing' if dashboard_json.to_s.empty?
+parsed_dashboard = JSON.parse(dashboard_json)
+abort 'Grafana dashboard has an unstable identity' unless parsed_dashboard['uid'] == 'foreman-release-controller'
+dashboard_expressions = parsed_dashboard.fetch('panels').flat_map do |panel|
+  Array(panel['targets']).map { |target| target['expr'].to_s }
+end.join('\n')
+%w[
+  foreman_release_controller_ready
+  foreman_release_controller_leader
+  foreman_release_controller_cycles_total
+  foreman_release_status
+  foreman_release_metadata_generation
+  foreman_release_observed_generation
+].each do |metric|
+  abort "dashboard does not consume #{metric}" unless dashboard_expressions.include?(metric)
+end
+
+puts 'Operator monitoring packages six alerts and one opt-in Grafana dashboard.'
