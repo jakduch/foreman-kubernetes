@@ -62,6 +62,7 @@ ruby "${repo_root}/tests/values-schema-coverage.rb"
 ruby "${repo_root}/tests/recovery-image-contract.rb"
 ruby "${repo_root}/tests/operator-image-contract.rb"
 ruby "${repo_root}/tests/kind-release-sequencing.rb"
+bash "${repo_root}/tests/collect-diagnostics.sh"
 
 helm lint "${chart}"
 if helm lint "${chart}" --set pulp.workres.replicas=2 >/dev/null 2>&1; then
@@ -467,6 +468,7 @@ shellcheck -x \
   "${repo_root}/scripts/install-release.sh" \
   "${repo_root}/scripts/upgrade-release.sh" \
   "${repo_root}/scripts/recover-release.sh" \
+  "${repo_root}/scripts/collect-diagnostics.sh" \
   "${repo_root}/tests/install-release.sh" \
   "${repo_root}/tests/upgrade-release.sh" \
   "${repo_root}/tests/recover-release.sh" \
@@ -474,6 +476,7 @@ shellcheck -x \
   "${repo_root}/tests/kind/publish-ansible-content.sh" \
   "${repo_root}/tests/kind/run.sh"
 shellcheck "${repo_root}/tests/recovery-quiescence.sh"
+shellcheck "${repo_root}/tests/collect-diagnostics.sh"
 
 ruby "${repo_root}/tests/plugin-compatibility.rb"
 ruby "${repo_root}/tests/release-sets.rb"

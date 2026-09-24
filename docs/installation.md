@@ -156,6 +156,11 @@ its values match the referenced Secret and compatibility profile, and return
 the flag to false after ownership labels appear. A newly installed release or
 one already labelled with this ForemanRelease UID needs no adoption override.
 
+Before changing a failed deployment, capture the Secret-redacted, read-only
+bundle described in [`diagnostics.md`](diagnostics.md). It preserves release,
+Helm, workload, Job, Event, and cluster-capability evidence without requesting
+Pod logs or Secret payloads.
+
 This path has command-level and render coverage but no retained real-cluster
 qualification yet. Do not replace the guarded scripts in production until the
 full integration workflow has exercised the published operator image and exact

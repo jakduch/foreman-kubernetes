@@ -145,6 +145,7 @@ credential, and recovery-drill contracts.
 - [`docs/plugin-compatibility.md`](docs/plugin-compatibility.md) records the packaged plugin inventory, proof level, and Smart Proxy placement policy.
 - [`docs/execution-proxy.md`](docs/execution-proxy.md) defines the restricted Kubernetes Remote Execution and Ansible proxy profile.
 - [`docs/disaster-recovery.md`](docs/disaster-recovery.md) defines portable recovery sets and the destructive restore gate.
+- [`docs/diagnostics.md`](docs/diagnostics.md) defines the read-only, Secret-redacted support bundle.
 - [`docs/candlepin-ha.md`](docs/candlepin-ha.md) defines the external broker, clustered scheduler, and migration boundary.
 - [`docs/pulp-object-storage.md`](docs/pulp-object-storage.md) defines the optional S3-compatible artifact backend and its recovery boundary.
 - [`docs/roadmap.md`](docs/roadmap.md) lists the next implementation slices.
