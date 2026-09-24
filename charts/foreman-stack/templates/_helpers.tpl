@@ -222,6 +222,10 @@ server {
   mountPath: /usr/share/foreman/config/initializers/foreman_kubernetes_client_certificate.rb
   subPath: foreman-kubernetes-client-certificate.rb
   readOnly: true
+- name: foreman-generated-config
+  mountPath: /opt/foreman-kubernetes/foreman-readiness.rb
+  subPath: foreman-readiness.rb
+  readOnly: true
 - name: foreman-certificates
   mountPath: /etc/foreman/katello-default-ca.crt
   subPath: ca.crt

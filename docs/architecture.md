@@ -140,7 +140,8 @@ singleton. No budget is created for the Dynflow orchestrator or default
 single-replica Candlepin: a `minAvailable: 1` budget on a singleton would block
 voluntary node drains without providing actual availability.
 
-HTTP readiness checks keep dependency-aware endpoints out of traffic while
+Readiness checks parse dependency-aware status responses before keeping an
+endpoint in traffic, while
 separate TCP startup and liveness checks answer a narrower question: whether
 the local process has opened and retained its listener. A database, Valkey, or
 peer-service outage must not make Kubernetes restart every otherwise healthy

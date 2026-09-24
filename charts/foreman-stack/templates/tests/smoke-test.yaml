@@ -42,7 +42,7 @@ spec:
             - -e
           args:
             - |
-              def check(name, raw_url)
+              def get_json(name, raw_url)
                 uri = URI(raw_url)
                 client = Net::HTTP.new(uri.host, uri.port)
                 client.open_timeout = 10
@@ -57,12 +57,25 @@ spec:
                 response = client.start { |http| http.get(uri.request_uri) }
                 abort "#{name} returned HTTP #{response.code}: #{response.body}" unless response.is_a?(Net::HTTPSuccess)
                 JSON.parse(response.body)
-                puts "#{name} is healthy"
               end
 
-              check('Foreman', ENV.fetch('FOREMAN_STATUS_URL'))
-              check('Candlepin', ENV.fetch('CANDLEPIN_STATUS_URL'))
-              check('Pulp', ENV.fetch('PULP_STATUS_URL'))
+              foreman = get_json('Foreman', ENV.fetch('FOREMAN_STATUS_URL')).fetch('results')
+              abort 'Foreman database is not active' unless foreman.dig('foreman', 'database', 'active') == true
+              cache_servers = Array(foreman.dig('foreman', 'cache', 'servers'))
+              abort 'Foreman cache is not healthy' if cache_servers.empty? || !cache_servers.all? { |server| server['status'] == 'ok' }
+              abort 'Katello dependencies are not healthy' unless foreman.dig('katello', 'status') == 'ok'
+              puts 'Foreman and Katello dependencies are healthy'
+
+              candlepin = get_json('Candlepin', ENV.fetch('CANDLEPIN_STATUS_URL'))
+              abort "Candlepin mode is #{candlepin['mode'].inspect}" unless candlepin['mode'] == 'NORMAL'
+              puts 'Candlepin is healthy'
+
+              pulp = get_json('Pulp', ENV.fetch('PULP_STATUS_URL'))
+              abort 'Pulp database is not connected' if pulp.dig('database_connection', 'connected') == false
+              abort 'Pulp cache is not connected' if pulp.dig('redis_connection', 'connected') == false
+              abort 'Pulp has no online workers' if Array(pulp['online_workers']).empty?
+              abort 'Pulp has no online content apps' if Array(pulp['online_content_apps']).empty?
+              puts 'Pulp is healthy'
           env:
             - name: HOME
               value: /tmp

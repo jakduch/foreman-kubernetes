@@ -169,6 +169,7 @@ ruby "${repo_root}/tests/foreman-secret-contract.rb" \
 ruby "${repo_root}/tests/image-pull-secrets-contract.rb" \
   "${rendered_image_pull_secrets}" registry-auth
 ruby "${repo_root}/tests/katello-event-daemon-contract.rb" "${rendered_egress}"
+ruby "${repo_root}/tests/foreman-readiness-contract.rb" "${rendered}"
 ruby "${repo_root}/tests/foreman-shared-tmp-contract.rb" "${rendered}" true
 ruby "${repo_root}/tests/foreman-shared-tmp-contract.rb" "${rendered_s3}" false
 ruby "${repo_root}/tests/recovery-storage-contract.rb" "${rendered_backup}" true
@@ -286,6 +287,8 @@ ruby -c "${repo_root}/scripts/required-cluster-resources.rb"
 ruby -c "${repo_root}/scripts/required-secrets.rb"
 ruby -c "${repo_root}/tests/integration-evidence.rb"
 ruby -c "${repo_root}/tests/operator-contract.rb"
+ruby -c "${chart}/files/foreman-readiness.rb"
+ruby "${repo_root}/tests/foreman-readiness-behavior.rb"
 ruby "${repo_root}/tests/integration-evidence.rb"
 ruby "${repo_root}/tests/required-cluster-resources.rb"
 ruby "${repo_root}/tests/required-secrets.rb"
@@ -440,9 +443,12 @@ if grep -A3 'livenessProbe:' "${rendered}" | grep -q 'httpGet:'; then
   echo 'application liveness probes must not restart pods for dependency health failures' >&2
   exit 1
 fi
-grep -A4 'readinessProbe:' "${rendered}" | grep -q '/api/v2/ping'
+grep -A5 'readinessProbe:' "${rendered}" | grep -q '/opt/foreman-kubernetes/foreman-readiness.rb'
 grep -A4 'readinessProbe:' "${rendered}" | grep -q '/candlepin/status'
 grep -A4 'readinessProbe:' "${rendered}" | grep -q '/pulp/api/v3/status/'
+grep -q "Katello dependencies are not healthy" "${rendered}"
+grep -q "Candlepin mode is" "${rendered}"
+grep -q "Pulp has no online workers" "${rendered}"
 grep -Fq 'assert_application_smoke_test' "${repo_root}/tests/kind/run.sh"
 
 if [[ "$(grep -c '^kind: PodDisruptionBudget$' "${rendered}")" -ne 6 ]]; then

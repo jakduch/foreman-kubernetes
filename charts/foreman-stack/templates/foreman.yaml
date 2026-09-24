@@ -74,12 +74,13 @@ spec:
             timeoutSeconds: 2
             failureThreshold: 60
           readinessProbe:
-            httpGet:
-              path: /api/v2/ping
-              port: http
+            exec:
+              command:
+                - ruby
+                - /opt/foreman-kubernetes/foreman-readiness.rb
             initialDelaySeconds: 20
             periodSeconds: 10
-            timeoutSeconds: 5
+            timeoutSeconds: 10
             failureThreshold: 12
           livenessProbe:
             tcpSocket:

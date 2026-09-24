@@ -9,7 +9,9 @@ These contracts were taken from the current upstream source snapshots listed in 
 - Runs Rails in production on `0.0.0.0:3000`.
 - Accepts Puma worker/thread counts through `FOREMAN_PUMA_WORKERS`, `FOREMAN_PUMA_THREADS_MIN`, and `FOREMAN_PUMA_THREADS_MAX`.
 - Loads Katello through `FOREMAN_ENABLED_PLUGINS`; Katello is not a standalone server.
-- Exposes `/api/v2/ping`, including plugin health results.
+- Exposes `/api/v2/ping`, including plugin health results. The endpoint returns
+  HTTP 200 even when a nested check reports failure, so the chart parses its
+  JSON response for database, cache, and Katello dependency health.
 - Database migration and seed command: `bin/rails db:migrate && bin/rails db:seed`.
 
 ## Dynflow
