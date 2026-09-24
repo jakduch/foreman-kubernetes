@@ -20,6 +20,10 @@ spec:
   ingress:
     - from:
         - {{- toYaml $ingressController | nindent 10 }}
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/instance: {{ .Release.Name }}
+              app.kubernetes.io/component: smoke-test
       ports:
         - protocol: TCP
           port: {{ .Values.foreman.service.port }}
@@ -64,6 +68,10 @@ spec:
               app.kubernetes.io/instance: {{ .Release.Name }}
               app.kubernetes.io/component: pulp-control-proxy
         - {{- toYaml $ingressController | nindent 10 }}
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/instance: {{ .Release.Name }}
+              app.kubernetes.io/component: smoke-test
       ports:
         - protocol: TCP
           port: {{ .Values.pulp.api.port }}
@@ -129,6 +137,10 @@ spec:
                   - dynflow-orchestrator
                   - dynflow-worker
                   - dynflow-worker-hosts-queue
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/instance: {{ .Release.Name }}
+              app.kubernetes.io/component: smoke-test
       ports:
         - protocol: TCP
           port: {{ .Values.candlepin.service.port }}

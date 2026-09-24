@@ -144,6 +144,13 @@ the local process has opened and retained its listener. A database, Valkey, or
 peer-service outage must not make Kubernetes restart every otherwise healthy
 application process and amplify the outage into a restart loop.
 
+The chart also exposes an opt-in-on-invocation Helm test. Its short-lived,
+unprivileged Job calls the Foreman/Katello aggregate health endpoint and the
+Candlepin and Pulp status endpoints through the same NetworkPolicy boundary as
+the application. It validates Candlepin TLS with Foreman's configured CA and
+client identity. This proves post-install service wiring and health, not a full
+content or provisioning workflow.
+
 ## State and upgrades
 
 PostgreSQL, Valkey, object/shared storage, PKI, Secrets, and the optional

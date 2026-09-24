@@ -239,6 +239,15 @@ grep -q 'name: test-foreman-stack-foreman' "${rendered}"
 grep -q 'name: test-foreman-stack-candlepin' "${rendered}"
 grep -q 'name: test-foreman-stack-dynflow-orchestrator' "${rendered}"
 grep -q 'name: test-foreman-stack-pulp-worker' "${rendered}"
+grep -q 'name: test-foreman-stack-smoke-test' "${rendered}"
+grep -q 'helm.sh/hook: test' "${rendered}"
+grep -q 'CANDLEPIN_STATUS_URL' "${rendered}"
+grep -q 'PULP_STATUS_URL' "${rendered}"
+grep -q "client.verify_mode = OpenSSL::SSL::VERIFY_PEER" "${rendered}"
+if [[ "$(grep -c 'app.kubernetes.io/component: smoke-test' "${rendered}")" -lt 4 ]]; then
+  echo 'smoke test must be permitted by each tested service network policy' >&2
+  exit 1
+fi
 grep -q '^kind: PersistentVolumeClaim$' "${rendered}"
 grep -q 'mountPath: /var/lib/pulp$' "${rendered}"
 grep -q 'replicas: 1' "${rendered}"
@@ -292,6 +301,7 @@ fi
 grep -A4 'readinessProbe:' "${rendered}" | grep -q '/api/v2/ping'
 grep -A4 'readinessProbe:' "${rendered}" | grep -q '/candlepin/status'
 grep -A4 'readinessProbe:' "${rendered}" | grep -q '/pulp/api/v3/status/'
+grep -Fq 'assert_application_smoke_test' "${repo_root}/tests/kind/run.sh"
 
 if [[ "$(grep -c '^kind: PodDisruptionBudget$' "${rendered}")" -ne 6 ]]; then
   echo 'expected disruption budgets for the default redundant workloads' >&2

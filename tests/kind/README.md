@@ -9,6 +9,8 @@
   replacement of the terminated Quartz scheduler instance and cleanup of its
   stale cluster row;
 - Foreman health both with and without the optional client certificate;
+- the chart-owned Helm smoke test against Foreman/Katello aggregate health,
+  Candlepin status, and Pulp status through the default NetworkPolicies;
 - automatic Pulp Smart Proxy registration through the private mTLS endpoint;
 - deployment and API registration of a separate, singleton execution Smart
   Proxy whose advertised features must equal Ansible, Dynflow, and Script;

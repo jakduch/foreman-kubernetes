@@ -68,6 +68,13 @@ assert_pulp_registration() {
     bin/rails runner 'abort "Pulp proxy missing" unless SmartProxy.pulp_primary&.has_feature?("Pulpcore")'
 }
 
+assert_application_smoke_test() {
+  helm test "${release}" \
+    --namespace "${namespace}" \
+    --logs \
+    --timeout 10m
+}
+
 candlepin_quartz_instances() {
   kubectl --namespace "${namespace}" exec deployment/postgresql -- \
     env PGPASSWORD=candlepin-test \
@@ -485,6 +492,7 @@ kubectl --namespace "${namespace}" wait \
 assert_foreman_ready
 assert_candlepin_ha
 assert_candlepin_pod_recovery
+assert_application_smoke_test
 
 pulp_api_status="$(curl --silent --output /dev/null --write-out '%{http_code}' \
   --cacert "${temporary_directory}/ca.crt" \
@@ -536,6 +544,7 @@ if [[ "${skip_recovery_test}" != 1 ]]; then
   assert_foreman_ready
   assert_candlepin_ha
   assert_pulp_registration
+  assert_application_smoke_test
   "${repo_root}/tests/kind/content-lifecycle.sh" \
     assert "${temporary_directory}" "${content_lifecycle_state}"
   assert_database_probes before-backup
@@ -558,6 +567,8 @@ helm_apply \
 kubectl --namespace "${namespace}" rollout status \
   deployment/foreman-foreman-stack-foreman \
   --timeout=10m
+
+assert_application_smoke_test
 
 rotate_execution_identity
 assert_execution_plane

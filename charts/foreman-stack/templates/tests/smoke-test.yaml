@@ -1,0 +1,102 @@
+{{- if and .Values.smokeTest.enabled (not .Values.maintenance.enabled) }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "foreman-stack.fullname" . }}-smoke-test
+  labels:
+    {{- include "foreman-stack.componentLabels" (dict "root" . "component" "smoke-test") | nindent 4 }}
+  annotations:
+    helm.sh/hook: test
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: {{ .Values.smokeTest.activeDeadlineSeconds }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "foreman-stack.name" . }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: smoke-test
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      securityContext:
+        fsGroup: 994
+        fsGroupChangePolicy: OnRootMismatch
+        runAsGroup: 994
+        runAsNonRoot: true
+        runAsUser: 994
+        seccompProfile:
+          type: RuntimeDefault
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: smoke-test
+          image: {{ include "foreman-stack.image" .Values.foreman.image }}
+          imagePullPolicy: {{ .Values.foreman.image.pullPolicy }}
+          command:
+            - ruby
+            - -rjson
+            - -rnet/http
+            - -ropenssl
+            - -ruri
+            - -e
+          args:
+            - |
+              def check(name, raw_url)
+                uri = URI(raw_url)
+                client = Net::HTTP.new(uri.host, uri.port)
+                client.open_timeout = 10
+                client.read_timeout = 30
+                if uri.scheme == 'https'
+                  client.use_ssl = true
+                  client.verify_mode = OpenSSL::SSL::VERIFY_PEER
+                  client.ca_file = '/certificates/ca.crt'
+                  client.cert = OpenSSL::X509::Certificate.new(File.read('/certificates/client_cert.pem'))
+                  client.key = OpenSSL::PKey.read(File.read('/certificates/client_key.pem'))
+                end
+                response = client.start { |http| http.get(uri.request_uri) }
+                abort "#{name} returned HTTP #{response.code}: #{response.body}" unless response.is_a?(Net::HTTPSuccess)
+                JSON.parse(response.body)
+                puts "#{name} is healthy"
+              end
+
+              check('Foreman', ENV.fetch('FOREMAN_STATUS_URL'))
+              check('Candlepin', ENV.fetch('CANDLEPIN_STATUS_URL'))
+              check('Pulp', ENV.fetch('PULP_STATUS_URL'))
+          env:
+            - name: HOME
+              value: /tmp
+            - name: FOREMAN_STATUS_URL
+              value: {{ printf "http://%s-foreman:%v/api/v2/ping" (include "foreman-stack.fullname" .) .Values.foreman.service.port | quote }}
+            - name: CANDLEPIN_STATUS_URL
+              value: {{ printf "https://%s:%v/candlepin/status" (include "foreman-stack.candlepinServiceName" .) .Values.candlepin.service.port | quote }}
+            - name: PULP_STATUS_URL
+              value: {{ printf "http://%s:%v/pulp/api/v3/status/" (include "foreman-stack.pulpApiServiceName" .) .Values.pulp.api.port | quote }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsGroup: 994
+            runAsNonRoot: true
+            runAsUser: 994
+          resources:
+            {{- toYaml .Values.smokeTest.resources | nindent 12 }}
+          volumeMounts:
+            - name: certificates
+              mountPath: /certificates
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: certificates
+          secret:
+            secretName: {{ .Values.foreman.existingCertificateSecret }}
+        - name: tmp
+          emptyDir:
+            sizeLimit: 16Mi
+{{- end }}

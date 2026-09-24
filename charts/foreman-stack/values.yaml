@@ -237,6 +237,17 @@ migrations:
   checkIntervalSeconds: 5
   activeDeadlineSeconds: 1800
 
+smokeTest:
+  # Executed only by `helm test`; it is not part of normal installation hooks.
+  enabled: true
+  activeDeadlineSeconds: 300
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      memory: 128Mi
+
 recurringTasks:
   enabled: true
   tasks:
