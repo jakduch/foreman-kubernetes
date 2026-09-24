@@ -4,6 +4,7 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 chart="${repo_root}/charts/foreman-stack"
 execution_chart="${repo_root}/charts/foreman-execution-proxy"
+operator_chart="${repo_root}/charts/foreman-release-operator"
 rendered="$(mktemp)"
 rendered_ingress="$(mktemp)"
 rendered_ingress_overrides="$(mktemp)"
@@ -34,13 +35,15 @@ rendered_execution_egress="$(mktemp)"
 rendered_execution_kind="$(mktemp)"
 rendered_execution_operation="$(mktemp)"
 rendered_execution_secret_rotation="$(mktemp)"
-trap 'rm -f "${rendered}" "${rendered_ingress}" "${rendered_ingress_overrides}" "${rendered_minimal_pulp_ingress}" "${rendered_backup}" "${rendered_restore}" "${rendered_egress}" "${rendered_egress_backup}" "${rendered_egress_backup_local}" "${rendered_singletons}" "${rendered_ha}" "${rendered_candlepin_port}" "${rendered_foreman_service_port}" "${rendered_foreman_secret_contract}" "${rendered_database_tls_disabled}" "${rendered_image_pull_secrets}" "${rendered_no_migrations}" "${rendered_release_operation}" "${rendered_secret_rotation}" "${rendered_s3}" "${rendered_s3_backup}" "${rendered_smtp}" "${rendered_smtp_backup}" "${rendered_kind}" "${rendered_kind_backup}" "${rendered_execution}" "${rendered_execution_egress}" "${rendered_execution_kind}" "${rendered_execution_operation}" "${rendered_execution_secret_rotation}"' EXIT
+rendered_operator="$(mktemp)"
+trap 'rm -f "${rendered}" "${rendered_ingress}" "${rendered_ingress_overrides}" "${rendered_minimal_pulp_ingress}" "${rendered_backup}" "${rendered_restore}" "${rendered_egress}" "${rendered_egress_backup}" "${rendered_egress_backup_local}" "${rendered_singletons}" "${rendered_ha}" "${rendered_candlepin_port}" "${rendered_foreman_service_port}" "${rendered_foreman_secret_contract}" "${rendered_database_tls_disabled}" "${rendered_image_pull_secrets}" "${rendered_no_migrations}" "${rendered_release_operation}" "${rendered_secret_rotation}" "${rendered_s3}" "${rendered_s3_backup}" "${rendered_smtp}" "${rendered_smtp_backup}" "${rendered_kind}" "${rendered_kind_backup}" "${rendered_execution}" "${rendered_execution_egress}" "${rendered_execution_kind}" "${rendered_execution_operation}" "${rendered_execution_secret_rotation}" "${rendered_operator}"' EXIT
 
 ruby "${repo_root}/tests/yaml-duplicates.rb"
 ruby "${repo_root}/tests/workflow-action-pins.rb" "${repo_root}/.github/workflows"
 ruby "${repo_root}/tests/operator-contract.rb"
 ruby "${repo_root}/tests/operator-state-machine.rb"
 ruby "${repo_root}/tests/operator-reconciler.rb"
+ruby "${repo_root}/tests/operator-controller.rb"
 ruby "${repo_root}/tests/operator-kubernetes-client.rb"
 ruby "${repo_root}/tests/operator-release-inputs.rb"
 ruby "${repo_root}/tests/operator-lease-manager.rb"
@@ -75,6 +78,12 @@ if helm template execution "${execution_chart}" \
   exit 1
 fi
 helm template execution "${execution_chart}" > "${rendered_execution}"
+helm lint "${operator_chart}"
+helm template release-controller "${operator_chart}" --namespace foreman > "${rendered_operator}"
+if helm lint "${operator_chart}" --set serviceAccount.create=false >/dev/null 2>&1; then
+  echo 'operator accepted an empty external service account name' >&2
+  exit 1
+fi
 helm template execution "${execution_chart}" \
   --set-string releaseOperation.id=uid-123-generation-7 \
   --set-string releaseOperation.ownerUid=12345678-1234-1234-1234-123456789abc > "${rendered_execution_operation}"
@@ -319,6 +328,8 @@ ruby "${repo_root}/tests/execution-release-operation-contract.rb" \
   12345678-1234-1234-1234-123456789abc
 ruby "${repo_root}/tests/secret-rollout-contract.rb" \
   "${rendered_execution}" "${rendered_execution_secret_rotation}"
+ruby "${repo_root}/tests/kubernetes-invariants.rb" "${rendered_operator}"
+ruby "${repo_root}/tests/operator-chart-contract.rb" "${rendered_operator}"
 ruby -c "${execution_chart}/files/check-features.rb"
 
 grep -q 'name: FOREMAN_PROXY_ENABLED_PLUGINS' "${rendered_execution}"

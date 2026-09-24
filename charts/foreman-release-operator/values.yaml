@@ -1,0 +1,29 @@
+nameOverride: ""
+fullnameOverride: ""
+
+imagePullSecrets: []
+
+image:
+  repository: foreman-release-operator
+  tag: development
+  pullPolicy: IfNotPresent
+
+controller:
+  pollSeconds: 5
+  releaseLeaseDurationSeconds: 120
+  terminationGracePeriodSeconds: 30
+
+serviceAccount:
+  create: true
+  name: ""
+
+rbac:
+  create: true
+  clusterPreflight: true
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+  limits:
+    memory: 512Mi

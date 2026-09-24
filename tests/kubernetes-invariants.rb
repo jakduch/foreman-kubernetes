@@ -44,6 +44,7 @@ workloads.each do |workload|
   selector = workload.dig('spec', 'selector', 'matchLabels')
   labels = template.dig('metadata', 'labels') || {}
   recovery_workload = labels.fetch('app.kubernetes.io/component', '').start_with?('recovery-')
+  kubernetes_api_client = labels.fetch('app.kubernetes.io/component', '') == 'release-controller'
   compatibility_label = 'platform.theforeman.org/compatibility-set'
   workload_compatibility_set = workload.dig('metadata', 'labels', compatibility_label)
   pod_compatibility_set = labels[compatibility_label]
@@ -58,7 +59,7 @@ workloads.each do |workload|
     errors << "#{workload_name} selector does not match its pod template"
   end
 
-  if pod_spec['automountServiceAccountToken'] != false && !recovery_workload
+  if pod_spec['automountServiceAccountToken'] != false && !recovery_workload && !kubernetes_api_client
     errors << "#{workload_name} must disable the Kubernetes API token"
   end
 

@@ -1,0 +1,43 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require 'pathname'
+
+root = Pathname.new(ENV.fetch('FOREMAN_KUBERNETES_ROOT', File.expand_path('../..', __dir__))).realpath
+$LOAD_PATH.unshift(root.join('operator/lib').to_s)
+
+require 'foreman_release/controller'
+require 'foreman_release/kubernetes_client'
+require 'foreman_release/lease_manager'
+require 'foreman_release/reconciler'
+require 'foreman_release/runtime_adapter'
+require 'foreman_release/state_machine'
+
+namespace = ENV.fetch('POD_NAMESPACE')
+poll_seconds = Integer(ENV.fetch('POLL_SECONDS', '5'))
+lease_duration = Integer(ENV.fetch('RELEASE_LEASE_DURATION_SECONDS', '120'))
+runner = ForemanRelease::CommandRunner.new
+kubernetes = ForemanRelease::KubernetesClient.new(runner: runner)
+lease_manager = ForemanRelease::LeaseManager.new(runner: runner, duration_seconds: lease_duration)
+adapter = ForemanRelease::RuntimeAdapter.new(
+  root: root,
+  runner: runner,
+  kubernetes_client: kubernetes,
+  lease_manager: lease_manager
+)
+machine = ForemanRelease::StateMachine.load(root.join('operator/release-state-machine.json'))
+reconciler = ForemanRelease::Reconciler.new(
+  state_machine: machine,
+  adapter: adapter,
+  status_writer: ->(resource, status) { kubernetes.write_status(resource, status) }
+)
+controller = ForemanRelease::Controller.new(
+  namespace: namespace,
+  kubernetes_client: kubernetes,
+  reconciler: reconciler,
+  poll_seconds: poll_seconds
+)
+
+Signal.trap('TERM') { controller.stop }
+Signal.trap('INT') { controller.stop }
+controller.run

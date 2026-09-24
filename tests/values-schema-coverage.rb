@@ -37,7 +37,7 @@ def uncovered_paths(value, reference, root, path = [])
   end
 end
 
-charts = %w[foreman-stack foreman-execution-proxy]
+charts = %w[foreman-stack foreman-execution-proxy foreman-release-operator]
 charts.each do |chart|
   chart_root = File.join(root, 'charts', chart)
   values = YAML.safe_load(File.read(File.join(chart_root, 'values.yaml')))
@@ -48,4 +48,4 @@ charts.each do |chart|
   abort "#{chart}/values.schema.json does not cover defaults:\n#{missing.join("\n")}"
 end
 
-puts 'Every default application and execution-proxy chart value is covered by values.schema.json.'
+puts 'Every default chart value is covered by values.schema.json.'
