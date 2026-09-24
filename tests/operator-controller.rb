@@ -108,6 +108,9 @@ controller = ForemanRelease::Controller.new(
 controller.run_once
 raise 'one failed resource stopped the reconciliation batch' unless reconciler.names == %w[foreman broken second]
 raise 'leader cycle was not published to health state' unless controller_status.snapshot.values_at(:role, :successful_cycles) == [:leader, 1]
+unless controller_status.snapshot.fetch(:releases).map { |release| release.fetch(:name) } == %w[broken foreman second]
+  raise 'leader did not publish its observed release inventory'
+end
 
 events = output.string.lines.map { |line| JSON.parse(line) }
 raise 'successful reconciliation was not logged' unless events.any? { |event| event['event'] == 'release_reconciled' && event['release'] == 'foreman' }
@@ -129,12 +132,14 @@ standby = ForemanRelease::Controller.new(
 raise 'standby controller did not skip reconciliation' unless standby.run_once == :standby
 raise 'standby controller reconciled a release' unless standby_reconciler.names.empty?
 raise 'standby cycle was not published to health state' unless standby_status.snapshot.values_at(:role, :successful_cycles) == [:standby, 1]
+raise 'standby published stale release inventory' unless standby_status.snapshot.fetch(:releases).empty?
 
 client.error = RuntimeError.new('API unavailable')
 controller.run_once
 events = output.string.lines.map { |line| JSON.parse(line) }
 raise 'controller cycle failure was not isolated and logged' unless events.last['event'] == 'controller_cycle_failed'
 raise 'failed cycle did not clear leadership health' unless controller_status.snapshot.values_at(:role, :failed_cycles) == [:unknown, 1]
+raise 'failed API cycle retained stale release inventory' unless controller_status.snapshot.fetch(:releases).empty?
 
 unprotected = {'metadata' => {'name' => 'new-release', 'generation' => 1}, 'status' => {'phase' => 'Pending'}}
 protection_client = ControllerClient.new([unprotected])

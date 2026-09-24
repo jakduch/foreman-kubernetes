@@ -13,6 +13,7 @@ module ForemanRelease
       @successful_cycles = 0
       @failed_cycles = 0
       @last_success_at = nil
+      @releases = []
     end
 
     def started
@@ -23,11 +24,29 @@ module ForemanRelease
       update do
         @running = false
         @role = :unknown
+        @releases = []
       end
     end
 
     def role_changed(role)
-      update { @role = role.to_sym }
+      update do
+        @role = role.to_sym
+        @releases = [] unless @role == :leader
+      end
+    end
+
+    def releases_observed(resources)
+      observed = resources.map do |resource|
+        {
+          namespace: resource.dig('metadata', 'namespace').to_s,
+          name: resource.dig('metadata', 'name').to_s,
+          phase: resource.dig('status', 'phase') || 'Pending',
+          generation: Integer(resource.dig('metadata', 'generation') || 0),
+          observed_generation: Integer(resource.dig('status', 'observedGeneration') || 0),
+          deleting: !resource.dig('metadata', 'deletionTimestamp').nil?
+        }
+      end
+      update { @releases = observed.sort_by { |release| [release.fetch(:namespace), release.fetch(:name)] } }
     end
 
     def cycle_succeeded
@@ -41,6 +60,7 @@ module ForemanRelease
       update do
         @failed_cycles += 1
         @role = :unknown
+        @releases = []
       end
     end
 
@@ -52,6 +72,7 @@ module ForemanRelease
           successful_cycles: @successful_cycles,
           failed_cycles: @failed_cycles,
           last_success_at: @last_success_at,
+          releases: Marshal.load(Marshal.dump(@releases)),
           observed_at: @clock.call.utc
         }
       end

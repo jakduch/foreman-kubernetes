@@ -48,7 +48,9 @@ module ForemanRelease
         return :standby
       end
       log_leadership('leader', leadership.message)
-      @kubernetes_client.releases(@namespace).each do |resource|
+      releases = @kubernetes_client.releases(@namespace)
+      @status.releases_observed(releases)
+      releases.each do |resource|
         reconcile(resource)
       end
       @status.cycle_succeeded

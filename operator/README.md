@@ -20,10 +20,14 @@ cycle within the configured staleness window; a responsive process with a
 wedged or unreachable Kubernetes API therefore leaves Service endpoints
 without triggering an immediate liveness restart. Metrics expose only process
 state, current leader role, cycle counters, and the last successful timestamp,
-never release specs, Secret contents, or command output.
+plus each observed release phase and generation convergence. Metric labels are
+limited to namespace, release name, and the fixed phase vocabulary; they never
+contain release specs, Secret contents, or command output.
 The metrics Service keeps NotReady candidates discoverable. An opt-in
 `PrometheusRule` packages alerts only when its external CRD is explicitly
 available; the operator chart does not install or own a monitoring stack.
+The same opt-in rule group alerts on a `Blocked` release and on a generation
+that remains unobserved for ten minutes.
 Every persisted phase transition and pause/resume condition also emits a
 namespaced `events.k8s.io/v1` Event, so `kubectl describe` exposes release
 progress without reading controller logs. Status remains authoritative: Event

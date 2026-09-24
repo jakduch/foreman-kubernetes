@@ -90,6 +90,9 @@ uses `/livez` for process liveness and `/readyz` for the freshness of successful
 API cycles. Configure a Prometheus scraper through `service.annotations`, and
 alert on `foreman_release_controller_ready == 0`, increasing failed cycles, or
 an old `foreman_release_controller_last_success_timestamp_seconds`.
+The leader also exports `foreman_release_status`, desired and observed
+generation gauges, and deletion state for each CR. Standby and API-failed
+candidates clear that inventory instead of serving stale release state.
 The Service publishes NotReady Pod addresses deliberately so a monitoring
 system can still scrape the failure state. If the Prometheus Operator CRD is
 installed, `monitoring.prometheusRule.enabled=true` adds alerts for missing

@@ -94,7 +94,7 @@ module ForemanRelease
 
     def metrics(snapshot)
       last_success = snapshot[:last_success_at]&.to_f || 0
-      <<~METRICS
+      controller_metrics = <<~METRICS
         # HELP foreman_release_controller_running Whether the controller loop is running.
         # TYPE foreman_release_controller_running gauge
         foreman_release_controller_running #{snapshot[:running] ? 1 : 0}
@@ -112,6 +112,36 @@ module ForemanRelease
         # TYPE foreman_release_controller_last_success_timestamp_seconds gauge
         foreman_release_controller_last_success_timestamp_seconds #{last_success}
       METRICS
+      release_metrics = Array(snapshot[:releases]).map do |release|
+        labels = %i[namespace name phase].map do |key|
+          %(#{key}="#{escape_label(release.fetch(key))}")
+        end.join(',')
+        identity = %i[namespace name].map do |key|
+          %(#{key}="#{escape_label(release.fetch(key))}")
+        end.join(',')
+        <<~RELEASE
+          foreman_release_status{#{labels}} 1
+          foreman_release_metadata_generation{#{identity}} #{release.fetch(:generation)}
+          foreman_release_observed_generation{#{identity}} #{release.fetch(:observed_generation)}
+          foreman_release_deleting{#{identity}} #{release.fetch(:deleting) ? 1 : 0}
+        RELEASE
+      end.join
+      return controller_metrics if release_metrics.empty?
+
+      controller_metrics + <<~METRICS + release_metrics
+        # HELP foreman_release_status Current ForemanRelease phase; exactly one series exists per observed release.
+        # TYPE foreman_release_status gauge
+        # HELP foreman_release_metadata_generation Desired ForemanRelease generation.
+        # TYPE foreman_release_metadata_generation gauge
+        # HELP foreman_release_observed_generation ForemanRelease generation acknowledged by the controller.
+        # TYPE foreman_release_observed_generation gauge
+        # HELP foreman_release_deleting Whether ForemanRelease deletion is waiting for safe finalization.
+        # TYPE foreman_release_deleting gauge
+      METRICS
+    end
+
+    def escape_label(value)
+      value.to_s.gsub('\\') { '\\\\' }.gsub("\n") { '\\n' }.gsub('"') { '\\"' }
     end
   end
 end

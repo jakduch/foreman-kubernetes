@@ -21,6 +21,8 @@ expected = %w[
   ForemanReleaseControllerNotReady
   ForemanReleaseControllerLeaderUnavailable
   ForemanReleaseControllerCycleFailures
+  ForemanReleaseBlocked
+  ForemanReleaseGenerationStalled
 ]
 names = rules.map { |item| item['alert'] }
 abort "unexpected operator alerts: #{names.join(', ')}" unless names.sort == expected.sort
@@ -30,8 +32,11 @@ expressions = rules.map { |item| item['expr'].to_s }.join('\n')
   foreman_release_controller_ready
   foreman_release_controller_leader
   foreman_release_controller_cycles_total
+  foreman_release_status
+  foreman_release_metadata_generation
+  foreman_release_observed_generation
 ].each do |metric|
   abort "alerts do not consume #{metric}" unless expressions.include?(metric)
 end
 
-puts 'Operator monitoring keeps failed candidates discoverable and packages four opt-in alerts.'
+puts 'Operator monitoring keeps failed candidates discoverable and packages six opt-in alerts.'
