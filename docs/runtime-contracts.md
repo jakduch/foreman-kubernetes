@@ -89,6 +89,10 @@ process so an asynchronous step can run on a different pod.
 - The Foreman RPM image contains Liquibase, the expanded Candlepin webapp, and
   `/usr/share/candlepin/liquibase.sh`; the chart migration wrapper uses that
   image-specific layout.
+- The revision migration Job remains the observable migration owner. Every
+  Candlepin Pod also runs the same idempotent Liquibase update as an init
+  barrier; Liquibase's database lock serializes it with the Job and prevents
+  Tomcat from racing an incomplete schema without parsing localized CLI output.
 - The external broker client reads
   `candlepin.audit.hornetq.broker_url`. Its session factory does not expose
   separate username/password settings and logs the configured URL.

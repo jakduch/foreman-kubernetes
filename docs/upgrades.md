@@ -47,6 +47,11 @@ application upgrade -> migration Jobs -> application smoke test
 execution-proxy upgrade -> proxy readiness -> final application smoke test
 ```
 
+Foreman and Pulp processes use schema-checking init containers. Candlepin uses
+the same idempotent Liquibase update command in both its revision Job and a Pod
+init barrier. Whichever acquires Liquibase's database lock first performs the
+update; the other confirms it, and Tomcat cannot start before that succeeds.
+
 Run a supported set with:
 
 ```sh
