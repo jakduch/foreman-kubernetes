@@ -11,7 +11,9 @@ image:
 controller:
   replicas: 2
   pollSeconds: 5
-  releaseLeaseDurationSeconds: 120
+  commandTimeoutSeconds: 60
+  commandTerminationGraceSeconds: 5
+  releaseLeaseDurationSeconds: 300
   leaderLeaseName: foreman-release-controller-leader
   leaderLeaseDurationSeconds: 30
   terminationGracePeriodSeconds: 30

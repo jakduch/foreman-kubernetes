@@ -69,6 +69,10 @@ an expired or explicitly released Lease can be claimed. Release is an
 optimistic `replace` that clears the holder instead
 of an unsafe unchecked delete. Every migration, rollout, and verification
 reconciliation renews the Lease, including a release paused at a safe boundary.
+Every Helm and kubectl subprocess has a hard execution deadline and runs in its
+own process group. A timeout sends TERM and then KILL after a short grace
+period, so a wedged client cannot bypass the CR phase budget or retain a Lease
+forever. The operation Lease duration must exceed four command deadlines.
 Preflight also rejects another ForemanRelease that names either of the same
 Helm releases, preventing two CRs from taking turns mutating one release.
 An existing Helm release without this CR's owner UID is rejected unless the

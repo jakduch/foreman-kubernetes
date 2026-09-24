@@ -17,6 +17,12 @@ pod_uid = environment.find { |entry| entry['name'] == 'POD_UID' }
 abort 'operator leader identity is not sourced from the Pod UID' unless pod_uid&.dig('valueFrom', 'fieldRef', 'fieldPath') == 'metadata.uid'
 abort 'operator has no leader Lease name' unless environment.any? { |entry| entry['name'] == 'LEADER_LEASE_NAME' }
 abort 'operator has no leader Lease duration' unless environment.any? { |entry| entry['name'] == 'LEADER_LEASE_DURATION_SECONDS' }
+command_timeout = environment.find { |entry| entry['name'] == 'COMMAND_TIMEOUT_SECONDS' }
+command_grace = environment.find { |entry| entry['name'] == 'COMMAND_TERMINATION_GRACE_SECONDS' }
+release_lease = environment.find { |entry| entry['name'] == 'RELEASE_LEASE_DURATION_SECONDS' }
+abort 'operator commands have no execution deadline' unless command_timeout&.fetch('value') == '60'
+abort 'operator commands have no termination grace period' unless command_grace&.fetch('value') == '5'
+abort 'operation Lease does not outlive bounded commands' unless release_lease&.fetch('value') == '300'
 
 pdb = documents.find { |item| item['kind'] == 'PodDisruptionBudget' }
 abort 'operator PodDisruptionBudget is missing' unless pdb

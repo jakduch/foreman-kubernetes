@@ -1,6 +1,12 @@
 {{- if le (int .Values.controller.leaderLeaseDurationSeconds) (mul 2 (int .Values.controller.pollSeconds)) }}
 {{- fail "controller.leaderLeaseDurationSeconds must exceed twice controller.pollSeconds" }}
 {{- end }}
+{{- if le (int .Values.controller.releaseLeaseDurationSeconds) (mul 4 (int .Values.controller.commandTimeoutSeconds)) }}
+{{- fail "controller.releaseLeaseDurationSeconds must exceed four times controller.commandTimeoutSeconds" }}
+{{- end }}
+{{- if le (int .Values.controller.commandTimeoutSeconds) (int .Values.controller.commandTerminationGraceSeconds) }}
+{{- fail "controller.commandTimeoutSeconds must exceed controller.commandTerminationGraceSeconds" }}
+{{- end }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -63,6 +69,10 @@ spec:
                   fieldPath: metadata.uid
             - name: POLL_SECONDS
               value: {{ .Values.controller.pollSeconds | quote }}
+            - name: COMMAND_TIMEOUT_SECONDS
+              value: {{ .Values.controller.commandTimeoutSeconds | quote }}
+            - name: COMMAND_TERMINATION_GRACE_SECONDS
+              value: {{ .Values.controller.commandTerminationGraceSeconds | quote }}
             - name: RELEASE_LEASE_DURATION_SECONDS
               value: {{ .Values.controller.releaseLeaseDurationSeconds | quote }}
             - name: LEADER_LEASE_NAME

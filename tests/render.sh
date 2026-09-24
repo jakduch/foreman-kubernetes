@@ -45,6 +45,7 @@ ruby "${repo_root}/tests/operator-contract.rb"
 ruby "${repo_root}/tests/operator-state-machine.rb"
 ruby "${repo_root}/tests/operator-reconciler.rb"
 ruby "${repo_root}/tests/operator-controller.rb"
+ruby "${repo_root}/tests/operator-command-runner.rb"
 ruby "${repo_root}/tests/operator-leader-election.rb"
 ruby "${repo_root}/tests/operator-kubernetes-client.rb"
 ruby "${repo_root}/tests/operator-release-inputs.rb"
@@ -83,6 +84,16 @@ fi
 helm template execution "${execution_chart}" > "${rendered_execution}"
 helm lint "${operator_chart}"
 helm template release-controller "${operator_chart}" --namespace foreman > "${rendered_operator}"
+if helm template release-controller "${operator_chart}" \
+  --set controller.releaseLeaseDurationSeconds=240 >/dev/null 2>&1; then
+  echo 'operator accepted a release Lease that can expire during bounded commands' >&2
+  exit 1
+fi
+if helm template release-controller "${operator_chart}" \
+  --set controller.commandTerminationGraceSeconds=60 >/dev/null 2>&1; then
+  echo 'operator accepted a termination grace period longer than its command deadline' >&2
+  exit 1
+fi
 if helm lint "${operator_chart}" --set serviceAccount.create=false >/dev/null 2>&1; then
   echo 'operator accepted an empty external service account name' >&2
   exit 1

@@ -156,6 +156,10 @@ storage, or endpoint failure and change `spec.retryToken` to reconcile again.
 Every managed Deployment also has a shorter Kubernetes progress deadline, so
 the controller can normally report the exact `ProgressDeadlineExceeded`
 workload before the broader phase budget is exhausted.
+Controller-side Helm and kubectl commands are independently bounded by
+`controller.commandTimeoutSeconds`. A timed-out process group receives TERM
+and then KILL after `controller.commandTerminationGraceSeconds`; the release
+Lease is required to remain valid for more than four such command windows.
 
 ## Failure boundary
 
