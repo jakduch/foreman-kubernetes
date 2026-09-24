@@ -30,6 +30,7 @@ spec:
           restartPolicy: Never
           serviceAccountName: {{ include "foreman-stack.serviceAccountName" $root }}
           automountServiceAccountToken: false
+          {{- include "foreman-stack.imagePullSecrets" $root | nindent 10 }}
           securityContext:
             fsGroup: 994
             fsGroupChangePolicy: OnRootMismatch

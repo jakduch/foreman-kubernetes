@@ -20,6 +20,7 @@ spec:
     spec:
       restartPolicy: Never
       automountServiceAccountToken: false
+      {{- include "foreman-stack.imagePullSecrets" . | nindent 6 }}
       securityContext:
         fsGroup: 994
         fsGroupChangePolicy: OnRootMismatch
@@ -28,10 +29,6 @@ spec:
         runAsUser: 994
         seccompProfile:
           type: RuntimeDefault
-      {{- with .Values.imagePullSecrets }}
-      imagePullSecrets:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
       containers:
         - name: smoke-test
           image: {{ include "foreman-stack.image" .Values.foreman.image }}

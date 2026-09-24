@@ -60,6 +60,7 @@ spec:
     spec:
       serviceAccountName: {{ include "foreman-stack.pulpServiceAccountName" $root }}
       automountServiceAccountToken: false
+      {{- include "foreman-stack.imagePullSecrets" $root | nindent 6 }}
       securityContext:
         fsGroup: 700
         fsGroupChangePolicy: OnRootMismatch
@@ -173,6 +174,7 @@ spec:
     spec:
       serviceAccountName: {{ include "foreman-stack.pulpServiceAccountName" . }}
       automountServiceAccountToken: false
+      {{- include "foreman-stack.imagePullSecrets" . | nindent 6 }}
       terminationGracePeriodSeconds: {{ .Values.pulp.workers.terminationGracePeriodSeconds }}
       securityContext:
         fsGroup: 700

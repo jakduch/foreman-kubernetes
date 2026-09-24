@@ -18,6 +18,7 @@ spec:
       restartPolicy: OnFailure
       serviceAccountName: {{ include "foreman-stack.serviceAccountName" . }}
       automountServiceAccountToken: false
+      {{- include "foreman-stack.imagePullSecrets" . | nindent 6 }}
       securityContext:
         runAsNonRoot: true
         seccompProfile:
@@ -87,6 +88,7 @@ spec:
       restartPolicy: OnFailure
       serviceAccountName: {{ include "foreman-stack.serviceAccountName" . }}
       automountServiceAccountToken: false
+      {{- include "foreman-stack.imagePullSecrets" . | nindent 6 }}
       securityContext:
         fsGroup: 700
         fsGroupChangePolicy: OnRootMismatch
@@ -142,6 +144,7 @@ spec:
       restartPolicy: OnFailure
       serviceAccountName: {{ include "foreman-stack.serviceAccountName" . }}
       automountServiceAccountToken: false
+      {{- include "foreman-stack.imagePullSecrets" . | nindent 6 }}
       securityContext:
         fsGroup: 994
         fsGroupChangePolicy: OnRootMismatch

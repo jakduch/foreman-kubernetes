@@ -40,6 +40,7 @@ spec:
     spec:
       serviceAccountName: {{ include "foreman-stack.serviceAccountName" . }}
       automountServiceAccountToken: false
+      {{- include "foreman-stack.imagePullSecrets" . | nindent 6 }}
       securityContext:
         fsGroup: 994
         fsGroupChangePolicy: OnRootMismatch
@@ -48,10 +49,6 @@ spec:
         runAsUser: 994
         seccompProfile:
           type: RuntimeDefault
-      {{- with .Values.imagePullSecrets }}
-      imagePullSecrets:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
       {{- if .Values.migrations.enabled }}
       initContainers:
         {{- include "foreman-stack.foremanMigrationWait" . | nindent 8 }}

@@ -43,6 +43,13 @@ app.kubernetes.io/component: {{ .component }}
 {{- printf "%s:%s" .repository .tag }}
 {{- end }}
 
+{{- define "foreman-stack.imagePullSecrets" -}}
+{{- with .Values.imagePullSecrets }}
+imagePullSecrets:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- end }}
+
 {{- define "foreman-stack.restrictedContainerSecurityContext" -}}
 allowPrivilegeEscalation: false
 capabilities:

@@ -33,6 +33,7 @@ spec:
     spec:
       serviceAccountName: {{ include "foreman-stack.serviceAccountName" $root }}
       automountServiceAccountToken: false
+      {{- include "foreman-stack.imagePullSecrets" $root | nindent 6 }}
       securityContext:
         fsGroup: 994
         fsGroupChangePolicy: OnRootMismatch

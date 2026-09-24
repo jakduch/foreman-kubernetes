@@ -87,6 +87,7 @@ spec:
     spec:
       serviceAccountName: {{ include "foreman-stack.serviceAccountName" . }}
       automountServiceAccountToken: false
+      {{- include "foreman-stack.imagePullSecrets" . | nindent 6 }}
       securityContext:
         runAsNonRoot: true
         seccompProfile:
