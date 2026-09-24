@@ -16,7 +16,8 @@ The recovery set contains:
   storage is selected;
 - an encrypted escrow copy of the application, certificate, ingress, and image
   pull Secrets known to the chart;
-- a versioned manifest identifying the Helm release, namespace, and chart.
+- a versioned manifest identifying the Helm release, namespace, chart, and
+  exact digest-pinned compatibility set.
 
 Valkey is deliberately excluded. It contains cache and task transport state,
 not the authoritative application records. Any work that was in flight when a
@@ -147,7 +148,7 @@ RESTORE_SNAPSHOT=latest \
     20260924-130000
 ```
 
-The Job validates the snapshot owner, tag, storage backend, manifest, all three
+The Job validates the snapshot owner, tag, compatibility set, storage backend, manifest, all three
 dumps, the avatar tree, the Pulp tree in filesystem mode, and every requested
 Secret escrow file before modifying state. It also verifies the paths against
 Restic's snapshot inventory, so stale files on a reused work volume cannot make
@@ -156,6 +157,11 @@ delete or replace current data. In S3 mode it leaves objects untouched and
 requires the operator to restore the bucket to the coordinated point before
 leaving maintenance mode. It replaces objects inside the existing databases
 but never drops or creates the databases or their roles.
+
+A snapshot must first be restored with the same compatibility set that created
+it. Run a normal guarded upgrade only after the restored release is healthy;
+this keeps data restoration and application migration as two separately
+auditable operations.
 
 Secret escrow is not applied by default. This avoids silently reverting rotated
 external database credentials. To restore it in the same environment, add

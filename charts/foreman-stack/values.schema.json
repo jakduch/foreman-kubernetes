@@ -19,8 +19,9 @@
     "platform": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["fqdn", "domain", "externalUrl", "aliases", "trustedProxies"],
+      "required": ["compatibilitySet", "fqdn", "domain", "externalUrl", "aliases", "trustedProxies"],
       "properties": {
+        "compatibilitySet": { "type": "string", "minLength": 1, "maxLength": 63, "pattern": "^[a-z0-9][a-z0-9._-]*$" },
         "fqdn": { "type": "string", "minLength": 1 },
         "domain": { "type": "string", "minLength": 1 },
         "externalUrl": { "type": "string", "pattern": "^https://" },

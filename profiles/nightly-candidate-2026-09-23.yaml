@@ -1,4 +1,7 @@
 # Manifest-verified candidate set. It becomes supported only after tests/kind/run.sh passes.
+platform:
+  compatibilitySet: nightly-candidate-2026-09-24
+
 foreman:
   image:
     repository: quay.io/foreman/foreman

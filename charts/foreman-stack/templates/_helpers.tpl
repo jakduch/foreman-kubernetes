@@ -21,6 +21,7 @@ app.kubernetes.io/part-of: {{ include "foreman-stack.name" . }}
 app.kubernetes.io/name: {{ include "foreman-stack.name" .root }}
 app.kubernetes.io/instance: {{ .root.Release.Name }}
 app.kubernetes.io/component: {{ .component }}
+platform.theforeman.org/compatibility-set: {{ .root.Values.platform.compatibilitySet | quote }}
 {{- end }}
 
 {{- define "foreman-stack.serviceAccountName" -}}

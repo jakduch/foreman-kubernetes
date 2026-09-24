@@ -52,6 +52,11 @@ sets.each do |set_name, release_set|
   application_profile = YAML.safe_load(application_profile_path.read)
   execution_profile = YAML.safe_load(execution_profile_path.read)
 
+  raise "application profile identity mismatch for #{set_name}" unless \
+    application_profile.dig('platform', 'compatibilitySet') == set_name
+  raise "execution profile identity mismatch for #{set_name}" unless \
+    execution_profile.fetch('compatibilitySet') == set_name
+
   %w[foreman candlepin pulp].each do |component|
     digest_pinned!(set_name, component, application_profile.fetch(component).fetch('image'))
   end

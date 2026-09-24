@@ -9,6 +9,9 @@ imagePullSecrets: []
 secretRolloutToken: initial
 
 platform:
+  # Guarded releases override this with the exact digest-pinned compatibility
+  # set. Recovery refuses the unqualified value.
+  compatibilitySet: unqualified
   fqdn: foreman.example.test
   domain: example.test
   externalUrl: https://foreman.example.test

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft-07/schema#",
   "type": "object",
   "additionalProperties": false,
-  "required": ["nameOverride", "fullnameOverride", "imagePullSecrets", "secretRolloutToken", "image", "replicas", "proxy", "ssh", "ansible", "state", "serviceAccount", "networkPolicy", "resources", "initResources", "terminationGracePeriodSeconds"],
+  "required": ["nameOverride", "fullnameOverride", "imagePullSecrets", "compatibilitySet", "secretRolloutToken", "image", "replicas", "proxy", "ssh", "ansible", "state", "serviceAccount", "networkPolicy", "resources", "initResources", "terminationGracePeriodSeconds"],
   "properties": {
     "nameOverride": { "type": "string" },
     "fullnameOverride": { "type": "string" },
@@ -15,6 +15,7 @@
         "properties": { "name": { "type": "string", "minLength": 1 } }
       }
     },
+    "compatibilitySet": { "type": "string", "minLength": 1, "maxLength": 63, "pattern": "^[a-z0-9][a-z0-9._-]*$" },
     "secretRolloutToken": { "type": "string", "minLength": 1, "maxLength": 128 },
     "image": {
       "type": "object",

@@ -1,4 +1,7 @@
 {{- if or .Values.backup.enabled .Values.restore.enabled }}
+{{- if eq .Values.platform.compatibilitySet "unqualified" }}
+{{- fail "recovery requires a qualified platform.compatibilitySet from a digest-pinned release profile" }}
+{{- end }}
 {{- if and (not .Values.recovery.image.allowMutableTagForTesting) (not (regexMatch "@sha256:[0-9a-f]{64}$" .Values.recovery.image.tag)) }}
 {{- fail "recovery.image.tag must end with an immutable @sha256 digest" }}
 {{- end }}
@@ -171,6 +174,8 @@ spec:
               value: {{ .Release.Name | quote }}
             - name: CHART_VERSION
               value: {{ .Chart.Version | quote }}
+            - name: COMPATIBILITY_SET
+              value: {{ .Values.platform.compatibilitySet | quote }}
             - name: QUIESCENCE_TIMEOUT_SECONDS
               value: {{ .Values.recovery.quiescenceTimeoutSeconds | quote }}
             - name: BACKUP_SECRET_NAMES

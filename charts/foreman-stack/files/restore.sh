@@ -63,10 +63,12 @@ done
 jq -e \
   --arg release "${HELM_RELEASE}" \
   --arg namespace "${POD_NAMESPACE}" \
+  --arg compatibility_set "${COMPATIBILITY_SET}" \
   --arg pulp_storage_backend "${PULP_STORAGE_BACKEND}" \
-  '.schema_version == "2" and
+  '.schema_version == "3" and
    .helm_release == $release and
    .namespace == $namespace and
+   .compatibility_set == $compatibility_set and
    (.databases | sort) == ["candlepin", "foreman", "pulp"] and
    .includes_foreman_avatars == true and
    (.pulp_storage_backend // (if .includes_pulp_filesystem then "filesystem" else "unknown" end)) == $pulp_storage_backend and

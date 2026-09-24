@@ -35,9 +35,10 @@ if [ "${PULP_STORAGE_BACKEND}" = filesystem ]; then
 fi
 
 jq -n \
-  --arg schema_version "2" \
+  --arg schema_version "3" \
   --arg created_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
   --arg chart_version "${CHART_VERSION}" \
+  --arg compatibility_set "${COMPATIBILITY_SET}" \
   --arg release "${HELM_RELEASE}" \
   --arg namespace "${POD_NAMESPACE}" \
   --arg pulp_storage_backend "${PULP_STORAGE_BACKEND}" \
@@ -47,6 +48,7 @@ jq -n \
     schema_version: $schema_version,
     created_at: $created_at,
     chart_version: $chart_version,
+    compatibility_set: $compatibility_set,
     helm_release: $release,
     namespace: $namespace,
     databases: ["foreman", "candlepin", "pulp"],

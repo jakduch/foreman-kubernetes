@@ -3,6 +3,9 @@ fullnameOverride: ""
 
 imagePullSecrets: []
 
+# Guarded releases override this with the exact digest-pinned compatibility set.
+compatibilitySet: unqualified
+
 # Change after rotating a referenced TLS, SSH, or known-hosts Secret. Several
 # files use subPath or are copied into runtime storage during pod startup.
 secretRolloutToken: initial

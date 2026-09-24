@@ -104,33 +104,47 @@ helm template foreman "${chart}" \
   --set backup.enabled=true \
   --set backup.requestId=execution-escrow > "${rendered_kind_backup}"
 if helm template test "${chart}" \
+  --values "${repo_root}/profiles/nightly-candidate-2026-09-23.yaml" \
   --set maintenance.enabled=true \
   --set backup.enabled=true \
   --set backup.requestId=mutable-image >/dev/null 2>&1; then
   echo 'expected recovery with a mutable toolbox image to be rejected' >&2
   exit 1
 fi
+if helm template test "${chart}" \
+  --values "${repo_root}/tests/recovery-image-values.yaml" \
+  --set maintenance.enabled=true \
+  --set backup.enabled=true \
+  --set backup.requestId=unqualified-release >/dev/null 2>&1; then
+  echo 'expected recovery without a qualified compatibility set to be rejected' >&2
+  exit 1
+fi
 helm template test "${chart}" \
+  --values "${repo_root}/profiles/nightly-candidate-2026-09-23.yaml" \
   --values "${repo_root}/tests/recovery-image-values.yaml" \
   --set maintenance.enabled=true \
   --set backup.enabled=true \
   --set backup.requestId=20260924-120000 > "${rendered_backup}"
 helm template test "${chart}" \
+  --values "${repo_root}/profiles/nightly-candidate-2026-09-23.yaml" \
   --values "${repo_root}/tests/recovery-image-values.yaml" \
   --set maintenance.enabled=true \
   --set restore.enabled=true \
   --set restore.requestId=20260924-130000 \
   --set restore.confirmation=RESTORE > "${rendered_restore}"
 helm template test "${chart}" \
+  --values "${repo_root}/profiles/nightly-candidate-2026-09-23.yaml" \
   --values "${repo_root}/tests/egress-values.yaml" \
   --set foreman.service.port=3100 > "${rendered_egress}"
 helm template test "${chart}" \
+  --values "${repo_root}/profiles/nightly-candidate-2026-09-23.yaml" \
   --values "${repo_root}/tests/egress-values.yaml" \
   --values "${repo_root}/tests/recovery-image-values.yaml" \
   --set maintenance.enabled=true \
   --set backup.enabled=true \
   --set backup.requestId=egress-remote > "${rendered_egress_backup}"
 helm template test "${chart}" \
+  --values "${repo_root}/profiles/nightly-candidate-2026-09-23.yaml" \
   --values "${repo_root}/tests/egress-values.yaml" \
   --values "${repo_root}/tests/recovery-image-values.yaml" \
   --set maintenance.enabled=true \
@@ -165,15 +179,18 @@ helm template test "${chart}" \
 helm template test "${chart}" \
   --values "${repo_root}/examples/pulp-s3-values.yaml" > "${rendered_s3}"
 helm template test "${chart}" \
+  --values "${repo_root}/profiles/nightly-candidate-2026-09-23.yaml" \
   --values "${repo_root}/examples/pulp-s3-values.yaml" \
   --values "${repo_root}/tests/recovery-image-values.yaml" \
   --set maintenance.enabled=true \
   --set backup.enabled=true \
   --set backup.requestId=20260924-s3 > "${rendered_s3_backup}"
 helm template test "${chart}" \
+  --values "${repo_root}/profiles/nightly-candidate-2026-09-23.yaml" \
   --values "${repo_root}/tests/egress-values.yaml" \
   --values "${repo_root}/tests/smtp-values.yaml" > "${rendered_smtp}"
 helm template test "${chart}" \
+  --values "${repo_root}/profiles/nightly-candidate-2026-09-23.yaml" \
   --values "${repo_root}/tests/egress-values.yaml" \
   --values "${repo_root}/tests/smtp-values.yaml" \
   --values "${repo_root}/tests/recovery-image-values.yaml" \
@@ -438,6 +455,8 @@ grep -Fq "if [[ ! -s \"\${workdir}/ca.crt\" ]]" \
 grep -Fq 'foreman-execution-proxy-tls' "${rendered_kind_backup}"
 grep -Fq 'foreman-execution-proxy-foreman-client' "${rendered_kind_backup}"
 grep -Fq 'foreman-execution-proxy-ssh' "${rendered_kind_backup}"
+grep -Fq 'platform.theforeman.org/compatibility-set: "nightly-candidate-2026-09-24"' "${rendered_kind}"
+grep -Fq 'platform.theforeman.org/compatibility-set: "nightly-candidate-2026-09-24"' "${rendered_execution_kind}"
 grep -Fq 'rotate_execution_identity' "${repo_root}/tests/kind/run.sh"
 grep -Fq 'publish-ansible-content.sh" v2' "${repo_root}/tests/kind/run.sh"
 grep -Fq 'assert_execution_plane v2' "${repo_root}/tests/kind/run.sh"
@@ -614,6 +633,8 @@ grep -q -- '- pulp-object-storage-ca$' "${rendered_s3_backup}"
 grep -q 'app.kubernetes.io/component: recovery-backup' "${rendered_backup}"
 grep -q 'name: BACKUP_REQUEST_ID' "${rendered_backup}"
 grep -q 'name: RESTIC_CACHE_DIR' "${rendered_backup}"
+grep -A1 'name: COMPATIBILITY_SET' "${rendered_backup}" | \
+  grep -Eq 'value: "?nightly-candidate-2026-09-24"?'
 grep -q 'resourceNames:' "${rendered_backup}"
 grep -q 'name: test-foreman-stack-backup-20260924-120000' "${rendered_backup}"
 ruby "${repo_root}/scripts/required-secrets.rb" < "${rendered_backup}" |
@@ -672,6 +693,7 @@ if helm template test "${chart}" \
 fi
 
 if helm template test "${chart}" \
+  --values "${repo_root}/profiles/nightly-candidate-2026-09-23.yaml" \
   --values "${repo_root}/tests/egress-values.yaml" \
   --set candlepin.replicas=2 \
   --set candlepin.highAvailability.enabled=true >/dev/null 2>&1; then
@@ -714,6 +736,7 @@ if helm template test "${chart}" \
 fi
 
 if helm template test "${chart}" \
+  --values "${repo_root}/profiles/nightly-candidate-2026-09-23.yaml" \
   --values "${repo_root}/examples/pulp-s3-values.yaml" \
   --values "${repo_root}/tests/recovery-image-values.yaml" \
   --set maintenance.enabled=true \
@@ -725,6 +748,7 @@ if helm template test "${chart}" \
 fi
 
 helm template test "${chart}" \
+  --values "${repo_root}/profiles/nightly-candidate-2026-09-23.yaml" \
   --values "${repo_root}/examples/pulp-s3-values.yaml" \
   --values "${repo_root}/tests/recovery-image-values.yaml" \
   --set maintenance.enabled=true \
@@ -854,6 +878,7 @@ if helm template test "${chart}" \
 fi
 
 if helm template test "${chart}" \
+  --values "${repo_root}/profiles/nightly-candidate-2026-09-23.yaml" \
   --values "${repo_root}/tests/egress-values.yaml" \
   --values "${repo_root}/tests/smtp-values.yaml" \
   --set-json 'networkPolicy.egress.external.smtp.peers=[]' >/dev/null 2>&1; then
@@ -862,6 +887,7 @@ if helm template test "${chart}" \
 fi
 
 if helm template test "${chart}" \
+  --values "${repo_root}/profiles/nightly-candidate-2026-09-23.yaml" \
   --values "${repo_root}/tests/egress-values.yaml" \
   --set networkPolicy.enabled=false >/dev/null 2>&1; then
   echo 'expected egress isolation with all NetworkPolicies disabled to be rejected' >&2
@@ -869,6 +895,7 @@ if helm template test "${chart}" \
 fi
 
 if helm template test "${chart}" \
+  --values "${repo_root}/profiles/nightly-candidate-2026-09-23.yaml" \
   --values "${repo_root}/tests/egress-values.yaml" \
   --values "${repo_root}/tests/recovery-image-values.yaml" \
   --set maintenance.enabled=true \
@@ -880,6 +907,7 @@ if helm template test "${chart}" \
 fi
 
 if helm template test "${chart}" \
+  --values "${repo_root}/profiles/nightly-candidate-2026-09-23.yaml" \
   --values "${repo_root}/tests/egress-values.yaml" \
   --values "${repo_root}/tests/recovery-image-values.yaml" \
   --set maintenance.enabled=true \
@@ -891,6 +919,7 @@ if helm template test "${chart}" \
 fi
 
 helm template test "${chart}" \
+  --values "${repo_root}/profiles/nightly-candidate-2026-09-23.yaml" \
   --values "${repo_root}/tests/egress-values.yaml" \
   --values "${repo_root}/tests/recovery-image-values.yaml" \
   --set maintenance.enabled=true \
@@ -900,6 +929,7 @@ helm template test "${chart}" \
   --set-json 'networkPolicy.egress.recovery.repository.peers=[]' >/dev/null
 
 if helm template test "${chart}" \
+  --values "${repo_root}/profiles/nightly-candidate-2026-09-23.yaml" \
   --values "${repo_root}/tests/recovery-image-values.yaml" \
   --set backup.enabled=true \
   --set backup.requestId=20260924 >/dev/null 2>&1; then
@@ -908,6 +938,7 @@ if helm template test "${chart}" \
 fi
 
 if helm template test "${chart}" \
+  --values "${repo_root}/profiles/nightly-candidate-2026-09-23.yaml" \
   --values "${repo_root}/tests/recovery-image-values.yaml" \
   --set maintenance.enabled=true \
   --set restore.enabled=true \
@@ -918,6 +949,7 @@ if helm template test "${chart}" \
 fi
 
 if helm template test "${chart}" \
+  --values "${repo_root}/profiles/nightly-candidate-2026-09-23.yaml" \
   --values "${repo_root}/tests/recovery-image-values.yaml" \
   --set maintenance.enabled=true \
   --set backup.enabled=true \
