@@ -51,6 +51,7 @@ spec:
             - /opt/foreman-kubernetes/katello-event-daemon.rb
           env:
             {{- include "foreman-stack.foremanEnv" . | nindent 12 }}
+            {{- include "foreman-stack.foremanDatabasePoolEnv" .Values.foreman.databasePools.utility | nindent 12 }}
             - name: KATELLO_EVENT_DAEMON_ENABLED
               value: "true"
             - name: KATELLO_EVENT_DAEMON_HEARTBEAT

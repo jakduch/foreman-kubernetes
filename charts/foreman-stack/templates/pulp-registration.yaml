@@ -61,6 +61,7 @@ spec:
               done
           env:
             {{- include "foreman-stack.foremanEnv" . | nindent 12 }}
+            {{- include "foreman-stack.foremanDatabasePoolEnv" .Values.foreman.databasePools.utility | nindent 12 }}
             - name: PULP_PROXY_NAME
               value: {{ include "foreman-stack.pulpSmartProxyName" . | quote }}
             - name: PULP_PROXY_URL

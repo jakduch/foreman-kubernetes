@@ -1,3 +1,9 @@
+{{- if gt (int .Values.foreman.puma.threadsMin) (int .Values.foreman.puma.threadsMax) }}
+{{- fail "foreman.puma.threadsMin cannot exceed foreman.puma.threadsMax" }}
+{{- end }}
+{{- if lt (int .Values.foreman.databasePools.web) (int .Values.foreman.puma.threadsMax) }}
+{{- fail "foreman.databasePools.web must be at least foreman.puma.threadsMax" }}
+{{- end }}
 apiVersion: v1
 kind: Service
 metadata:
@@ -79,6 +85,7 @@ spec:
               containerPort: 3000
           env:
             {{- include "foreman-stack.foremanEnv" . | nindent 12 }}
+            {{- include "foreman-stack.foremanDatabasePoolEnv" .Values.foreman.databasePools.web | nindent 12 }}
           volumeMounts:
             {{- include "foreman-stack.foremanVolumeMounts" . | nindent 12 }}
             {{- include "foreman-stack.foremanAvatarVolumeMount" . | nindent 12 }}

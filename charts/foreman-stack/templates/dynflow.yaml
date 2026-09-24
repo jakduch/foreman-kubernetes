@@ -1,9 +1,15 @@
 {{- if not .Values.maintenance.enabled }}
+{{- if lt (int .Values.foreman.databasePools.dynflowWorker) (int .Values.foreman.dynflow.workerConcurrency) }}
+{{- fail "foreman.databasePools.dynflowWorker must be at least foreman.dynflow.workerConcurrency" }}
+{{- end }}
+{{- if lt (int .Values.foreman.databasePools.dynflowHostsQueue) (int .Values.foreman.dynflow.hostsQueueConcurrency) }}
+{{- fail "foreman.databasePools.dynflowHostsQueue must be at least foreman.dynflow.hostsQueueConcurrency" }}
+{{- end }}
 {{- $root := . -}}
 {{- $workers := list
-  (dict "name" "orchestrator" "replicas" 1 "config" "dynflow-orchestrator.yml")
-  (dict "name" "worker" "replicas" .Values.foreman.dynflow.workers "config" "dynflow-worker.yml")
-  (dict "name" "worker-hosts-queue" "replicas" .Values.foreman.dynflow.hostsQueueWorkers "config" "dynflow-worker-hosts-queue.yml")
+  (dict "name" "orchestrator" "replicas" 1 "config" "dynflow-orchestrator.yml" "databasePool" .Values.foreman.databasePools.utility)
+  (dict "name" "worker" "replicas" .Values.foreman.dynflow.workers "config" "dynflow-worker.yml" "databasePool" .Values.foreman.databasePools.dynflowWorker)
+  (dict "name" "worker-hosts-queue" "replicas" .Values.foreman.dynflow.hostsQueueWorkers "config" "dynflow-worker-hosts-queue.yml" "databasePool" .Values.foreman.databasePools.dynflowHostsQueue)
 -}}
 {{- range $index, $worker := $workers }}
 {{- if $index }}
@@ -73,6 +79,7 @@ spec:
             - {{ $root.Values.foreman.dynflow.shutdownTimeoutSeconds | quote }}
           env:
             {{- include "foreman-stack.foremanEnv" $root | nindent 12 }}
+            {{- include "foreman-stack.foremanDatabasePoolEnv" $worker.databasePool | nindent 12 }}
             - name: RUBYOPT
               value: -r/opt/foreman-kubernetes/dynflow-lifecycle.rb
             - name: DYNFLOW_READINESS_FILE

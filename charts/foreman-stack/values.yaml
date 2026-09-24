@@ -86,6 +86,14 @@ foreman:
     # enough time for active requests to finish gracefully.
     requestDrainSeconds: 10
     terminationGracePeriodSeconds: 150
+  databasePools:
+    # Active Record allocates one pool per process. Keep the web pool at least
+    # as large as Puma's maximum thread count and each Dynflow pool at least as
+    # large as that process's Sidekiq concurrency.
+    web: 5
+    dynflowWorker: 10
+    dynflowHostsQueue: 5
+    utility: 5
   dynflow:
     workers: 2
     workerConcurrency: 10

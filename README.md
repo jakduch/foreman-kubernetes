@@ -124,6 +124,9 @@ credential, and recovery-drill contracts.
 - [`docs/architecture.md`](docs/architecture.md) describes ownership and topology.
 - [`docs/installation.md`](docs/installation.md) defines prerequisites, guarded first installation, and failure handling.
 - [`docs/runtime-contracts.md`](docs/runtime-contracts.md) records the verified upstream runtime contracts and current scaling limits.
+- [`docs/capacity-planning.md`](docs/capacity-planning.md) turns replica,
+  process, thread, and database-pool settings into external service sizing
+  bounds.
 - [`docs/compatibility.md`](docs/compatibility.md) records digest-pinned image candidates and their test status.
 - [`docs/upgrades.md`](docs/upgrades.md) defines preflight, two-release sequencing, failure states, and the schema rollback boundary.
 - [`docs/plugin-compatibility.md`](docs/plugin-compatibility.md) records the packaged plugin inventory, proof level, and Smart Proxy placement policy.

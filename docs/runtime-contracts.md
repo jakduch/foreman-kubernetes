@@ -8,6 +8,11 @@ These contracts were taken from the current upstream source snapshots listed in 
   with `USER foreman`.
 - Runs Rails in production on `0.0.0.0:3000`.
 - Accepts Puma worker/thread counts through `FOREMAN_PUMA_WORKERS`, `FOREMAN_PUMA_THREADS_MIN`, and `FOREMAN_PUMA_THREADS_MAX`.
+- The upstream `database.yml.example` fixes the Active Record pool at 10,
+  which is not sufficient as a capacity contract once Puma and Dynflow scale
+  independently. The chart mounts a generated `database.yml`, preserves the
+  secret `DATABASE_URL`, and assigns a process-specific pool that cannot be
+  smaller than the process's thread concurrency.
 - Loads Katello through `FOREMAN_ENABLED_PLUGINS`; Katello is not a standalone server.
 - Exposes `/api/v2/ping`, including plugin health results. The endpoint returns
   HTTP 200 even when a nested check reports failure, so the chart parses its

@@ -57,6 +57,7 @@ spec:
                 - {{ $task.rakeTask }}
               env:
                 {{- include "foreman-stack.foremanEnv" $root | nindent 16 }}
+                {{- include "foreman-stack.foremanDatabasePoolEnv" $root.Values.foreman.databasePools.utility | nindent 16 }}
               resources:
                 {{- toYaml $root.Values.foreman.resources | nindent 16 }}
               volumeMounts:

@@ -87,7 +87,7 @@
     "foreman": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["image", "replicas", "autoscaling", "service", "existingEnvSecret", "databaseUrlSecretKey", "encryptionKeySecretKey", "seedAdminUserSecretKey", "seedAdminPasswordSecretKey", "existingCertificateSecret", "enabledPlugins", "pluginPolicy", "puma", "dynflow", "katelloEventDaemon", "sharedTmp", "avatarStorage", "resources"],
+      "required": ["image", "replicas", "autoscaling", "service", "existingEnvSecret", "databaseUrlSecretKey", "encryptionKeySecretKey", "seedAdminUserSecretKey", "seedAdminPasswordSecretKey", "existingCertificateSecret", "enabledPlugins", "pluginPolicy", "puma", "databasePools", "dynflow", "katelloEventDaemon", "sharedTmp", "avatarStorage", "resources"],
       "properties": {
         "image": { "$ref": "#/definitions/image" },
         "replicas": { "type": "integer", "minimum": 1 },
@@ -152,6 +152,17 @@
             "threadsMax": { "type": "integer", "minimum": 1 },
             "requestDrainSeconds": { "type": "integer", "minimum": 0, "maximum": 300 },
             "terminationGracePeriodSeconds": { "type": "integer", "minimum": 30, "maximum": 3600 }
+          }
+        },
+        "databasePools": {
+          "type": "object",
+          "required": ["web", "dynflowWorker", "dynflowHostsQueue", "utility"],
+          "additionalProperties": false,
+          "properties": {
+            "web": { "type": "integer", "minimum": 1 },
+            "dynflowWorker": { "type": "integer", "minimum": 1 },
+            "dynflowHostsQueue": { "type": "integer", "minimum": 1 },
+            "utility": { "type": "integer", "minimum": 1 }
           }
         },
         "katelloEventDaemon": {

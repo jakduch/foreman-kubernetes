@@ -186,6 +186,7 @@ ruby "${repo_root}/tests/recurring-tasks-migration-barrier.rb" "${rendered}" tru
 ruby "${repo_root}/tests/recurring-tasks-migration-barrier.rb" "${rendered_no_migrations}" false
 ruby "${repo_root}/tests/foreman-shared-tmp-contract.rb" "${rendered}" true
 ruby "${repo_root}/tests/foreman-shared-tmp-contract.rb" "${rendered_s3}" false
+ruby "${repo_root}/tests/foreman-database-pool-contract.rb" "${rendered}"
 ruby "${repo_root}/tests/recovery-storage-contract.rb" "${rendered_backup}" true
 ruby "${repo_root}/tests/recovery-storage-contract.rb" "${rendered_restore}" true
 ruby "${repo_root}/tests/recovery-storage-contract.rb" "${rendered_s3_backup}" false
@@ -681,6 +682,24 @@ fi
 
 if helm template test "${chart}" --set foreman.autoscaling.maxReplicas=1 >/dev/null 2>&1; then
   echo 'expected an invalid autoscaling maximum to be rejected by the schema' >&2
+  exit 1
+fi
+
+if helm template test "${chart}" \
+  --set foreman.databasePools.web=4 >/dev/null 2>&1; then
+  echo 'expected a web database pool smaller than Puma concurrency to be rejected' >&2
+  exit 1
+fi
+
+if helm template test "${chart}" \
+  --set foreman.databasePools.dynflowWorker=9 >/dev/null 2>&1; then
+  echo 'expected a Dynflow database pool smaller than Sidekiq concurrency to be rejected' >&2
+  exit 1
+fi
+
+if helm template test "${chart}" \
+  --set foreman.puma.threadsMin=6 >/dev/null 2>&1; then
+  echo 'expected Puma minimum threads greater than maximum threads to be rejected' >&2
   exit 1
 fi
 

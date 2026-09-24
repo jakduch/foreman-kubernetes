@@ -207,9 +207,18 @@ server {
       key: {{ .Values.foreman.seedAdminPasswordSecretKey }}
 {{- end }}
 
+{{- define "foreman-stack.foremanDatabasePoolEnv" -}}
+- name: FOREMAN_DATABASE_POOL
+  value: {{ . | quote }}
+{{- end }}
+
 {{- define "foreman-stack.foremanVolumeMounts" -}}
 - name: foreman-tmp
   mountPath: /usr/share/foreman/tmp
+- name: foreman-generated-config
+  mountPath: /usr/share/foreman/config/database.yml
+  subPath: database.yml
+  readOnly: true
 - name: foreman-generated-config
   mountPath: /etc/foreman/settings.yaml
   subPath: settings.yaml

@@ -164,6 +164,7 @@ spec:
             - bin/rails db:migrate && bin/rails db:seed
           env:
             {{- include "foreman-stack.foremanEnv" . | nindent 12 }}
+            {{- include "foreman-stack.foremanDatabasePoolEnv" .Values.foreman.databasePools.utility | nindent 12 }}
             {{- include "foreman-stack.foremanSeedEnv" . | nindent 12 }}
           resources:
             {{- toYaml .Values.foreman.resources | nindent 12 }}

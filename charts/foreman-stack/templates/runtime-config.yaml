@@ -5,6 +5,10 @@ metadata:
   labels:
     {{- include "foreman-stack.componentLabels" (dict "root" . "component" "foreman-config") | nindent 4 }}
 data:
+  database.yml: |
+    production:
+      url: <%= ENV.fetch('DATABASE_URL') %>
+      pool: <%= Integer(ENV.fetch('FOREMAN_DATABASE_POOL')) %>
   settings.yaml: |
     ---
     :domain: {{ .Values.platform.domain | quote }}
