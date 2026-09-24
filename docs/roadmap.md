@@ -114,6 +114,10 @@ The first Kubernetes boundary now resolves digest-pinned in-image profiles,
 reads same-namespace values Secrets, and uses an optimistic resource-version
 precondition for status writes; Helm phase execution and Lease/Job observation
 remain to be connected.
+The renewable Lease implementation is now available to that adapter and is
+covered for creation, restart adoption, foreign-owner contention, expiration,
+renewal, and race-safe release. Helm phase execution and Job/rollout
+observation remain to be connected.
 
 After the Helm lifecycle and runtime contracts are proven, add a small Go operator that:
 

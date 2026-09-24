@@ -31,6 +31,15 @@ The adapter boundary now includes three concrete, tested primitives:
 The remaining runtime adapter must turn the reconciliation port calls into
 Helm, Lease, Job-adoption, rollout, and smoke-test observations.
 
+`LeaseManager` now implements the Lease part of that boundary. Each
+ForemanRelease gets a deterministic namespaced Lease. The operation ID is its
+holder identity; the same operation adopts and renews it after controller
+restart, another live holder causes a requeue, and only an expired or explicitly
+released Lease can be claimed. Release is an optimistic `replace` that clears
+the holder instead of an unsafe unchecked delete. Every migration, rollout,
+and verification reconciliation renews the Lease, including a release paused
+at a safe boundary.
+
 `ForemanRelease` is namespaced because its Helm releases, values Secrets,
 migration Jobs, and status all belong to one application namespace. The
 controller reads, but does not copy, the repository's digest-pinned
@@ -89,6 +98,6 @@ The CRD and state graph are statically validated by `tests/operator-contract.rb`
 blocked retry, busy Lease, invalid transition, conditions, and operation
 replacement behavior. `tests/operator-reconciler.rb` simulates a controller
 restart during migration, safe-boundary pause, a failed validation, and an
-explicit retry. A Kubernetes adapter, controller image, RBAC, Lease renewal,
+explicit retry. A complete Kubernetes adapter, controller image, RBAC,
 Helm phase execution, and cluster integration tests are still required before
 installing the CRD in a cluster.

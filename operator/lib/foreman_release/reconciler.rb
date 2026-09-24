@@ -8,6 +8,7 @@ module ForemanRelease
 
   class Reconciler
     ACTIVE_PHASES = %w[Migrating RollingApplication RollingProxy].freeze
+    LEASED_PHASES = %w[Migrating RollingApplication VerifyingApplication RollingProxy Verifying].freeze
     PHASE_HANDLERS = {
       'Preflight' => [:validate, 'ValidationSucceeded', 'ValidationFailed'],
       'AcquiringLock' => [:acquire_lease, 'LeaseAcquired', 'LeaseFailed'],
@@ -43,11 +44,19 @@ module ForemanRelease
         return :idle
       end
 
+      handler, success_event, failure_event = PHASE_HANDLERS.fetch(phase)
+      if LEASED_PHASES.include?(phase)
+        renewal = observe(:renew_lease, resource, status.fetch('operation', {}))
+        if renewal.state == :failed
+          transition(resource, status, failure_event, renewal)
+          @adapter.release_lease(resource, status.fetch('operation', {}))
+          return :blocked
+        end
+        return :requeue unless renewal.state == :succeeded
+      end
       if spec.fetch('paused', false) && !ACTIVE_PHASES.include?(phase)
         return persist_pause(resource, status)
       end
-
-      handler, success_event, failure_event = PHASE_HANDLERS.fetch(phase)
       observation = observe(handler, resource, status.fetch('operation', {}))
 
       if observation.state == :pending || observation.state == :busy

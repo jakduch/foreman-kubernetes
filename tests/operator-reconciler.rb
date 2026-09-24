@@ -20,7 +20,7 @@ class FakeAdapter
     @results[method] = states
   end
 
-  %i[validate acquire_lease ensure_migrations ensure_application ensure_application_smoke ensure_proxy ensure_final_smoke].each do |method|
+  %i[validate acquire_lease renew_lease ensure_migrations ensure_application ensure_application_smoke ensure_proxy ensure_final_smoke].each do |method|
     define_method(method) do |_resource, operation|
       @calls << method
       @migration_operations << operation.fetch('id') if method == :ensure_migrations
@@ -142,7 +142,7 @@ paused_reconciler = ForemanRelease::Reconciler.new(
 )
 raise 'active migration did not pause at its safe boundary' unless paused_reconciler.reconcile(paused_release) == :paused
 raise 'pause advanced beyond migrations' unless paused_release.dig('status', 'phase') == 'Migrating'
-raise 'pause did not observe migrations' unless pause_adapter.calls == [:ensure_migrations]
+raise 'pause did not renew and observe migrations' unless pause_adapter.calls == %i[renew_lease ensure_migrations]
 
 paused_release['spec']['paused'] = false
 paused_release['metadata']['generation'] = 2
