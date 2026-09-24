@@ -81,6 +81,14 @@ application revision, repair the proxy, and roll it forward using the same set.
 Database rollback requires a separately validated recovery point and the
 maintenance-gated restore procedure.
 
+The disposable integration harness prepares the failure branch explicitly. It
+temporarily gives only a new Foreman migration Job an invalid database URL,
+requires Helm to fail, and verifies that every previous Foreman and Dynflow Pod
+is still present and serving the in-flight Remote Execution job. After restoring
+the Secret, a new revision must complete migrations before those held Pods are
+replaced. The cleanup trap also restores the original Secret if the drill exits
+between injection and the expected failure.
+
 The final Helm smoke test does not execute a managed-host command. Before the
 change window is complete, run a harmless Remote Execution job and the
 deployment-specific content workflow. The disposable kind harness contains the

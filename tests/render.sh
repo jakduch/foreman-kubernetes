@@ -251,6 +251,10 @@ grep -Fq 'start_execution_upgrade_job proxy-upgrade' \
 grep -Fq 'finish_execution_upgrade_job proxy-upgrade' \
   "${repo_root}/tests/kind/run.sh"
 grep -Fq 'assert_pods_replaced' "${repo_root}/tests/kind/run.sh"
+grep -Fq 'assert_failed_migration_gate' "${repo_root}/tests/kind/run.sh"
+grep -Fq 'assert_rollout_held' "${repo_root}/tests/kind/run.sh"
+grep -Fq 'wrong-password@postgresql' "${repo_root}/tests/kind/run.sh"
+grep -Fq 'restore_foreman_database_url' "${repo_root}/tests/kind/run.sh"
 grep -Fq 'compatibility/release-sets.json' "${repo_root}/tests/kind/run.sh"
 grep -Fq -- '-purpose sslserver' "${repo_root}/tests/kind/run.sh"
 grep -Fq -- '-purpose sslclient' "${repo_root}/tests/kind/run.sh"

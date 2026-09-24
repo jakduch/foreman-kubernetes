@@ -28,6 +28,11 @@
   applies application migrations before upgrading the proxy, and reruns health
   checks. It stops on the first failed phase and never performs an unsafe
   manifest-only rollback after database migrations.
+- The integration harness now prepares a failed Foreman migration followed by
+  a roll-forward revision. It requires the old application and Dynflow Pods to
+  remain available through the failure, preserves an active Remote Execution
+  job, restores the injected Secret even during cleanup, and replaces the held
+  Pods only after the next migration succeeds.
 - One-shot, maintenance-gated recovery Jobs produce encrypted Restic snapshots
   of all three databases, Pulp filesystem storage, and application Secrets.
 - Restore requires an explicit confirmation value, validates snapshot identity

@@ -14,6 +14,7 @@ created_cluster=false
 temporary_directory="$(mktemp -d)"
 skip_recovery_test="${SKIP_RECOVERY_TEST:-0}"
 content_lifecycle_state="${temporary_directory}/content-lifecycle.json"
+foreman_database_url_backup=""
 
 helm_apply() {
   helm upgrade --install "${release}" "${repo_root}/charts/foreman-stack" \
@@ -74,6 +75,38 @@ assert_pods_replaced() {
       exit 1
     fi
   done <<<"${previous_uids}"
+}
+
+assert_rollout_held() {
+  local selector="$1"
+  local previous_uids="$2"
+  local current_uids
+  local current_uid
+  local new_uid_seen=false
+  local previous_uid
+
+  current_uids="$(pod_uids "${selector}")"
+  if [[ -z "${previous_uids}" || -z "${current_uids}" ]]; then
+    echo "Cannot prove Pod retention for selector ${selector}" >&2
+    exit 1
+  fi
+  while IFS= read -r previous_uid; do
+    if ! grep -Fxq "${previous_uid}" <<<"${current_uids}"; then
+      echo "Pod ${previous_uid} for selector ${selector} was replaced before migrations succeeded" >&2
+      exit 1
+    fi
+  done <<<"${previous_uids}"
+
+  while IFS= read -r current_uid; do
+    if ! grep -Fxq "${current_uid}" <<<"${previous_uids}"; then
+      new_uid_seen=true
+      break
+    fi
+  done <<<"${current_uids}"
+  if [[ "${new_uid_seen}" != true ]]; then
+    echo "No migration-gated replacement Pod was created for selector ${selector}" >&2
+    exit 1
+  fi
 }
 
 assert_foreman_ready() {
@@ -351,6 +384,85 @@ finish_execution_upgrade_job() {
     "${repo_root}/tests/kind/execution-plane.sh" "${temporary_directory}"
 }
 
+restore_foreman_database_url() {
+  [[ -n "${foreman_database_url_backup}" ]] || return 0
+
+  kubectl --namespace "${namespace}" patch secret foreman-runtime \
+    --type=merge \
+    --patch "$(jq --compact-output --null-input \
+      --arg database_url "${foreman_database_url_backup}" \
+      '{data: {DATABASE_URL: $database_url}}')" >/dev/null
+  foreman_database_url_backup=""
+}
+
+assert_failed_migration_gate() {
+  local upgrade_state="${temporary_directory}/failed-migration-upgrade.json"
+  local wrong_database_url
+  local foreman_uids_before
+  local dynflow_orchestrator_uids_before
+  local dynflow_worker_uids_before
+  local dynflow_hosts_queue_uids_before
+
+  foreman_uids_before="$(pod_uids 'app.kubernetes.io/component=foreman')"
+  dynflow_orchestrator_uids_before="$(pod_uids 'app.kubernetes.io/component=dynflow-orchestrator')"
+  dynflow_worker_uids_before="$(pod_uids 'app.kubernetes.io/component=dynflow-worker')"
+  dynflow_hosts_queue_uids_before="$(pod_uids 'app.kubernetes.io/component=dynflow-worker-hosts-queue')"
+  start_execution_upgrade_job failed-migration-upgrade "${upgrade_state}"
+
+  foreman_database_url_backup="$(kubectl --namespace "${namespace}" get secret \
+    foreman-runtime --output=jsonpath='{.data.DATABASE_URL}')"
+  wrong_database_url="$(printf '%s' \
+    'postgresql://foreman:wrong-password@postgresql:5432/foreman' | openssl base64 -A)"
+  kubectl --namespace "${namespace}" patch secret foreman-runtime \
+    --type=merge \
+    --patch "$(jq --compact-output --null-input \
+      --arg database_url "${wrong_database_url}" \
+      '{data: {DATABASE_URL: $database_url}}')" >/dev/null
+
+  if helm_apply \
+    --set foreman.dynflow.workerConcurrency=4 \
+    --set migrations.activeDeadlineSeconds=90 \
+    --timeout 5m; then
+    restore_foreman_database_url
+    echo 'Application upgrade unexpectedly succeeded with invalid Foreman database credentials' >&2
+    exit 1
+  fi
+
+  helm status "${release}" --namespace "${namespace}" --output=json | \
+    jq --exit-status '.info.status == "failed"' >/dev/null
+  kubectl --namespace "${namespace}" get jobs \
+    --selector=app.kubernetes.io/component=foreman-migrate \
+    --output=json | jq --exit-status \
+      'sort_by(.metadata.creationTimestamp) | last |
+       ((.status.failed // 0) >= 1 or
+        any(.status.conditions[]?; .type == "Failed" and .status == "True"))' >/dev/null
+  restore_foreman_database_url
+
+  assert_rollout_held 'app.kubernetes.io/component=foreman' "${foreman_uids_before}"
+  assert_rollout_held \
+    'app.kubernetes.io/component=dynflow-orchestrator' \
+    "${dynflow_orchestrator_uids_before}"
+  assert_rollout_held 'app.kubernetes.io/component=dynflow-worker' "${dynflow_worker_uids_before}"
+  assert_rollout_held \
+    'app.kubernetes.io/component=dynflow-worker-hosts-queue' \
+    "${dynflow_hosts_queue_uids_before}"
+  assert_foreman_ready
+  finish_execution_upgrade_job failed-migration-upgrade "${upgrade_state}"
+  assert_application_smoke_test
+
+  helm_apply
+  assert_pods_replaced 'app.kubernetes.io/component=foreman' "${foreman_uids_before}"
+  assert_pods_replaced \
+    'app.kubernetes.io/component=dynflow-orchestrator' \
+    "${dynflow_orchestrator_uids_before}"
+  assert_pods_replaced 'app.kubernetes.io/component=dynflow-worker' "${dynflow_worker_uids_before}"
+  assert_pods_replaced \
+    'app.kubernetes.io/component=dynflow-worker-hosts-queue' \
+    "${dynflow_hosts_queue_uids_before}"
+  assert_foreman_ready
+  assert_application_smoke_test
+}
+
 rotate_execution_identity() {
   local rotated_prefix="${temporary_directory}/execution-rotated"
 
@@ -451,6 +563,10 @@ reset_namespace_for_restore() {
 
 cleanup() {
   local exit_status=$?
+  if [[ -n "${foreman_database_url_backup}" ]] && \
+    kubectl get namespace "${namespace}" >/dev/null 2>&1; then
+    restore_foreman_database_url || true
+  fi
   if [[ ${exit_status} -ne 0 ]] && kubectl get namespace "${namespace}" >/dev/null 2>&1; then
     kubectl --namespace "${namespace}" get pods,jobs
   fi
@@ -626,6 +742,8 @@ if [[ "${skip_recovery_test}" != 1 ]]; then
   assert_secret_probe before-backup
   assert_execution_plane
 fi
+
+assert_failed_migration_gate
 
 kubectl --namespace "${namespace}" scale \
   deployment/foreman-foreman-stack-dynflow-worker \

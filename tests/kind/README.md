@@ -45,6 +45,10 @@
   namespace restore and again after rotating its server TLS, Foreman client
   TLS, and SSH identities and restarting both ends of the SSH trust relation;
 - Dynflow worker scaling;
+- a deliberately failed Foreman migration caused by temporary invalid database
+  credentials: the previous Foreman and Dynflow Pods must remain present, an
+  already-running Remote Execution job and a fresh job must succeed, and a
+  subsequent healthy revision must run migrations and replace the held Pods;
 - a second Helm revision with migration gates and confirmed Foreman and Dynflow
   Pod replacement while a Remote Execution job remains active and completes;
 - a configuration-changing execution-proxy rollout while another active job
