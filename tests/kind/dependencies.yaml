@@ -143,3 +143,32 @@ spec:
   resources:
     requests:
       storage: 20Gi
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: foreman-kind-recovery-repository
+spec:
+  capacity:
+    storage: 20Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Delete
+  storageClassName: foreman-kind-recovery
+  hostPath:
+    path: /var/local/foreman-kind-recovery
+    type: DirectoryOrCreate
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: recovery-repository
+  namespace: foreman
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: foreman-kind-recovery
+  volumeName: foreman-kind-recovery-repository
+  resources:
+    requests:
+      storage: 20Gi

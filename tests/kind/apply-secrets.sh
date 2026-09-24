@@ -113,3 +113,11 @@ kubectl --namespace "${namespace}" create secret generic pulp-control-proxy-cert
   --from-file=tls.crt="${workdir}/pulp-control.crt" \
   --from-file=tls.key="${workdir}/pulp-control.key" \
   --dry-run=client -o yaml | kubectl apply -f -
+
+kubectl --namespace "${namespace}" create secret generic foreman-backup-repository \
+  --from-literal=RESTIC_PASSWORD=foreman-recovery-test \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+kubectl --namespace "${namespace}" create secret generic recovery-probe \
+  --from-literal=value=before-backup \
+  --dry-run=client -o yaml | kubectl apply -f -

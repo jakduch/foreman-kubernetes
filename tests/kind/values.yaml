@@ -79,3 +79,13 @@ pulp:
 
 podDisruptionBudget:
   enabled: false
+
+recovery:
+  image:
+    repository: foreman-kubernetes-recovery-toolbox
+    tag: test
+    pullPolicy: Never
+  repository:
+    existingClaim: recovery-repository
+  extraSecretNames:
+    - recovery-probe
