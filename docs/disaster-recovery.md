@@ -67,6 +67,9 @@ chart.
 
 For a remote Restic repository, create a Secret containing
 `RESTIC_REPOSITORY`, `RESTIC_PASSWORD`, and the backend-specific credentials.
+The guarded install and upgrade helpers validate the first two keys before
+making a release change. A repository mounted from a PVC needs only
+`RESTIC_PASSWORD`; its path is supplied by the chart.
 For example, an S3-compatible target can use:
 
 ```sh

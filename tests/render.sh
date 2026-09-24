@@ -511,6 +511,15 @@ grep -q 'name: BACKUP_REQUEST_ID' "${rendered_backup}"
 grep -q 'name: RESTIC_CACHE_DIR' "${rendered_backup}"
 grep -q 'resourceNames:' "${rendered_backup}"
 grep -q 'name: test-foreman-stack-backup-20260924-120000' "${rendered_backup}"
+ruby "${repo_root}/scripts/required-secrets.rb" < "${rendered_backup}" |
+  grep -Fq $'foreman-backup-repository\tRESTIC_PASSWORD,RESTIC_REPOSITORY'
+ruby "${repo_root}/scripts/required-secrets.rb" < "${rendered_kind_backup}" |
+  grep -Fq $'foreman-backup-repository\tRESTIC_PASSWORD'
+if ruby "${repo_root}/scripts/required-secrets.rb" < "${rendered_kind_backup}" |
+  grep -Fq 'RESTIC_REPOSITORY'; then
+  echo 'local recovery repository unexpectedly requires RESTIC_REPOSITORY in its Secret' >&2
+  exit 1
+fi
 if [[ "$(grep -c '^kind: Deployment$' "${rendered_backup}")" -ne 1 ]]; then
   echo 'maintenance backup must retain only the non-writing Pulp control proxy Deployment' >&2
   exit 1

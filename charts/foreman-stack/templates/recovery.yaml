@@ -138,6 +138,18 @@ spec:
             - secretRef:
                 name: {{ .Values.recovery.repository.existingSecret }}
           env:
+            - name: RESTIC_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.recovery.repository.existingSecret }}
+                  key: RESTIC_PASSWORD
+            {{- if not .Values.recovery.repository.existingClaim }}
+            - name: RESTIC_REPOSITORY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.recovery.repository.existingSecret }}
+                  key: RESTIC_REPOSITORY
+            {{- end }}
             - name: POD_NAMESPACE
               valueFrom:
                 fieldRef:
