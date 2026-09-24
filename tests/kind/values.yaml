@@ -109,6 +109,7 @@ recovery:
     repository: foreman-kubernetes-recovery-toolbox
     tag: test
     pullPolicy: Never
+    allowMutableTagForTesting: true
   repository:
     existingClaim: recovery-repository
   extraSecretNames:

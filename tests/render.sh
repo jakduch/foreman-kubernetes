@@ -37,6 +37,7 @@ trap 'rm -f "${rendered}" "${rendered_ingress}" "${rendered_ingress_overrides}" 
 ruby "${repo_root}/tests/yaml-duplicates.rb"
 ruby "${repo_root}/tests/operator-contract.rb"
 ruby "${repo_root}/tests/values-schema-coverage.rb"
+ruby "${repo_root}/tests/recovery-image-contract.rb"
 
 helm lint "${chart}"
 if helm lint "${chart}" --set pulp.workres.replicas=2 >/dev/null 2>&1; then
@@ -101,11 +102,20 @@ helm template foreman "${chart}" \
   --set maintenance.enabled=true \
   --set backup.enabled=true \
   --set backup.requestId=execution-escrow > "${rendered_kind_backup}"
+if helm template test "${chart}" \
+  --set maintenance.enabled=true \
+  --set backup.enabled=true \
+  --set backup.requestId=mutable-image >/dev/null 2>&1; then
+  echo 'expected recovery with a mutable toolbox image to be rejected' >&2
+  exit 1
+fi
 helm template test "${chart}" \
+  --values "${repo_root}/tests/recovery-image-values.yaml" \
   --set maintenance.enabled=true \
   --set backup.enabled=true \
   --set backup.requestId=20260924-120000 > "${rendered_backup}"
 helm template test "${chart}" \
+  --values "${repo_root}/tests/recovery-image-values.yaml" \
   --set maintenance.enabled=true \
   --set restore.enabled=true \
   --set restore.requestId=20260924-130000 \
@@ -114,11 +124,13 @@ helm template test "${chart}" \
   --values "${repo_root}/tests/egress-values.yaml" > "${rendered_egress}"
 helm template test "${chart}" \
   --values "${repo_root}/tests/egress-values.yaml" \
+  --values "${repo_root}/tests/recovery-image-values.yaml" \
   --set maintenance.enabled=true \
   --set backup.enabled=true \
   --set backup.requestId=egress-remote > "${rendered_egress_backup}"
 helm template test "${chart}" \
   --values "${repo_root}/tests/egress-values.yaml" \
+  --values "${repo_root}/tests/recovery-image-values.yaml" \
   --set maintenance.enabled=true \
   --set backup.enabled=true \
   --set backup.requestId=egress-local \
@@ -152,6 +164,7 @@ helm template test "${chart}" \
   --values "${repo_root}/examples/pulp-s3-values.yaml" > "${rendered_s3}"
 helm template test "${chart}" \
   --values "${repo_root}/examples/pulp-s3-values.yaml" \
+  --values "${repo_root}/tests/recovery-image-values.yaml" \
   --set maintenance.enabled=true \
   --set backup.enabled=true \
   --set backup.requestId=20260924-s3 > "${rendered_s3_backup}"
@@ -161,6 +174,7 @@ helm template test "${chart}" \
 helm template test "${chart}" \
   --values "${repo_root}/tests/egress-values.yaml" \
   --values "${repo_root}/tests/smtp-values.yaml" \
+  --values "${repo_root}/tests/recovery-image-values.yaml" \
   --set maintenance.enabled=true \
   --set backup.enabled=true \
   --set backup.requestId=smtp-escrow > "${rendered_smtp_backup}"
@@ -694,6 +708,7 @@ fi
 
 if helm template test "${chart}" \
   --values "${repo_root}/examples/pulp-s3-values.yaml" \
+  --values "${repo_root}/tests/recovery-image-values.yaml" \
   --set maintenance.enabled=true \
   --set restore.enabled=true \
   --set restore.requestId=20260924-s3 \
@@ -704,6 +719,7 @@ fi
 
 helm template test "${chart}" \
   --values "${repo_root}/examples/pulp-s3-values.yaml" \
+  --values "${repo_root}/tests/recovery-image-values.yaml" \
   --set maintenance.enabled=true \
   --set restore.enabled=true \
   --set restore.requestId=20260924-s3 \
@@ -847,6 +863,7 @@ fi
 
 if helm template test "${chart}" \
   --values "${repo_root}/tests/egress-values.yaml" \
+  --values "${repo_root}/tests/recovery-image-values.yaml" \
   --set maintenance.enabled=true \
   --set backup.enabled=true \
   --set backup.requestId=missing-api \
@@ -857,6 +874,7 @@ fi
 
 if helm template test "${chart}" \
   --values "${repo_root}/tests/egress-values.yaml" \
+  --values "${repo_root}/tests/recovery-image-values.yaml" \
   --set maintenance.enabled=true \
   --set backup.enabled=true \
   --set backup.requestId=missing-repository \
@@ -867,6 +885,7 @@ fi
 
 helm template test "${chart}" \
   --values "${repo_root}/tests/egress-values.yaml" \
+  --values "${repo_root}/tests/recovery-image-values.yaml" \
   --set maintenance.enabled=true \
   --set backup.enabled=true \
   --set backup.requestId=local-repository \
@@ -874,6 +893,7 @@ helm template test "${chart}" \
   --set-json 'networkPolicy.egress.recovery.repository.peers=[]' >/dev/null
 
 if helm template test "${chart}" \
+  --values "${repo_root}/tests/recovery-image-values.yaml" \
   --set backup.enabled=true \
   --set backup.requestId=20260924 >/dev/null 2>&1; then
   echo 'expected backup without maintenance mode to be rejected' >&2
@@ -881,6 +901,7 @@ if helm template test "${chart}" \
 fi
 
 if helm template test "${chart}" \
+  --values "${repo_root}/tests/recovery-image-values.yaml" \
   --set maintenance.enabled=true \
   --set restore.enabled=true \
   --set restore.requestId=20260924 \
@@ -890,6 +911,7 @@ if helm template test "${chart}" \
 fi
 
 if helm template test "${chart}" \
+  --values "${repo_root}/tests/recovery-image-values.yaml" \
   --set maintenance.enabled=true \
   --set backup.enabled=true \
   --set backup.requestId=20260924 \

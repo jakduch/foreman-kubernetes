@@ -1,4 +1,7 @@
 {{- if or .Values.backup.enabled .Values.restore.enabled }}
+{{- if and (not .Values.recovery.image.allowMutableTagForTesting) (not (regexMatch "@sha256:[0-9a-f]{64}$" .Values.recovery.image.tag)) }}
+{{- fail "recovery.image.tag must end with an immutable @sha256 digest" }}
+{{- end }}
 {{- $root := . -}}
 {{- $operation := ternary "backup" "restore" .Values.backup.enabled -}}
 {{- $requestId := ternary .Values.backup.requestId .Values.restore.requestId .Values.backup.enabled -}}

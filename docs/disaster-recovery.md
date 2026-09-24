@@ -48,20 +48,28 @@ without this separate acknowledgement.
 
 ## Recovery toolbox
 
-Build and publish the toolbox before enabling either Job:
+The `Recovery toolbox image` workflow builds only `linux/amd64`, executes every
+command used by the recovery scripts, and publishes the image to GHCR with an
+SBOM and build provenance. Push a `recovery-v*` tag for a versioned image or
+dispatch the workflow for a commit-tagged qualification build. Copy the
+immutable `repository@sha256:...` reference from its job summary.
+
+For another registry, build and publish the same pinned Dockerfile before
+enabling either Job:
 
 ```sh
 docker build \
-  --file images/recovery-toolbox/Dockerfile \
+  --file Dockerfile \
   --tag registry.example.test/foreman-kubernetes-recovery-toolbox:0.1.0 \
-  .
+  images/recovery-toolbox
 docker push registry.example.test/foreman-kubernetes-recovery-toolbox:0.1.0
 ```
 
-Set `recovery.image.repository` and `recovery.image.tag` to that image. The
-image contains only the PostgreSQL client, Restic, `kubectl`, `jq`, and their
-runtime dependencies; the versioned workflow scripts are mounted from the
-chart.
+Set `recovery.image.repository` to the registry path and
+`recovery.image.tag` to `version@sha256:digest`; the digest, rather than the
+human-readable tag, is the deployment identity. The image contains only the
+PostgreSQL client, Restic, `kubectl`, `jq`, and their runtime dependencies; the
+versioned workflow scripts are mounted from the chart.
 
 ## Repository Secret
 

@@ -582,7 +582,7 @@
       "additionalProperties": false,
       "required": ["image", "repository", "work", "activeDeadlineSeconds", "quiescenceTimeoutSeconds", "extraSecretNames", "resources"],
       "properties": {
-        "image": { "$ref": "#/definitions/image" },
+        "image": { "$ref": "#/definitions/recoveryImage" },
         "repository": {
           "type": "object",
           "required": ["existingSecret", "existingClaim", "path"],
@@ -850,10 +850,22 @@
     "image": {
       "type": "object",
       "required": ["repository", "tag", "pullPolicy"],
+      "additionalProperties": false,
       "properties": {
         "repository": { "type": "string", "minLength": 1 },
         "tag": { "type": "string", "minLength": 1 },
         "pullPolicy": { "enum": ["Always", "IfNotPresent", "Never"] }
+      }
+    },
+    "recoveryImage": {
+      "type": "object",
+      "required": ["repository", "tag", "pullPolicy", "allowMutableTagForTesting"],
+      "additionalProperties": false,
+      "properties": {
+        "repository": { "type": "string", "minLength": 1 },
+        "tag": { "type": "string", "minLength": 1 },
+        "pullPolicy": { "enum": ["Always", "IfNotPresent", "Never"] },
+        "allowMutableTagForTesting": { "type": "boolean" }
       }
     },
     "resources": {

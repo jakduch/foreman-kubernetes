@@ -460,6 +460,8 @@ recovery:
     repository: foreman-kubernetes-recovery-toolbox
     tag: dev
     pullPolicy: IfNotPresent
+    # Only the disposable Kind harness may use its locally built mutable tag.
+    allowMutableTagForTesting: false
   repository:
     # Must contain RESTIC_PASSWORD and, for remote backends, RESTIC_REPOSITORY
     # plus any provider credentials required by Restic.
