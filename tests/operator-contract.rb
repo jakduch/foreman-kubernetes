@@ -37,6 +37,14 @@ end
 after_migration = spec_schema.dig('properties', 'failurePolicy', 'properties', 'afterMigration')
 raise 'post-migration failure policy must only permit Halt' unless after_migration.fetch('enum') == ['Halt']
 raise 'operator spec must expose an explicit retry token' unless spec_schema.dig('properties', 'retryToken', 'type') == 'string'
+timeouts = spec_schema.dig('properties', 'timeouts')
+expected_timeouts = %w[preflightSeconds leaseSeconds migrationSeconds applicationRolloutSeconds verificationSeconds proxyRolloutSeconds]
+raise 'operator spec does not define every phase timeout' unless timeouts.fetch('default').keys.sort == expected_timeouts.sort
+expected_timeouts.each do |timeout|
+  schema = timeouts.dig('properties', timeout)
+  raise "#{timeout} has no positive default" unless schema.fetch('default').positive?
+end
+raise 'status does not retain a phase start time' unless status_schema.dig('properties', 'phaseStartedAt', 'format') == 'date-time'
 
 conditions = status_schema.dig('properties', 'conditions')
 raise 'conditions must use list-map semantics' unless conditions.fetch('x-kubernetes-list-type') == 'map'
@@ -48,6 +56,8 @@ operation = status_schema.dig('properties', 'operation', 'properties')
 %w[applicationValuesSha256 executionProxyValuesSha256 applicationProfileSha256 executionProxyProfileSha256].each do |digest|
   raise "operation status does not retain #{digest}" unless operation.dig(digest, 'pattern') == '^[0-9a-f]{64}$'
 end
+raise 'operation status does not retain timeout evidence' unless operation.dig('timeoutSeconds', 'minimum') == 1 &&
+                                                           operation.dig('timedOutPhase', 'type') == 'string'
 
 phases = status_schema.dig('properties', 'phase', 'enum')
 raise 'unsupported release state-machine schema' unless state_machine.fetch('schemaVersion') == 1

@@ -5,6 +5,13 @@ metadata:
 spec:
   compatibilitySet: nightly-candidate-2026-09-24
   allowCandidate: true
+  timeouts:
+    preflightSeconds: 300
+    leaseSeconds: 900
+    migrationSeconds: 3600
+    applicationRolloutSeconds: 1800
+    verificationSeconds: 600
+    proxyRolloutSeconds: 900
   paused: false
   retryToken: initial
   failurePolicy:

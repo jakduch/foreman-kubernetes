@@ -35,6 +35,11 @@ module ForemanRelease
         'phase' => destination,
         'targetSet' => desired_set
       )
+      next_status['phaseStartedAt'] = if destination == phase
+                                        current_status['phaseStartedAt'] || now
+                                      else
+                                        now
+                                      end
 
       if destination == 'Preflight'
         raise ArgumentError, 'operation_id is required when starting an operation' if operation_id.to_s.empty?
@@ -79,6 +84,7 @@ module ForemanRelease
       next_status = deep_copy(status || {})
       next_status['phase'] ||= @initial_phase
       next_status['observedGeneration'] = generation
+      next_status['phaseStartedAt'] = now
       next_status['conditions'] = upsert_condition(
         next_status['conditions'],
         condition('Paused', false, 'ReconciliationResumed', message, generation, now)

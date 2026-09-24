@@ -22,8 +22,20 @@ decision = machine.transition(
 raise 'pending release did not enter preflight' unless decision.status['phase'] == 'Preflight'
 raise 'preflight did not start a durable operation' unless decision.status.dig('operation', 'id') == 'uid-1-1'
 raise 'preflight did not record the retry token' unless decision.status['observedRetryToken'] == ''
+raise 'preflight did not record its phase start' unless decision.status['phaseStartedAt'] == now
 raise 'unexpected first action' unless decision.action == 'ValidateReleaseSet'
 status = decision.status
+
+busy_started_at = '2026-09-24T11:59:00Z'
+busy = machine.transition(
+  status: {'phase' => 'AcquiringLock', 'phaseStartedAt' => busy_started_at},
+  event: 'LeaseBusy',
+  generation: 4,
+  desired_set: 'candidate-2',
+  retry_token: 'attempt-2',
+  now: now
+)
+raise 'busy Lease did not preserve its timeout budget' unless busy.status['phaseStartedAt'] == busy_started_at
 
 happy_path = [
   ['ValidationSucceeded', 'AcquiringLock', 'AcquireLease', {}],
@@ -62,6 +74,7 @@ raise 'pause did not set its condition' unless paused['conditions'].find { |c| c
 resumed = machine.resume(status: paused, generation: 3, now: now)
 raise 'resume changed the completed phase' unless resumed['phase'] == 'Ready'
 raise 'resume did not clear its condition' unless resumed['conditions'].find { |c| c['type'] == 'Paused' }['status'] == 'False'
+raise 'resume did not restart the current phase timeout' unless resumed['phaseStartedAt'] == now
 
 blocked = machine.transition(
   status: {
@@ -93,14 +106,6 @@ retried = machine.transition(
 raise 'retry did not replace the previous operation' unless retried.dig('operation', 'id') == 'uid-2-3'
 raise 'retry did not record its token' unless retried['observedRetryToken'] == 'attempt-2'
 
-busy = machine.transition(
-  status: {'phase' => 'AcquiringLock'},
-  event: 'LeaseBusy',
-  generation: 4,
-  desired_set: 'candidate-2',
-  retry_token: 'attempt-2',
-  now: now
-)
 raise 'busy Lease did not remain pending' unless busy.status['phase'] == 'AcquiringLock'
 raise 'busy Lease did not request requeue' unless busy.action == 'Requeue'
 

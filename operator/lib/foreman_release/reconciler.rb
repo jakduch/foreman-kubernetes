@@ -9,6 +9,23 @@ module ForemanRelease
   class Reconciler
     ACTIVE_PHASES = %w[Migrating RollingApplication RollingProxy].freeze
     LEASED_PHASES = %w[Migrating RollingApplication VerifyingApplication RollingProxy Verifying].freeze
+    PHASE_TIMEOUT_KEYS = {
+      'Preflight' => 'preflightSeconds',
+      'AcquiringLock' => 'leaseSeconds',
+      'Migrating' => 'migrationSeconds',
+      'RollingApplication' => 'applicationRolloutSeconds',
+      'VerifyingApplication' => 'verificationSeconds',
+      'RollingProxy' => 'proxyRolloutSeconds',
+      'Verifying' => 'verificationSeconds'
+    }.freeze
+    DEFAULT_TIMEOUTS = {
+      'preflightSeconds' => 300,
+      'leaseSeconds' => 900,
+      'migrationSeconds' => 3600,
+      'applicationRolloutSeconds' => 1800,
+      'verificationSeconds' => 600,
+      'proxyRolloutSeconds' => 900
+    }.freeze
     PHASE_HANDLERS = {
       'Preflight' => [:validate, 'ValidationSucceeded', 'ValidationFailed'],
       'AcquiringLock' => [:acquire_lease, 'LeaseAcquired', 'LeaseFailed'],
@@ -56,6 +73,12 @@ module ForemanRelease
       end
       if spec.fetch('paused', false) && !ACTIVE_PHASES.include?(phase)
         return persist_pause(resource, status)
+      end
+      timeout = timeout_observation(spec, status, phase)
+      if timeout
+        transition(resource, status, failure_event, timeout)
+        @adapter.release_lease(resource, status.fetch('operation', {})) if LEASED_PHASES.include?(phase)
+        return :blocked
       end
       observation = observe(handler, resource, status.fetch('operation', {}))
 
@@ -164,6 +187,24 @@ module ForemanRelease
       Observation.new(state: value, details: {})
     rescue StandardError => error
       Observation.new(state: :failed, message: error.message, details: {})
+    end
+
+    def timeout_observation(spec, status, phase)
+      key = PHASE_TIMEOUT_KEYS.fetch(phase)
+      seconds = Integer(spec.fetch('timeouts', {}).fetch(key, DEFAULT_TIMEOUTS.fetch(key)))
+      started_at = status['phaseStartedAt'] || status.dig('operation', 'startedAt')
+      return unless started_at
+
+      elapsed = Time.iso8601(@clock.call) - Time.iso8601(started_at)
+      return if elapsed < seconds
+
+      Observation.new(
+        state: :failed,
+        message: "release phase #{phase} exceeded its #{seconds}-second timeout",
+        details: {'timedOutPhase' => phase, 'timeoutSeconds' => seconds}
+      )
+    rescue ArgumentError, TypeError => error
+      Observation.new(state: :failed, message: "invalid timeout state for #{phase}: #{error.message}", details: {})
     end
 
     def transition(resource, status, event, observation)

@@ -144,6 +144,12 @@ external endpoint returns the same exact feature boundary.
 `RELEASE_LEASE_RENEW_INTERVAL_SECONDS` may override the Lease defaults. The
 renew interval must remain shorter than the duration.
 
+The controller additionally bounds Preflight, Lease acquisition, migrations,
+both workload rollouts, and verification through `spec.timeouts`. A phase that
+exceeds its budget becomes `Blocked`; the operation Lease is released, but no
+schema or workload rollback is attempted. Correct the scheduling, image,
+storage, or endpoint failure and change `spec.retryToken` to reconcile again.
+
 ## Failure boundary
 
 The script intentionally does not use Helm's atomic rollback. A failed install

@@ -173,4 +173,30 @@ failure_reconciler.reconcile(failed_release)
 raise 'changed retry token did not restart preflight' unless failed_release.dig('status', 'phase') == 'Preflight'
 raise 'retry reused the failed operation' unless failed_release.dig('status', 'operation', 'id').end_with?('-g2')
 
+# A rollout that never reaches a terminal Deployment condition is bounded by
+# the CR phase timeout and releases its operation Lease.
+timeout_adapter = FakeAdapter.new
+timed_out_release = resource(status: {
+  'phase' => 'RollingProxy',
+  'phaseStartedAt' => '2026-09-24T12:00:00Z',
+  'targetSet' => 'candidate-1',
+  'operation' => {'id' => operation_id, 'startedAt' => '2026-09-24T11:45:00Z', 'migrationJobs' => []}
+})
+timed_out_release['spec']['timeouts'] = {'proxyRolloutSeconds' => 120}
+timeout_reconciler = ForemanRelease::Reconciler.new(
+  state_machine: machine,
+  adapter: timeout_adapter,
+  status_writer: ->(item, status) { item['status'] = status },
+  clock: -> { '2026-09-24T12:03:00Z' }
+)
+raise 'expired proxy rollout did not block' unless timeout_reconciler.reconcile(timed_out_release) == :blocked
+raise 'expired proxy rollout still called its adapter' if timeout_adapter.calls.include?(:ensure_proxy)
+raise 'expired rollout did not renew then release its Lease' unless timeout_adapter.calls == [
+  :renew_lease, [:release_lease, operation_id]
+]
+raise 'timeout phase was not retained' unless timed_out_release.dig('status', 'operation', 'timedOutPhase') == 'RollingProxy'
+raise 'timeout budget was not retained' unless timed_out_release.dig('status', 'operation', 'timeoutSeconds') == 120
+timeout_condition = timed_out_release['status']['conditions'].find { |condition| condition['type'] == 'Degraded' }
+raise 'timeout did not explain the degraded state' unless timeout_condition['message'].include?('120-second timeout')
+
 puts 'ForemanRelease reconciliation is restart-safe, pausable, and explicitly retryable.'

@@ -69,6 +69,14 @@ matching `spec.application.adoptExisting` or
 resources exist, retries and later compatibility-set changes recognize the
 release as already owned without keeping that adoption escape hatch enabled.
 
+Every active phase has an explicit wall-clock budget in `spec.timeouts`.
+`status.phaseStartedAt` survives controller restarts and Lease contention does
+not reset it, so an unschedulable Pod or permanently pending rollout eventually
+enters `Blocked` with the expired phase and budget recorded in operation
+status. A pause at a safe boundary stops work; resuming intentionally starts a
+fresh budget for that phase. Active migrations and rollouts continue to be
+observed while paused and remain subject to their original safety deadline.
+
 `ForemanRelease` is namespaced because its Helm releases, values Secrets,
 migration Jobs, and status all belong to one application namespace. The
 controller reads, but does not copy, the repository's digest-pinned
