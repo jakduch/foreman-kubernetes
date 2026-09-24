@@ -13,6 +13,10 @@ spec:
       port: {{ .Values.candlepin.service.port }}
       targetPort: https
 {{- if not .Values.maintenance.enabled }}
+{{- $minimumShutdown := add (int .Values.candlepin.shutdown.requestDrainSeconds) (mul 2 (int .Values.candlepin.shutdown.asyncJobsTimeoutSeconds)) }}
+{{- if lt (int .Values.candlepin.shutdown.terminationGracePeriodSeconds) $minimumShutdown }}
+{{- fail "candlepin.shutdown.terminationGracePeriodSeconds must cover requestDrainSeconds plus both asynchronous job pool shutdown windows" }}
+{{- end }}
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -40,6 +44,7 @@ spec:
     spec:
       serviceAccountName: {{ include "foreman-stack.serviceAccountName" . }}
       automountServiceAccountToken: false
+      terminationGracePeriodSeconds: {{ .Values.candlepin.shutdown.terminationGracePeriodSeconds }}
       {{- include "foreman-stack.imagePullSecrets" . | nindent 6 }}
       securityContext:
         fsGroup: 53
@@ -87,6 +92,12 @@ spec:
           imagePullPolicy: {{ .Values.candlepin.image.pullPolicy }}
           securityContext:
             {{- include "foreman-stack.restrictedContainerSecurityContext" (dict) | nindent 12 }}
+          lifecycle:
+            preStop:
+              exec:
+                command:
+                  - /usr/bin/sleep
+                  - {{ .Values.candlepin.shutdown.requestDrainSeconds | quote }}
           env:
             - name: CANDLEPIN_AUTH_OAUTH_CONSUMER_KATELLO_SECRET
               valueFrom:

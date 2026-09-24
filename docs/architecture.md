@@ -65,6 +65,11 @@ Deployment still uses `Recreate`: migration-before-rollout ordering needs an
 operator before the project can claim zero-downtime application/schema
 upgrades. The detailed contract is in [`candlepin-ha.md`](candlepin-ha.md).
 
+Before Tomcat is terminated, the Candlepin Pod drains its Service endpoint.
+Its termination window explicitly covers the two sequential Artemis client
+pool shutdown waits configured by Candlepin, preventing Kubernetes from
+cutting the built-in graceful shutdown back to its 30-second default.
+
 ### Pulp
 
 Pulp already exposes separate API, content, and worker commands. All three use

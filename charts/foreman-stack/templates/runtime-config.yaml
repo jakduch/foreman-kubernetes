@@ -125,6 +125,7 @@ data:
     module.config.adapter_module=org.candlepin.katello.KatelloModule
     candlepin.ca_key=/etc/candlepin/certs/candlepin-ca.key
     candlepin.ca_cert=/etc/candlepin/certs/candlepin-ca.crt
+    candlepin.async.thread.shutdown.timeout={{ .Values.candlepin.shutdown.asyncJobsTimeoutSeconds }}
     candlepin.async.jobs.ExpiredPoolsCleanupJob.schedule=0 0 0 * * ?
     {{- if .Values.candlepin.highAvailability.enabled }}
     candlepin.audit.hornetq.embedded=false

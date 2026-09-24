@@ -154,6 +154,7 @@ if ruby "${repo_root}/tests/kubernetes-invariants.rb" \
 fi
 
 ruby "${repo_root}/tests/candlepin-port.rb" "${rendered_candlepin_port}" 24443
+ruby "${repo_root}/tests/candlepin-shutdown-contract.rb" "${rendered}"
 ruby "${repo_root}/tests/pulp-ingress-contract.rb" "${rendered_ingress}"
 ruby "${repo_root}/tests/pulp-ingress-contract.rb" "${rendered_minimal_pulp_ingress}"
 ruby "${repo_root}/tests/foreman-ingress-contract.rb" "${rendered_ingress}"
@@ -565,6 +566,12 @@ fi
 
 if helm template test "${chart}" --set candlepin.replicas=2 >/dev/null 2>&1; then
   echo 'expected multiple Candlepin replicas without the HA contract to be rejected' >&2
+  exit 1
+fi
+
+if helm template test "${chart}" \
+  --set candlepin.shutdown.terminationGracePeriodSeconds=600 >/dev/null 2>&1; then
+  echo 'expected an undersized Candlepin shutdown window to be rejected' >&2
   exit 1
 fi
 

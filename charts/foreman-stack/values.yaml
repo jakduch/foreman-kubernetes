@@ -159,6 +159,11 @@ candlepin:
   java:
     xms: 1g
     xmx: 4g
+  shutdown:
+    requestDrainSeconds: 10
+    # Candlepin can wait this long for each of two Artemis client pools.
+    asyncJobsTimeoutSeconds: 600
+    terminationGracePeriodSeconds: 1230
   service:
     port: 23443
   resources:
