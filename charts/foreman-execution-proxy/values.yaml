@@ -48,11 +48,14 @@ ssh:
     certificateKey: id_rsa_foreman_proxy-cert.pub
     caPublicKeyKey: ssh-user-ca.pub
   hostKeyVerification:
-    # Disabled matches the current foremanctl container profile. Production
-    # deployments should enable it and provide a known_hosts/SSH CA Secret.
-    enabled: false
-    existingKnownHostsSecret: ""
+    # Strict verification is the production default. Populate this Secret with
+    # pinned host keys or @cert-authority entries for every managed target.
+    enabled: true
+    existingKnownHostsSecret: foreman-execution-proxy-known-hosts
     knownHostsKey: known_hosts
+    # Test-only escape hatch. Disabling verification is rejected unless this
+    # exact acknowledgement is supplied in deployment values.
+    insecureSkipVerificationAcknowledgement: ""
 
 ansible:
   # The volume contains ansible.cfg plus roles/ and collections/. When empty,

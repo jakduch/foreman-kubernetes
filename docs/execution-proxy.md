@@ -61,6 +61,12 @@ The chart consumes existing Secrets and never generates private keys:
 | `ssh.existingKeySecret` | `id_rsa_foreman_proxy`, `id_rsa_foreman_proxy.pub` | authentication to managed hosts and public-key publication |
 | `ssh.hostKeyVerification.existingKnownHostsSecret` | `known_hosts` | optional pinned host keys or `@cert-authority` records |
 
+Host-key verification is enabled by default and the trust Secret is therefore
+part of the normal installation preflight. Disabling it is intended only for a
+disposable test target and requires the exact value
+`I_UNDERSTAND_HOST_KEYS_ARE_NOT_VERIFIED` in
+`ssh.hostKeyVerification.insecureSkipVerificationAcknowledgement`.
+
 Secret key names are configurable. The SSH key projection is group-readable
 only long enough for a non-root init container to copy it into an `emptyDir`
 with mode `0600`; the main container receives that runtime copy read-only.
@@ -72,9 +78,8 @@ rotation.
 
 SSH user certificates are supported by enabling `ssh.userCertificate` and
 adding the configured certificate and CA public-key entries to the SSH Secret.
-Strict target host-key checking is opt-in because the existing foremanctl
-container profile disables it. When enabled here, the same known-hosts/SSH-CA
-file is applied to both Remote Execution and Ansible.
+The same known-hosts/SSH-CA file is applied to both Remote Execution and
+Ansible, so neither execution path silently learns an untrusted target key.
 
 The HTTPS certificate must contain the cluster Service DNS name used when the
 proxy is registered, for example:

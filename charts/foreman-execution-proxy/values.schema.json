@@ -81,17 +81,28 @@
         },
         "hostKeyVerification": {
           "type": "object",
-          "required": ["enabled", "existingKnownHostsSecret", "knownHostsKey"],
+          "required": ["enabled", "existingKnownHostsSecret", "knownHostsKey", "insecureSkipVerificationAcknowledgement"],
           "additionalProperties": false,
           "properties": {
             "enabled": { "type": "boolean" },
             "existingKnownHostsSecret": { "type": "string" },
-            "knownHostsKey": { "type": "string", "minLength": 1 }
+            "knownHostsKey": { "type": "string", "minLength": 1 },
+            "insecureSkipVerificationAcknowledgement": { "type": "string" }
           },
           "allOf": [
             {
               "if": { "properties": { "enabled": { "const": true } } },
               "then": { "properties": { "existingKnownHostsSecret": { "minLength": 1 } } }
+            },
+            {
+              "if": { "properties": { "enabled": { "const": false } } },
+              "then": {
+                "properties": {
+                  "insecureSkipVerificationAcknowledgement": {
+                    "const": "I_UNDERSTAND_HOST_KEYS_ARE_NOT_VERIFIED"
+                  }
+                }
+              }
             }
           ]
         }

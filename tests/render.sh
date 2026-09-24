@@ -202,6 +202,8 @@ grep -q 'mountPath: /etc/ansible' "${rendered_execution}"
 grep -q 'mountPath: /var/lib/foreman-proxy' "${rendered_execution}"
 grep -q 'mountPath: /var/run/foreman-proxy/ssh' "${rendered_execution}"
 grep -q 'install -m 0600 /ssh-source/private' "${rendered_execution}"
+grep -q ':ssh_ca_known_hosts_file: /etc/foreman-proxy/ssh-host-keys/known_hosts' "${rendered_execution}"
+grep -q 'ANSIBLE_HOST_KEY_CHECKING="True"' "${rendered_execution}"
 grep -q 'type: ClusterIP' "${rendered_execution}"
 grep -q 'app.kubernetes.io/instance: foreman' "${rendered_execution}"
 if grep -q 'hostNetwork:' "${rendered_execution}"; then
@@ -242,10 +244,15 @@ if helm template execution "${execution_chart}" --set replicas=2 >/dev/null 2>&1
 fi
 
 if helm template execution "${execution_chart}" \
-  --set ssh.hostKeyVerification.enabled=true >/dev/null 2>&1; then
-  echo 'expected strict host-key checking without a trust Secret to be rejected' >&2
+  --set ssh.hostKeyVerification.enabled=false >/dev/null 2>&1; then
+  echo 'expected insecure host-key checking without acknowledgement to be rejected' >&2
   exit 1
 fi
+
+helm template execution "${execution_chart}" \
+  --set ssh.hostKeyVerification.enabled=false \
+  --set-string ssh.hostKeyVerification.insecureSkipVerificationAcknowledgement=I_UNDERSTAND_HOST_KEYS_ARE_NOT_VERIFIED |
+  grep -q 'ANSIBLE_HOST_KEY_CHECKING="False"'
 
 if helm template execution "${execution_chart}" \
   --set networkPolicy.egress.enabled=true >/dev/null 2>&1; then

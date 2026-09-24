@@ -5,6 +5,9 @@ proxy:
 
 ssh:
   user: foreman
+  hostKeyVerification:
+    enabled: false
+    insecureSkipVerificationAcknowledgement: I_UNDERSTAND_HOST_KEYS_ARE_NOT_VERIFIED
 
 ansible:
   existingClaim: execution-ansible-content
