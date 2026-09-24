@@ -59,6 +59,9 @@ raise 'ready release is still Progressing' unless status['conditions'].find { |c
 paused = machine.pause(status: status, generation: 2, now: now)
 raise 'pause changed the completed phase' unless paused['phase'] == 'Ready'
 raise 'pause did not set its condition' unless paused['conditions'].find { |c| c['type'] == 'Paused' }['status'] == 'True'
+resumed = machine.resume(status: paused, generation: 3, now: now)
+raise 'resume changed the completed phase' unless resumed['phase'] == 'Ready'
+raise 'resume did not clear its condition' unless resumed['conditions'].find { |c| c['type'] == 'Paused' }['status'] == 'False'
 
 blocked = machine.transition(
   status: {

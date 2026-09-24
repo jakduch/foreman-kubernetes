@@ -75,6 +75,17 @@ module ForemanRelease
       next_status
     end
 
+    def resume(status:, generation:, now:, message: 'release reconciliation is not paused')
+      next_status = deep_copy(status || {})
+      next_status['phase'] ||= @initial_phase
+      next_status['observedGeneration'] = generation
+      next_status['conditions'] = upsert_condition(
+        next_status['conditions'],
+        condition('Paused', false, 'ReconciliationResumed', message, generation, now)
+      )
+      next_status
+    end
+
     def retry_allowed?(status, retry_token)
       current_status = status || {}
       current_status.fetch('phase', @initial_phase) == 'Blocked' &&

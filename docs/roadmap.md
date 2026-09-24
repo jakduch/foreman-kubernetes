@@ -106,7 +106,10 @@ define phase ordering, status conditions, same-namespace values references,
 pause semantics, explicit blocked retries, and the no-database-rollback rule.
 The side-effect-free controller core executes that graph and is covered across
 success, pause, retry, contention, and invalid transitions, but no
-cluster-facing reconciliation process is running yet.
+cluster-facing reconciliation process is running yet. Its reconciliation loop
+now persists each phase before acting, resumes one deterministic operation
+after restart, and gives controller-owned migration and registration Jobs
+stable names plus owner labels for adoption.
 
 After the Helm lifecycle and runtime contracts are proven, add a small Go operator that:
 

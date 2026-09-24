@@ -6,6 +6,16 @@ executable, side-effect-free transition core used to build durable status,
 conditions, operation identity, explicit retries, and pause observations. A
 cluster-facing reconciliation process is not running yet.
 
+`operator/lib/foreman_release/reconciler.rb` turns the transition contract into
+an idempotent reconciliation loop behind a side-effect adapter. It persists a
+phase before the following reconciliation performs work, observes active
+migrations and rollouts to a safe pause boundary, reuses the persisted
+operation ID after restart, and accepts a blocked retry only after
+`spec.retryToken` changes. The Helm chart carries that ID plus the owning
+ForemanRelease UID on deterministic migration and Pulp registration Jobs, so a
+future Kubernetes adapter can adopt them rather than launch duplicate schema
+changes.
+
 `ForemanRelease` is namespaced because its Helm releases, values Secrets,
 migration Jobs, and status all belong to one application namespace. The
 controller reads, but does not copy, the repository's digest-pinned
@@ -62,6 +72,8 @@ stale controller report.
 The CRD and state graph are statically validated by `tests/operator-contract.rb`.
 `tests/operator-state-machine.rb` also executes the complete happy path, pause,
 blocked retry, busy Lease, invalid transition, conditions, and operation
-replacement behavior. A controller image, RBAC, Lease renewal, Job adoption,
-status patching, and restart/idempotency integration tests are still required
-before installing the CRD in a cluster.
+replacement behavior. `tests/operator-reconciler.rb` simulates a controller
+restart during migration, safe-boundary pause, a failed validation, and an
+explicit retry. A Kubernetes adapter, controller image, RBAC, Lease renewal,
+status patching, and cluster integration tests are still required before
+installing the CRD in a cluster.
