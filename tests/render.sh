@@ -128,6 +128,7 @@ if ruby "${repo_root}/tests/kubernetes-invariants.rb" \
 fi
 
 ruby "${repo_root}/tests/candlepin-port.rb" "${rendered_candlepin_port}" 24443
+ruby "${repo_root}/tests/pulp-ingress-contract.rb" "${rendered_ingress}"
 ruby "${repo_root}/tests/pulp-process-contract.rb" "${rendered}"
 ruby "${repo_root}/tests/katello-event-daemon-contract.rb" "${rendered_egress}"
 ruby "${repo_root}/tests/foreman-shared-tmp-contract.rb" "${rendered}" true
@@ -354,6 +355,7 @@ fi
 grep -q 'nginx.ingress.kubernetes.io/auth-tls-verify-client: optional' "${rendered_ingress}"
 grep -Fq "X-CLIENT-CERT: \$ssl_client_escaped_cert" "${rendered_ingress}"
 grep -q 'path: /pulp/content' "${rendered_ingress}"
+grep -q 'path: /pulp/deb' "${rendered_ingress}"
 grep -q 'path: /pulp_ansible/galaxy' "${rendered_ingress}"
 if [[ "$(grep -c '^kind: HorizontalPodAutoscaler$' "${rendered_ingress}")" -ne 3 ]]; then
   echo 'expected Foreman, Pulp API, and Pulp content autoscalers' >&2

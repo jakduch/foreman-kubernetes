@@ -95,6 +95,13 @@ spec:
                 name: {{ include "foreman-stack.pulpContentServiceName" . }}
                 port:
                   number: {{ .Values.pulp.content.port }}
+          - path: /pulp/deb
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "foreman-stack.pulpContentServiceName" . }}
+                port:
+                  number: {{ .Values.pulp.content.port }}
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
