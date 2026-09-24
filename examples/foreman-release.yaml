@@ -1,0 +1,21 @@
+apiVersion: platform.theforeman.org/v1alpha1
+kind: ForemanRelease
+metadata:
+  name: foreman
+spec:
+  compatibilitySet: nightly-candidate-2026-09-24
+  allowCandidate: true
+  paused: false
+  retryToken: initial
+  failurePolicy:
+    afterMigration: Halt
+  application:
+    releaseName: foreman
+    valuesSecretRef:
+      name: foreman-release-values
+      key: application.yaml
+  executionProxy:
+    releaseName: execution
+    valuesSecretRef:
+      name: foreman-release-values
+      key: execution-proxy.yaml

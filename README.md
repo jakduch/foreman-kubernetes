@@ -20,6 +20,13 @@ network-control feature; see
 [`docs/execution-proxy.md`](docs/execution-proxy.md) for its state, identity,
 role-content, and network contracts.
 
+The experimental [`charts/foreman-release-operator`](charts/foreman-release-operator)
+chart installs a singleton namespaced controller for the durable
+`ForemanRelease` state machine. It validates the exact render and external
+dependencies, pins all input fingerprints, adopts deterministic migration and
+verification Jobs after restart, rolls the application before its paired
+execution proxy, and never performs an automatic post-migration rollback.
+
 The initial Helm chart is under [`charts/foreman-stack`](charts/foreman-stack). It renders:
 
 - a scalable Foreman web Deployment;
@@ -58,6 +65,8 @@ helm template foreman charts/foreman-stack \
 
 helm lint charts/foreman-execution-proxy \
   --values examples/execution-proxy-values.yaml
+
+helm lint charts/foreman-release-operator
 ```
 
 After an installed release is ready, run the chart-owned application smoke
@@ -137,7 +146,7 @@ credential, and recovery-drill contracts.
 - [`docs/candlepin-ha.md`](docs/candlepin-ha.md) defines the external broker, clustered scheduler, and migration boundary.
 - [`docs/pulp-object-storage.md`](docs/pulp-object-storage.md) defines the optional S3-compatible artifact backend and its recovery boundary.
 - [`docs/roadmap.md`](docs/roadmap.md) lists the next implementation slices.
-- [`operator/README.md`](operator/README.md) defines the future controller API, phase ownership, and failure/retry contract.
+- [`operator/README.md`](operator/README.md) defines the controller API, phase ownership, and failure/retry contract.
 
 ## Upstream source snapshots reviewed
 

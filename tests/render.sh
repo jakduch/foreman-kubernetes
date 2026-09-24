@@ -51,6 +51,7 @@ ruby "${repo_root}/tests/operator-cluster-preflight.rb"
 ruby "${repo_root}/tests/operator-runtime-adapter.rb"
 ruby "${repo_root}/tests/values-schema-coverage.rb"
 ruby "${repo_root}/tests/recovery-image-contract.rb"
+ruby "${repo_root}/tests/operator-image-contract.rb"
 
 helm lint "${chart}"
 if helm lint "${chart}" --set pulp.workres.replicas=2 >/dev/null 2>&1; then

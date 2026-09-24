@@ -41,6 +41,52 @@ peer verification; use a relay with a certificate trusted by the Foreman
 image. When egress isolation is enabled, declare only that relay and its actual
 port under `networkPolicy.egress.external.smtp`.
 
+## ForemanRelease controller (experimental)
+
+The guarded scripts remain the supported development entry point. The same
+sequence is also implemented by the experimental `ForemanRelease` controller.
+Its image contains only this orchestration repository, Ruby, Helm, and kubectl;
+Foreman, Katello, Candlepin, Pulp, and Smart Proxy remain separate images and
+Helm releases.
+
+Publish `images/release-operator/Dockerfile` through the operator image workflow
+and retain the digest it reports. Then install the CRD and singleton controller
+in the application namespace:
+
+```sh
+kubectl create namespace foreman
+kubectl apply --filename operator/crd/platform.theforeman.org_foremanreleases.yaml
+helm upgrade --install foreman-release-operator \
+  charts/foreman-release-operator \
+  --namespace foreman \
+  --set-string image.repository=ghcr.io/OWNER/REPOSITORY/release-operator \
+  --set-string image.tag=VERSION@sha256:REVIEWED_DIGEST
+```
+
+Store the two environment value documents in one same-namespace Secret. They
+may reference the normal runtime credential Secrets; their contents are not
+copied into the custom resource or its status.
+
+```sh
+kubectl --namespace foreman create secret generic foreman-release-values \
+  --from-file=application.yaml=/secure/path/application-values.yaml \
+  --from-file=execution-proxy.yaml=/secure/path/execution-proxy-values.yaml
+kubectl --namespace foreman apply --filename examples/foreman-release.yaml
+kubectl --namespace foreman get foremanrelease foreman --watch
+```
+
+The controller runs one replica until leader election is implemented. Every
+release operation is nevertheless restart-safe: its input fingerprints, phase,
+Lease holder, migration Job names, and Helm revisions are durable. Change
+`spec.retryToken` only after correcting a `Blocked` condition. Set
+`spec.paused=true` to stop at the next safe phase boundary; it never terminates
+an active migration or rollout.
+
+This path has command-level and render coverage but no retained real-cluster
+qualification yet. Do not replace the guarded scripts in production until the
+full integration workflow has exercised the published operator image and exact
+compatibility set.
+
 ## Guarded first installation
 
 Create the namespace and Secrets first:

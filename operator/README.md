@@ -3,8 +3,9 @@
 This directory defines the API and deterministic lifecycle contract for the
 release controller. `operator/lib/foreman_release/state_machine.rb` is the
 executable, side-effect-free transition core used to build durable status,
-conditions, operation identity, explicit retries, and pause observations. A
-cluster-facing reconciliation process is not running yet.
+conditions, operation identity, explicit retries, and pause observations.
+`operator/bin/foreman-release-controller` runs that core as a namespaced
+polling controller and isolates failures between custom resources.
 
 `operator/lib/foreman_release/reconciler.rb` turns the transition contract into
 an idempotent reconciliation loop behind a side-effect adapter. It persists a
@@ -117,6 +118,7 @@ The CRD and state graph are statically validated by `tests/operator-contract.rb`
 blocked retry, busy Lease, invalid transition, conditions, and operation
 replacement behavior. `tests/operator-reconciler.rb` simulates a controller
 restart during migration, safe-boundary pause, a failed validation, and an
-explicit retry. The runtime adapter is covered with command-level simulations,
-but a controller process, RBAC, image, and real cluster tests are still required
-before installing the CRD in a cluster.
+explicit retry. The singleton controller, bounded RBAC, chart, and publication
+image are present and covered by command-level simulations. Real-cluster tests
+of the published image are still required before treating the controller path
+as production-ready.
