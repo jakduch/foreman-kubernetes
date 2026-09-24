@@ -32,7 +32,7 @@ spec:
         app.kubernetes.io/instance: {{ .Release.Name }}
         app.kubernetes.io/component: foreman
       annotations:
-        checksum/config: {{ printf "%s/%s" .Values.foreman.existingConfigSecret .Values.foreman.existingEnvSecret | sha256sum }}
+        checksum/config: {{ toJson (dict "platform" .Values.platform "valkey" .Values.valkey "foreman" .Values.foreman "candlepinService" (include "foreman-stack.candlepinServiceName" .)) | sha256sum }}
     spec:
       serviceAccountName: {{ include "foreman-stack.serviceAccountName" . }}
       securityContext:

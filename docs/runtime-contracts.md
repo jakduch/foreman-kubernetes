@@ -50,35 +50,32 @@ The chart consequently enforces exactly one Candlepin replica in phase 1.
 - `ENCRYPTION_KEY`
 - `SEED_ADMIN_USER`
 - `SEED_ADMIN_PASSWORD`
-- `DYNFLOW_REDIS_URL`
-- `REDIS_PROVIDER`
 
-### `foreman-config`
+### `foreman-shared`
 
-- `settings.yaml`
-- `katello.yaml`
-- `dynflow-orchestrator.yml`
-- `dynflow-worker.yml`
-- `dynflow-worker-hosts-queue.yml`
+- `candlepin-oauth-secret`
+
+The same key is injected into Foreman's ERB-evaluated Katello settings and Candlepin's SmallRye environment configuration. It is never rendered into a ConfigMap.
+
+### `foreman-certificates`
+
 - `ca.crt`
 - `client_cert.pem`
 - `client_key.pem`
 
-The Candlepin URL inside `katello.yaml` must use the Helm release's Candlepin Service DNS name (for example, `https://foreman-foreman-stack-candlepin:23443/candlepin`). It must not blindly retain foremanctl's single-host alias unless the cluster provides that alias.
+The chart generates `settings.yaml`, `katello.yaml`, and all three Dynflow queue configurations. It also generates the Candlepin URL from the Helm Service name.
 
-### `candlepin-config`
+### `candlepin-runtime` and `candlepin-certificates`
 
-- `candlepin.conf`
-- `server.xml`
-- `tomcat.conf`
-- `logging.properties`
-- `logback.xml`
-- `candlepin-ca.crt`
-- `candlepin-ca.key`
-- `tomcat.crt`
-- `tomcat.key`
-- `db-ca.crt`
+- `candlepin-runtime`: `database-password`
+- `candlepin-certificates`:
+  - `candlepin-ca.crt`
+  - `candlepin-ca.key`
+  - `tomcat.crt`
+  - `tomcat.key`
+
+The chart generates `candlepin.conf`, `server.xml`, `tomcat.conf`, `logging.properties`, and `logback.xml`. SmallRye environment overrides supply the database and OAuth secrets with a higher priority than the generated properties file. A separate optional Secret supplies `db-ca.crt` when database certificate validation is enabled.
 
 ### `pulp-runtime` and `pulp-config`
 
-Pulp settings use Dynaconf environment keys such as `PULP_DATABASES__default__HOST`, `PULP_REDIS_URL`, and `PULP_SECRET_KEY`. `pulp-config` must contain `database_fields.symmetric.key`.
+`pulp-runtime` contains `database-password` and `django-secret-key`. `pulp-config` contains `database_fields.symmetric.key`. The chart generates all non-secret Dynaconf environment values, including database host, Valkey URL, content origin, and enabled plugins.

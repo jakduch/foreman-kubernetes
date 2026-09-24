@@ -23,6 +23,8 @@ The initial Helm chart is under [`charts/foreman-stack`](charts/foreman-stack). 
 
 This is an implementation scaffold, not yet a production release. It deliberately requires external PostgreSQL and Valkey services and pre-created Kubernetes Secrets. Those stateful dependencies need their own HA, backup, and lifecycle policy rather than being hidden inside an application chart.
 
+The chart generates the non-secret Foreman, Katello, Dynflow, Candlepin, Tomcat, and Pulp configuration from typed values. Existing Secrets are now limited to credentials, encryption material, and certificates.
+
 The chart currently prevents more than one Candlepin replica. The current Candlepin defaults use an embedded Artemis broker, and its Quartz configuration is not clustered. Scaling that Deployment before both concerns are addressed would create isolated queues and competing schedulers.
 
 ## Render the chart

@@ -35,6 +35,18 @@ app.kubernetes.io/component: {{ .component }}
 {{- printf "%s:%s" .repository .tag }}
 {{- end }}
 
+{{- define "foreman-stack.foremanConfigName" -}}
+{{- printf "%s-foreman-config" (include "foreman-stack.fullname" .) }}
+{{- end }}
+
+{{- define "foreman-stack.candlepinConfigName" -}}
+{{- printf "%s-candlepin-config" (include "foreman-stack.fullname" .) }}
+{{- end }}
+
+{{- define "foreman-stack.candlepinServiceName" -}}
+{{- printf "%s-candlepin" (include "foreman-stack.fullname" .) }}
+{{- end }}
+
 {{- define "foreman-stack.foremanEnv" -}}
 - name: RAILS_ENV
   value: production
@@ -52,35 +64,92 @@ app.kubernetes.io/component: {{ .component }}
   value: {{ .Values.foreman.puma.threadsMin | quote }}
 - name: FOREMAN_PUMA_THREADS_MAX
   value: {{ .Values.foreman.puma.threadsMax | quote }}
+- name: DYNFLOW_REDIS_URL
+  value: {{ printf "redis://%s:%v/%v" .Values.valkey.host .Values.valkey.port .Values.valkey.dynflowDatabase | quote }}
+- name: REDIS_PROVIDER
+  value: DYNFLOW_REDIS_URL
+- name: CANDLEPIN_OAUTH_SECRET
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Values.sharedSecret.name }}
+      key: {{ .Values.sharedSecret.candlepinOAuthSecretKey }}
 {{- end }}
 
 {{- define "foreman-stack.foremanVolumeMounts" -}}
-- name: foreman-config
+- name: foreman-generated-config
   mountPath: /etc/foreman/settings.yaml
   subPath: settings.yaml
   readOnly: true
-- name: foreman-config
+- name: foreman-generated-config
   mountPath: /etc/foreman/plugins/katello.yaml
   subPath: katello.yaml
   readOnly: true
-- name: foreman-config
+- name: foreman-certificates
   mountPath: /etc/foreman/katello-default-ca.crt
   subPath: ca.crt
   readOnly: true
-- name: foreman-config
+- name: foreman-certificates
   mountPath: /etc/foreman/client_cert.pem
   subPath: client_cert.pem
   readOnly: true
-- name: foreman-config
+- name: foreman-certificates
   mountPath: /etc/foreman/client_key.pem
   subPath: client_key.pem
   readOnly: true
 {{- end }}
 
 {{- define "foreman-stack.foremanVolumes" -}}
-- name: foreman-config
+- name: foreman-generated-config
+  configMap:
+    name: {{ include "foreman-stack.foremanConfigName" . }}
+- name: foreman-certificates
   secret:
-    secretName: {{ .Values.foreman.existingConfigSecret }}
+    secretName: {{ .Values.foreman.existingCertificateSecret }}
+{{- end }}
+
+{{- define "foreman-stack.pulpEnv" -}}
+- name: PULP_DATABASES__default__NAME
+  value: {{ .Values.pulp.database.name | quote }}
+- name: PULP_DATABASES__default__USER
+  value: {{ .Values.pulp.database.user | quote }}
+- name: PULP_DATABASES__default__PASSWORD
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Values.pulp.existingRuntimeSecret }}
+      key: {{ .Values.pulp.databasePasswordSecretKey }}
+- name: PULP_DATABASES__default__HOST
+  value: {{ .Values.pulp.database.host | quote }}
+- name: PULP_DATABASES__default__PORT
+  value: {{ .Values.pulp.database.port | quote }}
+- name: PULP_DATABASES__default__OPTIONS__sslmode
+  value: {{ .Values.pulp.database.sslMode | quote }}
+- name: PULP_REDIS_URL
+  value: {{ printf "redis://%s:%v/%v" .Values.valkey.host .Values.valkey.port .Values.valkey.pulpDatabase | quote }}
+- name: PULP_SECRET_KEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Values.pulp.existingRuntimeSecret }}
+      key: {{ .Values.pulp.djangoSecretKey }}
+- name: PULP_CONTENT_ORIGIN
+  value: {{ .Values.pulp.contentOrigin | quote }}
+- name: PULP_ANSIBLE_API_HOSTNAME
+  value: {{ .Values.pulp.contentOrigin | quote }}
+- name: PULP_ANSIBLE_CONTENT_HOSTNAME
+  value: {{ printf "%s/pulp/content" (trimSuffix "/" .Values.pulp.contentOrigin) | quote }}
+- name: PULP_SMART_PROXY_PULP_URL
+  value: {{ printf "http://%s-pulp-api:%v" (include "foreman-stack.fullname" .) .Values.pulp.api.port | quote }}
+- name: PULP_ENABLED_PLUGINS
+  value: {{ toJson .Values.pulp.enabledPlugins | quote }}
+- name: PULP_AUTHENTICATION_BACKENDS
+  value: '["pulpcore.app.authentication.PulpNoCreateRemoteUserBackend"]'
+- name: PULP_REST_FRAMEWORK__DEFAULT_AUTHENTICATION_CLASSES
+  value: '["rest_framework.authentication.SessionAuthentication", "pulpcore.app.authentication.PulpRemoteUserAuthentication"]'
+- name: PULP_REMOTE_USER_ENVIRON_NAME
+  value: HTTP_REMOTE_USER
+- name: PULP_TOKEN_AUTH_DISABLED
+  value: "true"
+- name: PULP_CACHE_ENABLED
+  value: "true"
 {{- end }}
 
 {{- define "foreman-stack.topologySpread" -}}

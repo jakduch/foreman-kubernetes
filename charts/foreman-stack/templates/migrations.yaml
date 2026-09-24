@@ -30,9 +30,8 @@ spec:
             - pulpcore-manager
             - migrate
             - --noinput
-          envFrom:
-            - secretRef:
-                name: {{ .Values.pulp.existingEnvSecret }}
+          env:
+            {{- include "foreman-stack.pulpEnv" . | nindent 12 }}
           volumeMounts:
             - name: pulp-config
               mountPath: /etc/pulp/certs/database_fields.symmetric.key

@@ -1,26 +1,54 @@
 {
   "$schema": "https://json-schema.org/draft-07/schema#",
   "type": "object",
+  "required": ["platform", "valkey", "sharedSecret", "foreman", "candlepin", "pulp"],
   "properties": {
+    "platform": {
+      "type": "object",
+      "required": ["fqdn", "domain", "externalUrl"],
+      "properties": {
+        "fqdn": { "type": "string", "minLength": 1 },
+        "domain": { "type": "string", "minLength": 1 },
+        "externalUrl": { "type": "string", "pattern": "^https://" }
+      }
+    },
+    "valkey": {
+      "type": "object",
+      "required": ["host", "port"],
+      "properties": {
+        "host": { "type": "string", "minLength": 1 },
+        "port": { "type": "integer", "minimum": 1, "maximum": 65535 }
+      }
+    },
+    "sharedSecret": {
+      "type": "object",
+      "required": ["name", "candlepinOAuthSecretKey"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "candlepinOAuthSecretKey": { "type": "string", "minLength": 1 }
+      }
+    },
     "foreman": {
       "type": "object",
-      "required": ["existingEnvSecret", "existingConfigSecret"],
+      "required": ["existingEnvSecret", "existingCertificateSecret"],
       "properties": {
         "replicas": { "type": "integer", "minimum": 1 },
         "existingEnvSecret": { "type": "string", "minLength": 1 },
-        "existingConfigSecret": { "type": "string", "minLength": 1 },
+        "existingCertificateSecret": { "type": "string", "minLength": 1 },
         "dynflow": {
           "type": "object",
           "properties": {
             "workers": { "type": "integer", "minimum": 1 },
-            "hostsQueueWorkers": { "type": "integer", "minimum": 1 }
+            "workerConcurrency": { "type": "integer", "minimum": 1 },
+            "hostsQueueWorkers": { "type": "integer", "minimum": 1 },
+            "hostsQueueConcurrency": { "type": "integer", "minimum": 1 }
           }
         }
       }
     },
     "candlepin": {
       "type": "object",
-      "required": ["existingConfigSecret"],
+      "required": ["existingRuntimeSecret", "existingCertificateSecret", "database"],
       "properties": {
         "replicas": {
           "type": "integer",
@@ -28,15 +56,19 @@
           "maximum": 1,
           "description": "Candlepin remains single-replica until external Artemis and Quartz clustering are configured."
         },
-        "existingConfigSecret": { "type": "string", "minLength": 1 }
+        "existingRuntimeSecret": { "type": "string", "minLength": 1 },
+        "existingCertificateSecret": { "type": "string", "minLength": 1 },
+        "database": { "$ref": "#/definitions/database" }
       }
     },
     "pulp": {
       "type": "object",
-      "required": ["existingEnvSecret", "existingConfigSecret"],
+      "required": ["existingRuntimeSecret", "existingConfigSecret", "database", "contentOrigin"],
       "properties": {
-        "existingEnvSecret": { "type": "string", "minLength": 1 },
+        "existingRuntimeSecret": { "type": "string", "minLength": 1 },
         "existingConfigSecret": { "type": "string", "minLength": 1 },
+        "database": { "$ref": "#/definitions/database" },
+        "contentOrigin": { "type": "string", "pattern": "^https?://" },
         "storage": {
           "type": "object",
           "properties": {
@@ -44,6 +76,19 @@
             "size": { "type": "string", "pattern": "^[1-9][0-9]*(Ei|Pi|Ti|Gi|Mi|Ki)$" }
           }
         }
+      }
+    }
+  },
+  "definitions": {
+    "database": {
+      "type": "object",
+      "required": ["host", "port", "name", "user", "sslMode"],
+      "properties": {
+        "host": { "type": "string", "minLength": 1 },
+        "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "name": { "type": "string", "minLength": 1 },
+        "user": { "type": "string", "minLength": 1 },
+        "sslMode": { "enum": ["disable", "allow", "prefer", "require", "verify-ca", "verify-full"] }
       }
     }
   }

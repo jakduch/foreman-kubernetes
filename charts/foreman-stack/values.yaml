@@ -3,6 +3,24 @@ fullnameOverride: ""
 
 imagePullSecrets: []
 
+platform:
+  fqdn: foreman.example.test
+  domain: example.test
+  externalUrl: https://foreman.example.test
+  aliases: []
+  trustedProxies: []
+
+valkey:
+  host: valkey.example.test
+  port: 6379
+  foremanCacheDatabase: 4
+  dynflowDatabase: 6
+  pulpDatabase: 8
+
+sharedSecret:
+  name: foreman-shared
+  candlepinOAuthSecretKey: candlepin-oauth-secret
+
 serviceAccount:
   create: true
   name: ""
@@ -16,7 +34,7 @@ foreman:
   service:
     port: 3000
   existingEnvSecret: foreman-runtime
-  existingConfigSecret: foreman-config
+  existingCertificateSecret: foreman-certificates
   enabledPlugins:
     - foreman-tasks
     - katello
@@ -26,7 +44,9 @@ foreman:
     threadsMax: 5
   dynflow:
     workers: 2
+    workerConcurrency: 10
     hostsQueueWorkers: 1
+    hostsQueueConcurrency: 5
   resources:
     requests:
       cpu: 500m
@@ -41,7 +61,19 @@ candlepin:
     pullPolicy: IfNotPresent
   # Phase 1 deliberately permits one replica only. See docs/runtime-contracts.md.
   replicas: 1
-  existingConfigSecret: candlepin-config
+  existingRuntimeSecret: candlepin-runtime
+  databasePasswordSecretKey: database-password
+  existingCertificateSecret: candlepin-certificates
+  existingDatabaseCaSecret: ""
+  database:
+    host: postgres.example.test
+    port: 5432
+    name: candlepin
+    user: candlepin
+    sslMode: disable
+  java:
+    xms: 1g
+    xmx: 4g
   service:
     port: 23443
   resources:
@@ -56,8 +88,24 @@ pulp:
     repository: quay.io/foreman/pulp
     tag: foreman-nightly
     pullPolicy: IfNotPresent
-  existingEnvSecret: pulp-runtime
+  existingRuntimeSecret: pulp-runtime
+  databasePasswordSecretKey: database-password
+  djangoSecretKey: django-secret-key
   existingConfigSecret: pulp-config
+  database:
+    host: postgres.example.test
+    port: 5432
+    name: pulp
+    user: pulp
+    sslMode: disable
+  contentOrigin: https://content.example.test
+  enabledPlugins:
+    - pulp_certguard
+    - pulp_container
+    - pulp_deb
+    - pulp_file
+    - pulp_rpm
+    - pulp_smart_proxy
   api:
     replicas: 2
     port: 24817

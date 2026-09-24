@@ -76,9 +76,8 @@ spec:
           ports:
             - name: http
               containerPort: {{ $service.port }}
-          envFrom:
-            - secretRef:
-                name: {{ $root.Values.pulp.existingEnvSecret }}
+          env:
+            {{- include "foreman-stack.pulpEnv" $root | nindent 12 }}
           volumeMounts:
             - name: pulp-data
               mountPath: /var/lib/pulp
@@ -137,9 +136,8 @@ spec:
           imagePullPolicy: {{ .Values.pulp.image.pullPolicy }}
           command:
             - /usr/bin/pulp-worker
-          envFrom:
-            - secretRef:
-                name: {{ .Values.pulp.existingEnvSecret }}
+          env:
+            {{- include "foreman-stack.pulpEnv" . | nindent 12 }}
           volumeMounts:
             - name: pulp-data
               mountPath: /var/lib/pulp

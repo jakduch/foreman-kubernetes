@@ -2,11 +2,10 @@
 
 ## Next vertical slice
 
-1. Generate validated Foreman, Katello, Candlepin, Tomcat, Dynflow, and Pulp configuration from a typed values model instead of importing file-bearing Secrets.
-2. Add an ingress profile that preserves client-certificate headers and separates the Foreman UI/API route from Pulp content routes.
-3. Add upgrade smoke tests using disposable PostgreSQL, Valkey, and RWX-compatible storage in a local Kubernetes cluster.
-4. Add backup and restore Jobs for all three databases, Pulp content, PKI, and configuration Secrets.
-5. Add NetworkPolicies, security contexts, PodDisruptionBudgets, and topology constraints per component.
+1. Add an ingress profile that preserves client-certificate headers and separates the Foreman UI/API route from Pulp content routes.
+2. Add upgrade smoke tests using disposable PostgreSQL, Valkey, and RWX-compatible storage in a local Kubernetes cluster.
+3. Add backup and restore Jobs for all three databases, Pulp content, PKI, and configuration Secrets.
+4. Add NetworkPolicies, security contexts, PodDisruptionBudgets, and topology constraints per component.
 
 ## Candlepin HA track
 

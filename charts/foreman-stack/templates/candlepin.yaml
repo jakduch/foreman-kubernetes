@@ -33,6 +33,8 @@ spec:
         app.kubernetes.io/name: {{ include "foreman-stack.name" . }}
         app.kubernetes.io/instance: {{ .Release.Name }}
         app.kubernetes.io/component: candlepin
+      annotations:
+        checksum/config: {{ toJson (dict "database" .Values.candlepin.database "java" .Values.candlepin.java "service" .Values.candlepin.service) | sha256sum }}
     spec:
       serviceAccountName: {{ include "foreman-stack.serviceAccountName" . }}
       securityContext:
@@ -42,50 +44,68 @@ spec:
         - name: candlepin
           image: {{ include "foreman-stack.image" .Values.candlepin.image }}
           imagePullPolicy: {{ .Values.candlepin.image.pullPolicy }}
+          env:
+            - name: CANDLEPIN_AUTH_OAUTH_CONSUMER_KATELLO_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.sharedSecret.name }}
+                  key: {{ .Values.sharedSecret.candlepinOAuthSecretKey }}
+            - name: JPA_CONFIG_HIBERNATE_CONNECTION_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.candlepin.existingRuntimeSecret }}
+                  key: {{ .Values.candlepin.databasePasswordSecretKey }}
+            - name: ORG_QUARTZ_DATASOURCE_MYDS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.candlepin.existingRuntimeSecret }}
+                  key: {{ .Values.candlepin.databasePasswordSecretKey }}
           ports:
             - name: https
               containerPort: 23443
           volumeMounts:
-            - name: candlepin-config
+            - name: candlepin-generated-config
               mountPath: /etc/candlepin/candlepin.conf
               subPath: candlepin.conf
               readOnly: true
-            - name: candlepin-config
+            - name: candlepin-generated-config
               mountPath: /etc/tomcat/server.xml
               subPath: server.xml
               readOnly: true
-            - name: candlepin-config
+            - name: candlepin-generated-config
               mountPath: /etc/tomcat/tomcat.conf
               subPath: tomcat.conf
               readOnly: true
-            - name: candlepin-config
+            - name: candlepin-generated-config
               mountPath: /etc/tomcat/logging.properties
               subPath: logging.properties
               readOnly: true
-            - name: candlepin-config
+            - name: candlepin-generated-config
               mountPath: /var/lib/tomcat/webapps/candlepin/WEB-INF/classes/logback.xml
               subPath: logback.xml
               readOnly: true
-            - name: candlepin-config
+            - name: candlepin-certificates
               mountPath: /etc/candlepin/certs/candlepin-ca.crt
               subPath: candlepin-ca.crt
               readOnly: true
-            - name: candlepin-config
+            - name: candlepin-certificates
               mountPath: /etc/candlepin/certs/candlepin-ca.key
               subPath: candlepin-ca.key
               readOnly: true
-            - name: candlepin-config
+            - name: candlepin-certificates
               mountPath: /etc/candlepin/certs/tomcat.crt
               subPath: tomcat.crt
               readOnly: true
-            - name: candlepin-config
+            - name: candlepin-certificates
               mountPath: /etc/candlepin/certs/tomcat.key
               subPath: tomcat.key
               readOnly: true
-            - name: candlepin-config
+            {{- if .Values.candlepin.existingDatabaseCaSecret }}
+            - name: candlepin-database-ca
               mountPath: /etc/candlepin/certs/db-ca.crt
               subPath: db-ca.crt
               readOnly: true
+            {{- end }}
           readinessProbe:
             httpGet:
               path: /candlepin/status
@@ -107,6 +127,14 @@ spec:
           resources:
             {{- toYaml .Values.candlepin.resources | nindent 12 }}
       volumes:
-        - name: candlepin-config
+        - name: candlepin-generated-config
+          configMap:
+            name: {{ include "foreman-stack.candlepinConfigName" . }}
+        - name: candlepin-certificates
           secret:
-            secretName: {{ .Values.candlepin.existingConfigSecret }}
+            secretName: {{ .Values.candlepin.existingCertificateSecret }}
+        {{- if .Values.candlepin.existingDatabaseCaSecret }}
+        - name: candlepin-database-ca
+          secret:
+            secretName: {{ .Values.candlepin.existingDatabaseCaSecret }}
+        {{- end }}

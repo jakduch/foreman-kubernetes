@@ -51,7 +51,7 @@ spec:
                 name: {{ $root.Values.foreman.existingEnvSecret }}
           volumeMounts:
             {{- include "foreman-stack.foremanVolumeMounts" $root | nindent 12 }}
-            - name: foreman-config
+            - name: foreman-generated-config
               mountPath: /etc/foreman/dynflow/runtime.yml
               subPath: {{ $worker.config }}
               readOnly: true

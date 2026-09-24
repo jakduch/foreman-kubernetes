@@ -16,6 +16,16 @@ grep -q 'name: test-foreman-stack-candlepin' "${rendered}"
 grep -q 'name: test-foreman-stack-dynflow-orchestrator' "${rendered}"
 grep -q 'name: test-foreman-stack-pulp-worker' "${rendered}"
 grep -q 'replicas: 1' "${rendered}"
+grep -q 'name: test-foreman-stack-foreman-config' "${rendered}"
+grep -q 'CANDLEPIN_AUTH_OAUTH_CONSUMER_KATELLO_SECRET' "${rendered}"
+grep -q 'JPA_CONFIG_HIBERNATE_CONNECTION_PASSWORD' "${rendered}"
+grep -q 'PULP_DATABASES__default__PASSWORD' "${rendered}"
+grep -q "ENV.fetch('CANDLEPIN_OAUTH_SECRET')" "${rendered}"
+
+if grep -q 'CHANGE_ME' "${rendered}"; then
+  echo 'rendered manifests must not contain example secret placeholders' >&2
+  exit 1
+fi
 
 if helm template test "${chart}" --set candlepin.replicas=2 >/dev/null 2>&1; then
   echo 'expected candlepin.replicas=2 to be rejected by the schema' >&2
