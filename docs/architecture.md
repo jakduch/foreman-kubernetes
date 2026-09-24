@@ -81,6 +81,14 @@ are exposed only to the three Pulp runtime roles. The complete boundary is in
 
 Pulp API and content Deployments have independent HPAs because their load profiles differ. Pulp workers remain explicitly sized until a queue-depth metric is available; CPU-only worker scaling can add pods after work has already saturated while scaling down active workers prematurely.
 
+Foreman web, Pulp API, and Pulp content pods pause briefly in a `preStop` hook
+while Kubernetes removes their endpoint, then receive the server's normal
+graceful termination signal. Foreman starts Rails directly as PID 1 so Puma
+receives that signal rather than relying on the image's shell-form command.
+Pulp passes an explicit Gunicorn graceful timeout, and each Pod termination
+window must cover both the endpoint drain and that timeout. This protects
+active API requests and content downloads during rollouts and node drains.
+
 Katello discovers Pulp through the `pulp_smart_proxy` endpoint served by Pulp itself. The chart therefore does not add an unrelated Foreman Smart Proxy pod. Instead, a private two-replica NGINX control service requires a trusted client certificate, restricts accepted certificate common names, and injects `REMOTE-USER: admin` before forwarding to Pulp API. A revision Job idempotently registers that endpoint in Foreman after migrations complete.
 
 ### Public edge

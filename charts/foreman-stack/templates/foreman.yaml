@@ -40,6 +40,7 @@ spec:
     spec:
       serviceAccountName: {{ include "foreman-stack.serviceAccountName" . }}
       automountServiceAccountToken: false
+      terminationGracePeriodSeconds: {{ .Values.foreman.puma.terminationGracePeriodSeconds }}
       {{- include "foreman-stack.imagePullSecrets" . | nindent 6 }}
       securityContext:
         fsGroup: 994
@@ -59,6 +60,20 @@ spec:
           imagePullPolicy: {{ .Values.foreman.image.pullPolicy }}
           securityContext:
             {{- include "foreman-stack.restrictedContainerSecurityContext" (dict "runAsUser" 994 "runAsGroup" 994) | nindent 12 }}
+          command:
+            - /usr/share/foreman/bin/rails
+          args:
+            - server
+            - --environment
+            - production
+            - --pid
+            - /tmp/rails.pid
+          lifecycle:
+            preStop:
+              exec:
+                command:
+                  - /usr/bin/sleep
+                  - {{ .Values.foreman.puma.requestDrainSeconds | quote }}
           ports:
             - name: http
               containerPort: 3000

@@ -82,6 +82,10 @@ foreman:
     workers: 2
     threadsMin: 5
     threadsMax: 5
+    # Stop accepting routed requests before Puma receives SIGTERM, then leave
+    # enough time for active requests to finish gracefully.
+    requestDrainSeconds: 10
+    terminationGracePeriodSeconds: 150
   dynflow:
     workers: 2
     workerConcurrency: 10
@@ -222,6 +226,9 @@ pulp:
     # Keep these aligned with the official image wrapper. The chart invokes
     # pulpcore-api directly so it can bind a configurable port.
     gunicornTimeoutSeconds: 90
+    gunicornGracefulTimeoutSeconds: 120
+    requestDrainSeconds: 10
+    terminationGracePeriodSeconds: 150
     gunicornMaxRequests: 800
     gunicornMaxRequestsJitter: 100
     autoscaling:
@@ -234,6 +241,9 @@ pulp:
     port: 24816
     gunicornWorkers: 2
     gunicornTimeoutSeconds: 90
+    gunicornGracefulTimeoutSeconds: 120
+    requestDrainSeconds: 10
+    terminationGracePeriodSeconds: 150
     autoscaling:
       enabled: false
       minReplicas: 2

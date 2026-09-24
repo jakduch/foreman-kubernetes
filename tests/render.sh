@@ -159,6 +159,7 @@ ruby "${repo_root}/tests/pulp-ingress-contract.rb" "${rendered_minimal_pulp_ingr
 ruby "${repo_root}/tests/foreman-ingress-contract.rb" "${rendered_ingress}"
 ruby "${repo_root}/tests/foreman-ingress-contract.rb" "${rendered_ingress_overrides}"
 ruby "${repo_root}/tests/pulp-process-contract.rb" "${rendered}"
+ruby "${repo_root}/tests/web-process-contract.rb" "${rendered}"
 ruby "${repo_root}/tests/foreman-secret-contract.rb" \
   "${rendered_foreman_secret_contract}" \
   foreman-runtime \
@@ -668,6 +669,14 @@ if helm template test "${chart}" \
   --set foreman.autoscaling.minReplicas=5 \
   --set foreman.autoscaling.maxReplicas=2 >/dev/null 2>&1; then
   echo 'expected an inverted autoscaling range to be rejected' >&2
+  exit 1
+fi
+
+if helm template test "${chart}" \
+  --set pulp.api.requestDrainSeconds=40 \
+  --set pulp.api.gunicornGracefulTimeoutSeconds=120 \
+  --set pulp.api.terminationGracePeriodSeconds=150 >/dev/null 2>&1; then
+  echo 'expected a Pulp shutdown window shorter than drain plus graceful timeout to be rejected' >&2
   exit 1
 fi
 

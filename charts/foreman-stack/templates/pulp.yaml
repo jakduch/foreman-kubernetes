@@ -30,10 +30,13 @@ spec:
 {{- if not .Values.maintenance.enabled }}
 {{- $root := . }}
 {{- $services := list
-  (dict "name" "api" "replicas" .Values.pulp.api.replicas "port" .Values.pulp.api.port "workers" .Values.pulp.api.gunicornWorkers "timeout" .Values.pulp.api.gunicornTimeoutSeconds "maxRequests" .Values.pulp.api.gunicornMaxRequests "maxRequestsJitter" .Values.pulp.api.gunicornMaxRequestsJitter "autoscaling" .Values.pulp.api.autoscaling)
-  (dict "name" "content" "replicas" .Values.pulp.content.replicas "port" .Values.pulp.content.port "workers" .Values.pulp.content.gunicornWorkers "timeout" .Values.pulp.content.gunicornTimeoutSeconds "autoscaling" .Values.pulp.content.autoscaling)
+  (dict "name" "api" "replicas" .Values.pulp.api.replicas "port" .Values.pulp.api.port "workers" .Values.pulp.api.gunicornWorkers "timeout" .Values.pulp.api.gunicornTimeoutSeconds "gracefulTimeout" .Values.pulp.api.gunicornGracefulTimeoutSeconds "requestDrain" .Values.pulp.api.requestDrainSeconds "terminationGrace" .Values.pulp.api.terminationGracePeriodSeconds "maxRequests" .Values.pulp.api.gunicornMaxRequests "maxRequestsJitter" .Values.pulp.api.gunicornMaxRequestsJitter "autoscaling" .Values.pulp.api.autoscaling)
+  (dict "name" "content" "replicas" .Values.pulp.content.replicas "port" .Values.pulp.content.port "workers" .Values.pulp.content.gunicornWorkers "timeout" .Values.pulp.content.gunicornTimeoutSeconds "gracefulTimeout" .Values.pulp.content.gunicornGracefulTimeoutSeconds "requestDrain" .Values.pulp.content.requestDrainSeconds "terminationGrace" .Values.pulp.content.terminationGracePeriodSeconds "autoscaling" .Values.pulp.content.autoscaling)
 -}}
 {{- range $service := $services }}
+{{- if lt (int $service.terminationGrace) (add (int $service.requestDrain) (int $service.gracefulTimeout)) }}
+{{- fail (printf "pulp.%s.terminationGracePeriodSeconds must cover requestDrainSeconds plus gunicornGracefulTimeoutSeconds" $service.name) }}
+{{- end }}
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -60,6 +63,7 @@ spec:
     spec:
       serviceAccountName: {{ include "foreman-stack.pulpServiceAccountName" $root }}
       automountServiceAccountToken: false
+      terminationGracePeriodSeconds: {{ $service.terminationGrace }}
       {{- include "foreman-stack.imagePullSecrets" $root | nindent 6 }}
       securityContext:
         fsGroup: 700
@@ -88,6 +92,8 @@ spec:
             - {{ $service.workers | quote }}
             - --timeout
             - {{ $service.timeout | quote }}
+            - --graceful-timeout
+            - {{ $service.gracefulTimeout | quote }}
             {{- if eq $service.name "api" }}
             - --max-requests
             - {{ $service.maxRequests | quote }}
@@ -99,6 +105,12 @@ spec:
             - --log-level
             - info
             - --no-control-socket
+          lifecycle:
+            preStop:
+              exec:
+                command:
+                  - /usr/bin/sleep
+                  - {{ $service.requestDrain | quote }}
           ports:
             - name: http
               containerPort: {{ $service.port }}
