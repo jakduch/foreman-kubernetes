@@ -79,5 +79,9 @@ incident rather than an ordinary cache-capacity signal.
 Resource-based HPAs require a healthy `v1beta1.metrics.k8s.io` APIService. The
 guarded install and upgrade scripts verify it before changing a release. The
 production example also makes topology spread hard: if the cluster cannot
-place the minimum replicas on distinct nodes, workloads remain Pending rather
-than silently giving up the requested failure separation.
+place the minimum replicas across `topology.kubernetes.io/zone` and
+`kubernetes.io/hostname` domains, workloads remain Pending rather than
+silently giving up the requested failure separation. Ensure every eligible
+production node carries the configured topology labels. Installations with
+custom failure-domain labels can replace `affinity.topologyKeys`; keeping both
+a zone-level and node-level key is recommended.

@@ -423,6 +423,11 @@ networkPolicy:
 
 affinity:
   spreadAcrossNodes: true
+  # Apply both constraints so redundant replicas survive a node loss and, in
+  # a labelled multi-zone cluster, an entire availability-zone loss.
+  topologyKeys:
+    - topology.kubernetes.io/zone
+    - kubernetes.io/hostname
   # Use DoNotSchedule in a production cluster that has enough failure domains.
   whenUnsatisfiable: ScheduleAnyway
 

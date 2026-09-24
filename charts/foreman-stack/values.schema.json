@@ -531,10 +531,16 @@
     },
     "affinity": {
       "type": "object",
-      "required": ["spreadAcrossNodes", "whenUnsatisfiable"],
+      "required": ["spreadAcrossNodes", "topologyKeys", "whenUnsatisfiable"],
       "additionalProperties": false,
       "properties": {
         "spreadAcrossNodes": { "type": "boolean" },
+        "topologyKeys": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        },
         "whenUnsatisfiable": { "enum": ["DoNotSchedule", "ScheduleAnyway"] }
       }
     },

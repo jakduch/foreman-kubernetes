@@ -11,8 +11,8 @@ ingress:
     clientCaSecret: ingress-client-ca
 
 affinity:
-  # This production-style profile expects enough nodes for every redundant
-  # component's minimum replica count.
+  # This production-style profile expects labelled zones and enough nodes for
+  # every redundant component's minimum replica count.
   whenUnsatisfiable: DoNotSchedule
 
 foreman:

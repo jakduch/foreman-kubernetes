@@ -222,6 +222,8 @@ ruby "${repo_root}/tests/recovery-egress-contract.rb" "${rendered_egress_backup}
 ruby "${repo_root}/tests/recovery-egress-contract.rb" "${rendered_egress_backup_local}" false
 ruby "${repo_root}/tests/disruption-budget-contract.rb" "${rendered}"
 ruby "${repo_root}/tests/rollout-strategy-contract.rb" "${rendered}"
+ruby "${repo_root}/tests/topology-spread-contract.rb" "${rendered}" ScheduleAnyway
+ruby "${repo_root}/tests/topology-spread-contract.rb" "${rendered_ingress}" DoNotSchedule
 ruby "${repo_root}/tests/recovery-storage-contract.rb" "${rendered_backup}" true
 ruby "${repo_root}/tests/recovery-storage-contract.rb" "${rendered_restore}" true
 ruby "${repo_root}/tests/recovery-storage-contract.rb" "${rendered_s3_backup}" false

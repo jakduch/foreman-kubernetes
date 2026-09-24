@@ -583,12 +583,14 @@ server {
 {{- define "foreman-stack.topologySpread" -}}
 {{- if .Values.affinity.spreadAcrossNodes }}
 topologySpreadConstraints:
+  {{- range .Values.affinity.topologyKeys }}
   - maxSkew: 1
-    topologyKey: kubernetes.io/hostname
-    whenUnsatisfiable: {{ .Values.affinity.whenUnsatisfiable }}
+    topologyKey: {{ . }}
+    whenUnsatisfiable: {{ $.Values.affinity.whenUnsatisfiable }}
     labelSelector:
       matchLabels:
-        app.kubernetes.io/instance: {{ .Release.Name }}
-        app.kubernetes.io/component: {{ .component }}
+        app.kubernetes.io/instance: {{ $.Release.Name }}
+        app.kubernetes.io/component: {{ $.component }}
+  {{- end }}
 {{- end }}
 {{- end }}
