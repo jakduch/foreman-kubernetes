@@ -25,6 +25,7 @@ jobs.each do |job|
   abort "operation Job #{name} has the wrong owner label" unless labels['platform.theforeman.org/release-owner'] == owner_uid
   abort "operation Pod #{name} has the wrong operation label" unless pod_labels['platform.theforeman.org/release-operation'] == operation_id
   abort "operation Pod #{name} has the wrong owner label" unless pod_labels['platform.theforeman.org/release-owner'] == owner_uid
+  abort "operation Job #{name} can expire before the controller adopts it" if job.dig('spec').key?('ttlSecondsAfterFinished')
 end
 
 abort 'operation Job names are not unique' unless jobs.map { |job| job.dig('metadata', 'name') }.uniq.length == jobs.length

@@ -8,7 +8,9 @@ metadata:
 spec:
   backoffLimit: 3
   activeDeadlineSeconds: {{ .Values.migrations.activeDeadlineSeconds }}
+  {{- if not .Values.releaseOperation.id }}
   ttlSecondsAfterFinished: 3600
+  {{- end }}
   template:
     metadata:
       labels:
@@ -80,7 +82,9 @@ metadata:
 spec:
   backoffLimit: 3
   activeDeadlineSeconds: {{ .Values.migrations.activeDeadlineSeconds }}
+  {{- if not .Values.releaseOperation.id }}
   ttlSecondsAfterFinished: 3600
+  {{- end }}
   template:
     metadata:
       labels:
@@ -137,7 +141,9 @@ metadata:
 spec:
   backoffLimit: 3
   activeDeadlineSeconds: {{ .Values.migrations.activeDeadlineSeconds }}
+  {{- if not .Values.releaseOperation.id }}
   ttlSecondsAfterFinished: 3600
+  {{- end }}
   template:
     metadata:
       labels:
