@@ -35,6 +35,7 @@ rendered_execution_secret_rotation="$(mktemp)"
 trap 'rm -f "${rendered}" "${rendered_ingress}" "${rendered_ingress_overrides}" "${rendered_minimal_pulp_ingress}" "${rendered_backup}" "${rendered_restore}" "${rendered_egress}" "${rendered_egress_backup}" "${rendered_egress_backup_local}" "${rendered_singletons}" "${rendered_ha}" "${rendered_candlepin_port}" "${rendered_foreman_service_port}" "${rendered_foreman_secret_contract}" "${rendered_database_tls_disabled}" "${rendered_image_pull_secrets}" "${rendered_no_migrations}" "${rendered_secret_rotation}" "${rendered_s3}" "${rendered_s3_backup}" "${rendered_smtp}" "${rendered_smtp_backup}" "${rendered_kind}" "${rendered_kind_backup}" "${rendered_execution}" "${rendered_execution_egress}" "${rendered_execution_kind}" "${rendered_execution_secret_rotation}"' EXIT
 
 ruby "${repo_root}/tests/yaml-duplicates.rb"
+ruby "${repo_root}/tests/workflow-action-pins.rb" "${repo_root}/.github/workflows"
 ruby "${repo_root}/tests/operator-contract.rb"
 ruby "${repo_root}/tests/values-schema-coverage.rb"
 ruby "${repo_root}/tests/recovery-image-contract.rb"
