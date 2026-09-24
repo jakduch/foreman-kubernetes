@@ -44,6 +44,12 @@ abort 'operator disruption budget can evict every candidate' unless pdb.dig('spe
 
 role = documents.find { |item| item['kind'] == 'Role' }
 abort 'operator namespaced Role is missing' unless role
+release_rule = Array(role['rules']).find do |rule|
+  Array(rule['apiGroups']).include?('platform.theforeman.org') && Array(rule['resources']).include?('foremanreleases')
+end
+abort 'operator cannot manage the release protection finalizer' unless %w[patch update].all? do |verb|
+  Array(release_rule&.fetch('verbs', [])).include?(verb)
+end
 resources = Array(role['rules']).flat_map { |rule| Array(rule['resources']) }
 %w[foremanreleases foremanreleases/status leases jobs deployments secrets].each do |required|
   abort "operator Role is missing #{required}" unless resources.include?(required)

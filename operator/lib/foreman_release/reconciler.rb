@@ -88,7 +88,6 @@ module ForemanRelease
           return :requeue
         end
 
-        persist_pause(resource, status) if spec.fetch('paused', false)
         return :requeue
       end
 
@@ -111,6 +110,22 @@ module ForemanRelease
       else
         :requeue
       end
+    end
+
+    def quiesce(resource)
+      status = resource.fetch('status', {})
+      phase = status.fetch('phase', 'Pending')
+      return :safe if %w[Pending Ready Blocked].include?(phase)
+
+      if paused?(status)
+        operation = status.fetch('operation', {})
+        @adapter.release_lease(resource, operation) if LEASED_PHASES.include?(phase) && operation['id']
+        return :safe
+      end
+
+      paused_resource = resource.merge('spec' => resource.fetch('spec').merge('paused' => true))
+      reconcile(paused_resource)
+      :requeue
     end
 
     private

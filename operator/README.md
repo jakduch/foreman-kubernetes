@@ -143,6 +143,14 @@ migration Job, terminate a rollout, or cancel active Remote Execution work.
 The controller observes the current phase to a safe boundary and then remains
 paused.
 
+Every observed ForemanRelease receives the
+`platform.theforeman.org/release-protection` finalizer before work starts.
+Deleting the CR never uninstalls Helm releases or deletes application data. It
+first requests the same safe pause, waits for an active migration or rollout
+to reach its observable boundary, releases the operation Lease, and then
+removes the finalizer. A forced manual finalizer removal bypasses that safety
+contract and is reserved for recovery when no controller can be restored.
+
 `spec.failurePolicy.afterMigration` intentionally accepts only `Halt`. A future
 API version may add separately authorized restore orchestration, but it must
 not reinterpret Deployment rollback as database rollback.

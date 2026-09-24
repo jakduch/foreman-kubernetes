@@ -168,6 +168,42 @@ paused_release['metadata']['generation'] = 2
 paused_reconciler.reconcile(paused_release)
 raise 'unpaused release did not continue' unless paused_release.dig('status', 'phase') == 'RollingApplication'
 
+# Deletion waits for an active phase, records a safe pause, and only then
+# releases the operation Lease so the finalizer can be removed next cycle.
+deletion_adapter = FakeAdapter.new
+deletion_adapter.results(:ensure_migrations, :pending, :succeeded)
+deleting_release = resource(status: {
+  'phase' => 'Migrating',
+  'targetSet' => 'candidate-1',
+  'operation' => {'id' => operation_id, 'startedAt' => '2026-09-24T12:00:00Z', 'migrationJobs' => []}
+})
+deletion_reconciler = ForemanRelease::Reconciler.new(
+  state_machine: machine,
+  adapter: deletion_adapter,
+  status_writer: ->(_item, status) { deleting_release['status'] = status },
+  clock: -> { '2026-09-24T12:02:30Z' }
+)
+raise 'deletion did not wait for pending migrations' unless deletion_reconciler.quiesce(deleting_release) == :requeue
+raise 'deletion removed protection before the active phase completed' if deletion_adapter.calls.include?([:release_lease, operation_id])
+premature_pause = Array(deleting_release.dig('status', 'conditions')).find do |condition|
+  condition['type'] == 'Paused' && condition['status'] == 'True'
+end
+raise 'pending migration was marked as a safe pause boundary' if premature_pause
+raise 'completed phase did not persist a safe deletion pause' unless deletion_reconciler.quiesce(deleting_release) == :requeue
+paused_condition = deleting_release['status']['conditions'].find { |condition| condition['type'] == 'Paused' }
+raise 'safe deletion boundary was not persisted' unless paused_condition&.fetch('status') == 'True'
+raise 'persisted safe boundary was not finalized' unless deletion_reconciler.quiesce(deleting_release) == :safe
+raise 'finalization did not release the operation Lease' unless deletion_adapter.calls.last == [:release_lease, operation_id]
+
+terminal_deletion_adapter = FakeAdapter.new
+terminal_deletion = ForemanRelease::Reconciler.new(
+  state_machine: machine,
+  adapter: terminal_deletion_adapter,
+  status_writer: ->(_item, _status) { raise 'terminal deletion wrote status' }
+)
+ready_for_deletion = resource(status: {'phase' => 'Ready', 'currentSet' => 'candidate-1'})
+raise 'ready release was not immediately safe to delete' unless terminal_deletion.quiesce(ready_for_deletion) == :safe
+
 # Failures block once and require a changed retry token to create a new operation.
 failure_adapter = FakeAdapter.new
 failure_adapter.results(:validate, :failed)

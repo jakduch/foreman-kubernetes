@@ -108,6 +108,13 @@ Job names, and Helm revisions are durable. Change
 `spec.paused=true` to stop at the next safe phase boundary; it never terminates
 an active migration or rollout.
 
+Deleting a `ForemanRelease` is a detach operation, not an uninstall. Its
+finalizer waits for the current migration or rollout to reach a safe pause,
+releases the operation Lease, and then lets Kubernetes remove the CR while the
+Foreman, execution-proxy, databases, PVCs, and external services remain in
+place. Use the chart-specific uninstall and data-retention procedures only as
+a separate, explicitly destructive operation.
+
 Both `adoptExisting` flags default to false. Set the relevant flag only for the
 first controlled takeover of an already installed Helm release, verify that
 its values match the referenced Secret and compatibility profile, and return

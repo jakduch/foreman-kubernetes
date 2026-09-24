@@ -80,6 +80,39 @@ created = resource_client.create('platform', {'apiVersion' => 'batch/v1', 'kind'
 raise 'created resource was not decoded' unless created.dig('metadata', 'name') == 'smoke'
 raise 'resource create did not use stdin' unless resource_runner.calls.last.last.include?('"kind":"Job"')
 
+finalizer = 'platform.theforeman.org/release-protection'
+finalizer_runner = FakeRunner.new(
+  JSON.generate('metadata' => {
+    'namespace' => 'platform', 'name' => 'foreman', 'resourceVersion' => '43', 'finalizers' => [finalizer]
+  }),
+  JSON.generate('metadata' => {
+    'namespace' => 'platform', 'name' => 'foreman', 'resourceVersion' => '44', 'finalizers' => []
+  })
+)
+finalizer_client = ForemanRelease::KubernetesClient.new(runner: finalizer_runner)
+unprotected = {
+  'metadata' => {'namespace' => 'platform', 'name' => 'foreman', 'resourceVersion' => '42'}
+}
+protected = finalizer_client.ensure_finalizer(unprotected, finalizer)
+raise 'release finalizer was not persisted' unless protected.dig('metadata', 'finalizers') == [finalizer]
+add_patch_command = finalizer_runner.calls.first.first
+add_patch = JSON.parse(add_patch_command.fetch(add_patch_command.index('--patch') + 1))
+raise 'finalizer add does not guard resourceVersion' unless add_patch.first['value'] == '42'
+raise 'finalizer add replaced unrelated metadata' unless add_patch.last == {
+  'op' => 'add', 'path' => '/metadata/finalizers', 'value' => [finalizer]
+}
+removed = finalizer_client.remove_finalizer(protected, finalizer)
+raise 'release finalizer was not removed' unless removed.dig('metadata', 'finalizers') == []
+remove_patch_command = finalizer_runner.calls.last.first
+remove_patch = JSON.parse(remove_patch_command.fetch(remove_patch_command.index('--patch') + 1))
+raise 'finalizer removal does not guard the updated resourceVersion' unless remove_patch.first['value'] == '43'
+raise 'finalizer removal touched another finalizer' unless remove_patch.last == {
+  'op' => 'remove', 'path' => '/metadata/finalizers/0'
+}
+raise 'metadata patch incorrectly used the status subresource' if finalizer_runner.calls.any? do |call|
+  call.first.include?('--subresource=status')
+end
+
 cluster_runner = FakeRunner.new(JSON.generate('items' => []))
 ForemanRelease::KubernetesClient.new(runner: cluster_runner).resources(nil, 'storageclasses')
 raise 'cluster-scoped query included a namespace' if cluster_runner.calls.first.first.include?('--namespace')

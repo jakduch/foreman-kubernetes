@@ -84,7 +84,42 @@ module ForemanRelease
       JSON.parse(response)
     end
 
+    def ensure_finalizer(resource, finalizer)
+      metadata = resource.fetch('metadata')
+      finalizers = Array(metadata['finalizers'])
+      return resource if finalizers.include?(finalizer)
+
+      path = metadata.key?('finalizers') ? '/metadata/finalizers/-' : '/metadata/finalizers'
+      value = metadata.key?('finalizers') ? finalizer : [finalizer]
+      patch_metadata(resource, [{'op' => 'add', 'path' => path, 'value' => value}])
+    end
+
+    def remove_finalizer(resource, finalizer)
+      finalizers = Array(resource.dig('metadata', 'finalizers'))
+      index = finalizers.index(finalizer)
+      return resource unless index
+
+      patch_metadata(resource, [{'op' => 'remove', 'path' => "/metadata/finalizers/#{index}"}])
+    end
+
     private
+
+    def patch_metadata(resource, operations)
+      metadata = resource.fetch('metadata')
+      patch = [
+        {
+          'op' => 'test',
+          'path' => '/metadata/resourceVersion',
+          'value' => metadata.fetch('resourceVersion')
+        }
+      ] + operations
+      response = @runner.run(
+        'kubectl', '--namespace', metadata.fetch('namespace'),
+        'patch', RESOURCE, metadata.fetch('name'),
+        '--type=json', '--patch', JSON.generate(patch), '--output=json'
+      )
+      JSON.parse(response)
+    end
 
     def kubectl(namespace, *arguments)
       command = ['kubectl']

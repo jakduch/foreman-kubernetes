@@ -10,10 +10,13 @@ require root.join('operator/lib/foreman_release/controller').to_s
 
 class ControllerClient
   attr_accessor :error
+  attr_reader :added_finalizers, :removed_finalizers
 
   def initialize(releases)
     @releases = releases
     @error = nil
+    @added_finalizers = []
+    @removed_finalizers = []
   end
 
   def releases(namespace)
@@ -22,13 +25,24 @@ class ControllerClient
 
     @releases
   end
+
+  def ensure_finalizer(resource, finalizer)
+    @added_finalizers << [resource.dig('metadata', 'name'), finalizer]
+    resource
+  end
+
+  def remove_finalizer(resource, finalizer)
+    @removed_finalizers << [resource.dig('metadata', 'name'), finalizer]
+    resource
+  end
 end
 
 class ControllerReconciler
-  attr_reader :names
+  attr_reader :names, :quiesced
 
   def initialize
     @names = []
+    @quiesced = []
   end
 
   def reconcile(resource)
@@ -37,6 +51,11 @@ class ControllerReconciler
     raise 'isolated failure' if name == 'broken'
 
     :requeue
+  end
+
+  def quiesce(resource)
+    @quiesced << resource.dig('metadata', 'name')
+    :safe
   end
 end
 
@@ -65,7 +84,11 @@ end
 
 releases = %w[foreman broken second].map do |name|
   {
-    'metadata' => {'name' => name, 'generation' => 1},
+    'metadata' => {
+      'name' => name,
+      'generation' => 1,
+      'finalizers' => [ForemanRelease::Controller::FINALIZER]
+    },
     'status' => {'phase' => 'Preflight'}
   }
 end
@@ -112,6 +135,47 @@ controller.run_once
 events = output.string.lines.map { |line| JSON.parse(line) }
 raise 'controller cycle failure was not isolated and logged' unless events.last['event'] == 'controller_cycle_failed'
 raise 'failed cycle did not clear leadership health' unless controller_status.snapshot.values_at(:role, :failed_cycles) == [:unknown, 1]
+
+unprotected = {'metadata' => {'name' => 'new-release', 'generation' => 1}, 'status' => {'phase' => 'Pending'}}
+protection_client = ControllerClient.new([unprotected])
+protection_reconciler = ControllerReconciler.new
+protection_controller = ForemanRelease::Controller.new(
+  namespace: 'platform',
+  kubernetes_client: protection_client,
+  reconciler: protection_reconciler,
+  leader_elector: ControllerLeader.new,
+  output: StringIO.new
+)
+protection_controller.run_once
+raise 'unprotected release started work before finalizer persistence' unless protection_reconciler.names.empty?
+raise 'new release did not receive its protection finalizer' unless protection_client.added_finalizers == [
+  ['new-release', ForemanRelease::Controller::FINALIZER]
+]
+
+deleting = {
+  'metadata' => {
+    'name' => 'retiring',
+    'generation' => 1,
+    'deletionTimestamp' => '2026-09-25T01:00:00Z',
+    'finalizers' => [ForemanRelease::Controller::FINALIZER]
+  },
+  'status' => {'phase' => 'Migrating'}
+}
+deletion_client = ControllerClient.new([deleting])
+deletion_reconciler = ControllerReconciler.new
+deletion_controller = ForemanRelease::Controller.new(
+  namespace: 'platform',
+  kubernetes_client: deletion_client,
+  reconciler: deletion_reconciler,
+  leader_elector: ControllerLeader.new,
+  output: StringIO.new
+)
+deletion_controller.run_once
+raise 'deleting release was reconciled as a normal release' unless deletion_reconciler.names.empty?
+raise 'deleting release was not quiesced' unless deletion_reconciler.quiesced == ['retiring']
+raise 'safe deleting release retained its finalizer' unless deletion_client.removed_finalizers == [
+  ['retiring', ForemanRelease::Controller::FINALIZER]
+]
 
 ticks = []
 looping_client = ControllerClient.new([])

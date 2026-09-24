@@ -17,7 +17,7 @@ metadata:
 rules:
   - apiGroups: ["platform.theforeman.org"]
     resources: ["foremanreleases"]
-    verbs: ["get", "list", "watch"]
+    verbs: ["get", "list", "watch", "patch", "update"]
   - apiGroups: ["platform.theforeman.org"]
     resources: ["foremanreleases/status"]
     verbs: ["get", "patch", "update"]

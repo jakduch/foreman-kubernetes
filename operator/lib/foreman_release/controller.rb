@@ -6,6 +6,8 @@ require_relative 'controller_status'
 
 module ForemanRelease
   class Controller
+    FINALIZER = 'platform.theforeman.org/release-protection'
+
     def initialize(namespace:, kubernetes_client:, reconciler:, leader_elector:, poll_seconds: 5,
                    sleeper: ->(seconds) { sleep(seconds) }, output: $stdout, status: ControllerStatus.new)
       raise ArgumentError, 'controller namespace is required' if namespace.to_s.empty?
@@ -73,6 +75,23 @@ module ForemanRelease
 
     def reconcile(resource)
       name = resource.dig('metadata', 'name').to_s
+      if resource.dig('metadata', 'deletionTimestamp')
+        result = @reconciler.quiesce(resource)
+        if result == :safe
+          @kubernetes_client.remove_finalizer(resource, FINALIZER)
+          log('info', 'release_finalized', release: name)
+        else
+          log('info', 'release_deletion_waiting', release: name, result: result)
+        end
+        return
+      end
+
+      unless Array(resource.dig('metadata', 'finalizers')).include?(FINALIZER)
+        @kubernetes_client.ensure_finalizer(resource, FINALIZER)
+        log('info', 'release_finalizer_added', release: name)
+        return
+      end
+
       result = @reconciler.reconcile(resource)
       log(
         'info', 'release_reconciled',
