@@ -122,6 +122,10 @@ spec:
           env:
             {{- include "foreman-stack.pulpEnv" $root | nindent 12 }}
             {{- include "foreman-stack.pulpObjectStorageCredentialEnv" $root | nindent 12 }}
+            {{- if eq $service.name "content" }}
+            - name: PULP_APP_TYPE
+              value: content
+            {{- end }}
           volumeMounts:
             {{- include "foreman-stack.pulpStorageVolumeMount" $root | nindent 12 }}
             - name: pulp-config
@@ -134,6 +138,11 @@ spec:
             - name: pulp-health
               mountPath: /opt/foreman-kubernetes/pulp-readiness.py
               subPath: pulp-readiness.py
+              readOnly: true
+            {{- else }}
+            - name: pulp-health
+              mountPath: /opt/foreman-kubernetes/pulp-app-readiness.py
+              subPath: pulp-app-readiness.py
               readOnly: true
             {{- end }}
           startupProbe:
@@ -149,11 +158,13 @@ spec:
                 - python3
                 - /opt/foreman-kubernetes/pulp-readiness.py
             {{- else }}
-            tcpSocket:
-              port: http
+            exec:
+              command:
+                - python3
+                - /opt/foreman-kubernetes/pulp-app-readiness.py
             {{- end }}
             initialDelaySeconds: 10
-            periodSeconds: 10
+            periodSeconds: {{ ternary 10 30 (eq $service.name "api") }}
             timeoutSeconds: 5
             failureThreshold: 6
           livenessProbe:
@@ -231,6 +242,8 @@ spec:
           env:
             {{- include "foreman-stack.pulpEnv" . | nindent 12 }}
             {{- include "foreman-stack.pulpObjectStorageCredentialEnv" . | nindent 12 }}
+            - name: PULP_APP_TYPE
+              value: worker
           volumeMounts:
             {{- include "foreman-stack.pulpStorageVolumeMount" . | nindent 12 }}
             - name: pulp-config
@@ -239,25 +252,15 @@ spec:
               readOnly: true
             {{- include "foreman-stack.pulpDatabaseCaVolumeMount" . | nindent 12 }}
             {{- include "foreman-stack.pulpObjectStorageCaVolumeMount" . | nindent 12 }}
+            - name: pulp-health
+              mountPath: /opt/foreman-kubernetes/pulp-app-readiness.py
+              subPath: pulp-app-readiness.py
+              readOnly: true
           readinessProbe:
             exec:
               command:
                 - python3
-                - -c
-                - |
-                  import os
-                  import socket
-
-                  os.environ.setdefault("DJANGO_SETTINGS_MODULE", "pulpcore.app.settings")
-                  import django
-                  django.setup()
-                  from pulpcore.app.models import AppStatus
-
-                  hostname = socket.gethostname()
-                  online = AppStatus.objects.online().filter(
-                      app_type="worker", name__endswith=f"@{hostname}"
-                  ).exists()
-                  raise SystemExit(0 if online else 1)
+                - /opt/foreman-kubernetes/pulp-app-readiness.py
             initialDelaySeconds: 5
             periodSeconds: 30
             timeoutSeconds: 10
@@ -271,5 +274,8 @@ spec:
             secretName: {{ .Values.pulp.existingConfigSecret }}
         {{- include "foreman-stack.pulpDatabaseCaVolume" . | nindent 8 }}
         {{- include "foreman-stack.pulpObjectStorageCaVolume" . | nindent 8 }}
+        - name: pulp-health
+          configMap:
+            name: {{ include "foreman-stack.foremanConfigName" . }}
       {{- include "foreman-stack.topologySpread" (dict "Values" .Values "Release" .Release "component" "pulp-worker") | nindent 6 }}
 {{- end }}

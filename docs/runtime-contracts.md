@@ -122,9 +122,11 @@ pending.
 - Every role requires a shared database, Valkey, symmetric key, and content
   storage. The chart supports either a shared filesystem or Pulpcore's
   `storages.backends.s3.S3Storage` backend.
-- Worker readiness requires the current Pod's Pulpcore database heartbeat, so
-  Helm cannot report a worker Deployment available before it has joined the
-  task pool. Worker Pods receive a one-hour termination grace period by
+- Content and worker readiness require the current Pod's Pulpcore database
+  heartbeat, so Helm cannot report either Deployment available merely because
+  a local socket opened. API readiness calls its local status endpoint and
+  validates database, cache, worker, and content health. Worker Pods receive a
+  one-hour termination grace period by
   default because Pulpcore handles SIGTERM by finishing an active task; reduce
   it only when interrupted synchronization and publication tasks are accepted.
 - API readiness parses Pulp status rather than trusting HTTP 200: the database

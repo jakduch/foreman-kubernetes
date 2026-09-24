@@ -31,6 +31,8 @@ content = deployment(documents, 'pulp-content')
 worker = deployment(documents, 'pulp-worker')
 worker_container = Array(worker&.dig('spec', 'template', 'spec', 'containers'))
   .find { |container| container['name'] == 'pulp-worker' }
+content_container = Array(content&.dig('spec', 'template', 'spec', 'containers'))
+  .find { |container| container['name'] == 'pulp-content' }
 
 abort 'Pulp API Gunicorn timeout differs from the image contract' unless option(api_args, '--timeout') == '90'
 abort 'Pulp API graceful timeout is missing' unless option(api_args, '--graceful-timeout') == '120'
@@ -49,13 +51,20 @@ abort 'Pulp content unexpectedly received the API worker recycling flag' if cont
   end
 end
 abort 'Pulp worker is missing' unless worker_container
+abort 'Pulp content is missing' unless content_container
 unless worker.dig('spec', 'template', 'spec', 'terminationGracePeriodSeconds') == 3600
   abort 'Pulp worker cannot finish long tasks during shutdown'
 end
-readiness_command = Array(worker_container.dig('readinessProbe', 'exec', 'command')).join("\n")
-unless readiness_command.include?('AppStatus.objects.online()') &&
-       readiness_command.include?('name__endswith=f"@{hostname}"')
-  abort 'Pulp worker readiness does not verify its database heartbeat'
+[
+  [worker_container, 'worker'],
+  [content_container, 'content'],
+].each do |container, app_type|
+  env = Array(container['env']).to_h { |entry| [entry['name'], entry['value']] }
+  abort "Pulp #{app_type} does not identify its heartbeat type" unless env['PULP_APP_TYPE'] == app_type
+  readiness_command = Array(container.dig('readinessProbe', 'exec', 'command'))
+  unless readiness_command == ['python3', '/opt/foreman-kubernetes/pulp-app-readiness.py']
+    abort "Pulp #{app_type} readiness does not verify its own database heartbeat"
+  end
 end
 
 puts 'Pulp process settings preserve request recycling and graceful worker lifecycle contracts.'

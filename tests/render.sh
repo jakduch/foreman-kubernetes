@@ -311,6 +311,8 @@ ruby -c "${chart}/files/foreman-readiness.rb"
 ruby "${repo_root}/tests/foreman-readiness-behavior.rb"
 ruby "${repo_root}/tests/dynflow-lifecycle-behavior.rb"
 python3 "${repo_root}/tests/pulp-readiness-behavior.py"
+python3 -c 'import pathlib; source = pathlib.Path(__import__("sys").argv[1]).read_text(); compile(source, __import__("sys").argv[1], "exec")' \
+  "${chart}/files/pulp-app-readiness.py"
 ruby "${repo_root}/tests/integration-evidence.rb"
 ruby "${repo_root}/tests/required-cluster-resources.rb"
 ruby "${repo_root}/tests/required-secrets.rb"
