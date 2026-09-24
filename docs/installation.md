@@ -50,7 +50,7 @@ Foreman, Katello, Candlepin, Pulp, and Smart Proxy remain separate images and
 Helm releases.
 
 Publish `images/release-operator/Dockerfile` through the operator image workflow
-and retain the digest it reports. Then install the CRD and singleton controller
+and retain the digest it reports. Then install the CRD and controller pair
 in the application namespace:
 
 ```sh
@@ -75,9 +75,13 @@ kubectl --namespace foreman apply --filename examples/foreman-release.yaml
 kubectl --namespace foreman get foremanrelease foreman --watch
 ```
 
-The controller runs one replica until leader election is implemented. Every
-release operation is nevertheless restart-safe: its input fingerprints, phase,
-Lease holder, migration Job names, and Helm revisions are durable. Change
+Two candidates run by default. A short namespaced leader Lease allows only the
+Pod whose UID is the current holder to list and reconcile releases; the standby
+takes over only after that Lease expires or is explicitly released. A separate
+operation Lease continues to serialize the actual release mutation with manual
+install, upgrade, backup, and restore workflows. Every release operation is
+restart-safe: its input fingerprints, phase, operation Lease holder, migration
+Job names, and Helm revisions are durable. Change
 `spec.retryToken` only after correcting a `Blocked` condition. Set
 `spec.paused=true` to stop at the next safe phase boundary; it never terminates
 an active migration or rollout.

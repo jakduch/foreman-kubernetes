@@ -21,7 +21,8 @@ network-control feature; see
 role-content, and network contracts.
 
 The experimental [`charts/foreman-release-operator`](charts/foreman-release-operator)
-chart installs a singleton namespaced controller for the durable
+chart installs two namespaced controller candidates with Lease-based leader
+election for the durable
 `ForemanRelease` state machine. It validates the exact render and external
 dependencies, pins all input fingerprints, adopts deterministic migration and
 verification Jobs after restart, rolls the application before its paired

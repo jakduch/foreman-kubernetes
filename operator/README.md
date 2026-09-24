@@ -5,7 +5,12 @@ release controller. `operator/lib/foreman_release/state_machine.rb` is the
 executable, side-effect-free transition core used to build durable status,
 conditions, operation identity, explicit retries, and pause observations.
 `operator/bin/foreman-release-controller` runs that core as a namespaced
-polling controller and isolates failures between custom resources.
+polling controller and isolates failures between custom resources. The chart
+runs two candidates behind a PodDisruptionBudget. Each polling cycle renews a
+separate leader Lease keyed by the Pod UID; a live foreign holder remains a
+standby and an expired holder is replaced with a resource-version-guarded
+update. The release-operation Lease below remains a second fence shared with
+manual writers.
 
 `operator/lib/foreman_release/reconciler.rb` turns the transition contract into
 an idempotent reconciliation loop behind a side-effect adapter. It persists a
@@ -14,7 +19,7 @@ migrations and rollouts to a safe pause boundary, reuses the persisted
 operation ID after restart, and accepts a blocked retry only after
 `spec.retryToken` changes. The Helm chart carries that ID plus the owning
 ForemanRelease UID on deterministic migration and Pulp registration Jobs, so a
-future Kubernetes adapter can adopt them rather than launch duplicate schema
+restarted controller adopts them rather than launching duplicate schema
 changes.
 
 The adapter boundary now includes three concrete, tested primitives:
@@ -53,12 +58,15 @@ result across a controller outage; a later Helm operation replaces the old
 revision resources. Jobs from the manual Helm workflow retain their one-hour
 TTL.
 
-`LeaseManager` now implements the Lease part of that boundary. Every controller
-operation and all guarded shell workflows use the same namespaced
-`foreman-kubernetes-release` Lease. The operation ID is its holder identity;
-the same operation adopts and renews it after controller restart, another live
-holder causes a requeue, and only an expired or explicitly released Lease can
-be claimed. Release is an optimistic `replace` that clears the holder instead
+`LeaseManager` implements both fencing boundaries. Controller candidates use
+the short-lived `foreman-release-controller-leader` Lease to elect one active
+poller. Every release operation and all guarded shell workflows use the separate namespaced
+`foreman-kubernetes-release` Lease. Its holder identity combines the durable
+operation ID with the controller Pod UID, so a restarted
+process in the same Pod can renew it while a replacement Pod must wait for the
+old holder to release or expire. Another live holder causes a requeue, and only
+an expired or explicitly released Lease can be claimed. Release is an
+optimistic `replace` that clears the holder instead
 of an unsafe unchecked delete. Every migration, rollout, and verification
 reconciliation renews the Lease, including a release paused at a safe boundary.
 Preflight also rejects another ForemanRelease that names either of the same
@@ -135,7 +143,8 @@ The CRD and state graph are statically validated by `tests/operator-contract.rb`
 blocked retry, busy Lease, invalid transition, conditions, and operation
 replacement behavior. `tests/operator-reconciler.rb` simulates a controller
 restart during migration, safe-boundary pause, a failed validation, and an
-explicit retry. The singleton controller, bounded RBAC, chart, and publication
-image are present and covered by command-level simulations. Real-cluster tests
+explicit retry. The two-candidate controller, leader takeover, bounded RBAC,
+chart, and publication image are present and covered by command-level
+simulations. Real-cluster tests
 of the published image are still required before treating the controller path
 as production-ready.

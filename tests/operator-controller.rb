@@ -40,6 +40,29 @@ class ControllerReconciler
   end
 end
 
+Leadership = Struct.new(:state, :message, keyword_init: true)
+
+class ControllerLeader
+  attr_reader :acquisitions, :releases
+  attr_accessor :state
+
+  def initialize(state = :succeeded)
+    @state = state
+    @acquisitions = 0
+    @releases = 0
+  end
+
+  def acquire
+    @acquisitions += 1
+    Leadership.new(state: @state, message: "leadership is #{@state}")
+  end
+
+  def release
+    @releases += 1
+    true
+  end
+end
+
 releases = %w[foreman broken second].map do |name|
   {
     'metadata' => {'name' => name, 'generation' => 1},
@@ -49,10 +72,12 @@ end
 client = ControllerClient.new(releases)
 reconciler = ControllerReconciler.new
 output = StringIO.new
+leader = ControllerLeader.new
 controller = ForemanRelease::Controller.new(
   namespace: 'platform',
   kubernetes_client: client,
   reconciler: reconciler,
+  leader_elector: leader,
   output: output
 )
 controller.run_once
@@ -64,10 +89,22 @@ failure = events.find { |event| event['event'] == 'release_reconcile_failed' }
 raise 'per-resource failure was not logged' unless failure && failure['release'] == 'broken'
 raise 'controller log exposed a release spec' if events.any? { |event| event.key?('spec') }
 
+standby_reconciler = ControllerReconciler.new
+standby_leader = ControllerLeader.new(:busy)
+standby = ForemanRelease::Controller.new(
+  namespace: 'platform',
+  kubernetes_client: ControllerClient.new(releases),
+  reconciler: standby_reconciler,
+  leader_elector: standby_leader,
+  output: StringIO.new
+)
+raise 'standby controller did not skip reconciliation' unless standby.run_once == :standby
+raise 'standby controller reconciled a release' unless standby_reconciler.names.empty?
+
 client.error = RuntimeError.new('API unavailable')
 controller.run_once
 events = output.string.lines.map { |line| JSON.parse(line) }
-raise 'list failure was not isolated and logged' unless events.last['event'] == 'release_list_failed'
+raise 'controller cycle failure was not isolated and logged' unless events.last['event'] == 'controller_cycle_failed'
 
 ticks = []
 looping_client = ControllerClient.new([])
@@ -76,6 +113,7 @@ looping = ForemanRelease::Controller.new(
   namespace: 'platform',
   kubernetes_client: looping_client,
   reconciler: reconciler,
+  leader_elector: leader,
   poll_seconds: 3,
   sleeper: lambda do |seconds|
     ticks << seconds
@@ -85,5 +123,6 @@ looping = ForemanRelease::Controller.new(
 )
 looping.run
 raise 'controller ignored its poll interval or graceful stop' unless ticks == [3]
+raise 'controller did not relinquish leadership during shutdown' unless leader.releases == 1
 
 puts 'Controller isolates release failures and stops gracefully.'

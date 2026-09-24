@@ -90,13 +90,19 @@ class RuntimeKubernetesClient
 end
 
 class RuntimeLeaseManager
-  def acquire(_resource, _operation)
+  attr_reader :calls
+
+  def initialize
+    @calls = []
+  end
+
+  def acquire(_resource, operation)
+    @calls << [:acquire, operation.fetch('id')]
     ForemanRelease::Observation.new(state: :succeeded)
   end
 
-  alias renew acquire
-
-  def release(_resource, _operation)
+  def release(_resource, operation)
+    @calls << [:release, operation.fetch('id')]
     true
   end
 end
@@ -139,11 +145,13 @@ kubernetes = RuntimeKubernetesClient.new(
   application_values: root.join('examples/cluster-values.yaml').read,
   execution_values: root.join('examples/execution-proxy-values.yaml').read
 )
+runtime_lease = RuntimeLeaseManager.new
 adapter = ForemanRelease::RuntimeAdapter.new(
   root: root,
+  lease_identity: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
   runner: runner,
   kubernetes_client: kubernetes,
-  lease_manager: RuntimeLeaseManager.new,
+  lease_manager: runtime_lease,
   preflight: preflight
 )
 resource = {
@@ -169,6 +177,14 @@ resource = {
 }
 operation = {'id' => '12345678-1234-1234-1234-123456789abc-g7'}
 kubernetes.releases_list = [resource]
+
+lease_holder = "#{operation.fetch('id')}:aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+raise 'controller did not acquire its uniquely fenced operation Lease' unless adapter.acquire_lease(resource, operation).state == :succeeded
+raise 'controller did not renew through a race-safe acquire' unless adapter.renew_lease(resource, operation).state == :succeeded
+raise 'controller did not release its fenced operation Lease' unless adapter.release_lease(resource, operation)
+raise 'durable operation ID was used as a shared holder identity' unless runtime_lease.calls == [
+  [:acquire, lease_holder], [:acquire, lease_holder], [:release, lease_holder]
+]
 
 validation = adapter.validate(resource, operation)
 raise 'release validation failed' unless validation.state == :succeeded

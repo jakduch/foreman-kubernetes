@@ -126,6 +126,25 @@ restarted.reconcile(restarted_release)
 raise 'restart did not adopt the persisted operation' unless restarted_adapter.migration_operations == [operation_id]
 raise 'restart did not advance after adopted migrations' unless restarted_release.dig('status', 'phase') == 'RollingApplication'
 
+# A replacement controller keeps the durable operation but cannot mutate it
+# while the previous Pod still owns the operation Lease.
+fenced_adapter = FakeAdapter.new
+fenced_adapter.results(:renew_lease, :busy)
+fenced_release = resource(status: {
+  'phase' => 'Migrating',
+  'targetSet' => 'candidate-1',
+  'operation' => {'id' => operation_id, 'startedAt' => '2026-09-24T12:00:00Z', 'migrationJobs' => []}
+})
+fenced = ForemanRelease::Reconciler.new(
+  state_machine: machine,
+  adapter: fenced_adapter,
+  status_writer: ->(item, status) { item['status'] = status },
+  clock: -> { '2026-09-24T12:01:00Z' }
+)
+raise 'replacement controller did not wait for the live operation holder' unless fenced.reconcile(fenced_release) == :requeue
+raise 'fenced controller touched migration state' unless fenced_adapter.calls == [:renew_lease]
+raise 'Lease contention changed the active phase' unless fenced_release.dig('status', 'phase') == 'Migrating'
+
 # Pause observes an active migration but prevents the application rollout.
 pause_adapter = FakeAdapter.new
 pause_adapter.results(:ensure_migrations, :succeeded)

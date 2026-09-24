@@ -234,10 +234,12 @@ pending work. If chart migrations are disabled, Candlepin falls back to its
 upstream `MANAGE` startup behavior and the schema restricts it to one replica.
 
 The install and upgrade helpers already share and renew a namespaced Lease.
-The future controller's API and release-phase contract are defined in
+The controller's API and release-phase contract are defined in
 [`operator/`](../operator/README.md). They make controller-side Lease adoption,
 migration-before-rollout ordering, blocked retries, and the no-database-rollback
-boundary machine-testable without claiming that a controller is running yet.
+boundary machine-testable. Two controller candidates elect one active poller;
+the release operation itself remains protected by a separate Lease shared with
+the guarded scripts.
 
 Maintenance-gated recovery Jobs stop all database writers before making a
 logical dump of each database and an encrypted Restic snapshot of application

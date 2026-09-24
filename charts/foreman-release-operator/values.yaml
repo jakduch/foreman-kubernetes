@@ -9,8 +9,11 @@ image:
   pullPolicy: IfNotPresent
 
 controller:
+  replicas: 2
   pollSeconds: 5
   releaseLeaseDurationSeconds: 120
+  leaderLeaseName: foreman-release-controller-leader
+  leaderLeaseDurationSeconds: 30
   terminationGracePeriodSeconds: 30
 
 serviceAccount:

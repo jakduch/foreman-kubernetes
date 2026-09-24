@@ -34,10 +34,13 @@
     "controller": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["pollSeconds", "releaseLeaseDurationSeconds", "terminationGracePeriodSeconds"],
+      "required": ["replicas", "pollSeconds", "releaseLeaseDurationSeconds", "leaderLeaseName", "leaderLeaseDurationSeconds", "terminationGracePeriodSeconds"],
       "properties": {
+        "replicas": { "type": "integer", "minimum": 1, "maximum": 5 },
         "pollSeconds": { "type": "integer", "minimum": 1, "maximum": 300 },
         "releaseLeaseDurationSeconds": { "type": "integer", "minimum": 30, "maximum": 3600 },
+        "leaderLeaseName": { "type": "string", "minLength": 1, "maxLength": 63, "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$" },
+        "leaderLeaseDurationSeconds": { "type": "integer", "minimum": 30, "maximum": 300 },
         "terminationGracePeriodSeconds": { "type": "integer", "minimum": 5, "maximum": 300 }
       }
     },

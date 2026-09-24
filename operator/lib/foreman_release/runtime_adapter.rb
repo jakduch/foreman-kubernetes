@@ -36,8 +36,11 @@ module ForemanRelease
       keyword_init: true
     )
 
-    def initialize(root:, runner: CommandRunner.new, kubernetes_client: nil, lease_manager: nil, preflight: nil)
+    def initialize(root:, lease_identity:, runner: CommandRunner.new, kubernetes_client: nil, lease_manager: nil, preflight: nil)
+      raise ArgumentError, 'release Lease identity is required' if lease_identity.to_s.empty?
+
       @root = Pathname.new(root).realpath
+      @lease_identity = lease_identity
       @runner = runner
       @kubernetes_client = kubernetes_client || KubernetesClient.new(runner: runner)
       @lease_manager = lease_manager || LeaseManager.new(runner: runner)
@@ -75,15 +78,15 @@ module ForemanRelease
     end
 
     def acquire_lease(resource, operation)
-      @lease_manager.acquire(resource, operation)
+      @lease_manager.acquire(resource, lease_operation(operation))
     end
 
     def renew_lease(resource, operation)
-      @lease_manager.renew(resource, operation)
+      @lease_manager.acquire(resource, lease_operation(operation))
     end
 
     def release_lease(resource, operation)
-      @lease_manager.release(resource, operation)
+      @lease_manager.release(resource, lease_operation(operation))
     end
 
     def ensure_migrations(resource, operation)
@@ -178,6 +181,10 @@ module ForemanRelease
     end
 
     private
+
+    def lease_operation(operation)
+      {'id' => "#{operation.fetch('id')}:#{@lease_identity}"}
+    end
 
     def validate_release_ownership!(resource)
       application = application_release(resource)

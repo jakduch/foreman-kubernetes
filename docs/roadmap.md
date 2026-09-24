@@ -104,26 +104,16 @@ Still required:
 The namespaced `ForemanRelease` CRD and machine-readable lifecycle graph now
 define phase ordering, status conditions, same-namespace values references,
 pause semantics, explicit blocked retries, and the no-database-rollback rule.
-The side-effect-free controller core executes that graph and is covered across
-success, pause, retry, contention, and invalid transitions, but no
-cluster-facing reconciliation process is running yet. Its reconciliation loop
-now persists each phase before acting, resumes one deterministic operation
-after restart, and gives controller-owned migration and registration Jobs
-stable names plus owner labels for adoption.
-The first Kubernetes boundary now resolves digest-pinned in-image profiles,
-reads same-namespace values Secrets, and uses an optimistic resource-version
-precondition for status writes; Helm phase execution and Lease/Job observation
-remain to be connected.
-The renewable Lease implementation is now available to that adapter and is
-covered for creation, restart adoption, foreign-owner contention, expiration,
-renewal, and race-safe release. Helm phase execution and Job/rollout
-observation remain to be connected.
+The Ruby controller now executes that graph against the Kubernetes API and
+Helm. It resolves digest-pinned profiles, reads same-namespace values Secrets,
+persists status with an optimistic resource-version precondition, adopts
+deterministic migration and verification Jobs, observes rollout deadlines,
+and rolls and verifies the paired execution proxy. Two candidates use a
+short-lived leader Lease while the separate renewable release Lease fences all
+controller and manual writers. Command-level simulations cover leader
+takeover, restart adoption, foreign-owner contention, expiration, renewal,
+race-safe release, and the no-rollback boundary.
 
-After the Helm lifecycle and runtime contracts are proven, add a small Go operator that:
-
-- validates compatible Foreman/Katello/Candlepin/Pulp version sets;
-- creates migration Jobs and waits for their completion before rolling workloads;
-- reports component health in a custom resource status;
-- performs controlled upgrades and rollback gating;
-- keep Smart Proxy registration scoped to the paired execution proxy without
-  taking ownership of edge DHCP/DNS networks.
+The remaining operator work is real-cluster qualification of the published
+image and exact compatibility set, retained evidence, observability, and API
+versioning rather than another parallel implementation.

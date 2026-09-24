@@ -8,9 +8,19 @@ abort "usage: #{$PROGRAM_NAME} RENDERED_MANIFEST" unless ARGV.length == 1
 documents = YAML.load_stream(File.read(ARGV.fetch(0))).compact
 deployment = documents.find { |item| item['kind'] == 'Deployment' }
 abort 'operator Deployment is missing' unless deployment
-abort 'operator must remain a singleton until leader election exists' unless deployment.dig('spec', 'replicas') == 1
-abort 'operator singleton must use Recreate' unless deployment.dig('spec', 'strategy', 'type') == 'Recreate'
+abort 'operator does not publish a warm standby' unless deployment.dig('spec', 'replicas') == 2
+abort 'operator cannot roll between elected leaders' unless deployment.dig('spec', 'strategy', 'type') == 'RollingUpdate'
+abort 'operator rollout can remove every candidate' unless deployment.dig('spec', 'strategy', 'rollingUpdate', 'maxUnavailable') == 1
 abort 'operator requires its Kubernetes API token' unless deployment.dig('spec', 'template', 'spec', 'automountServiceAccountToken') == true
+environment = Array(deployment.dig('spec', 'template', 'spec', 'containers', 0, 'env'))
+pod_uid = environment.find { |entry| entry['name'] == 'POD_UID' }
+abort 'operator leader identity is not sourced from the Pod UID' unless pod_uid&.dig('valueFrom', 'fieldRef', 'fieldPath') == 'metadata.uid'
+abort 'operator has no leader Lease name' unless environment.any? { |entry| entry['name'] == 'LEADER_LEASE_NAME' }
+abort 'operator has no leader Lease duration' unless environment.any? { |entry| entry['name'] == 'LEADER_LEASE_DURATION_SECONDS' }
+
+pdb = documents.find { |item| item['kind'] == 'PodDisruptionBudget' }
+abort 'operator PodDisruptionBudget is missing' unless pdb
+abort 'operator disruption budget can evict every candidate' unless pdb.dig('spec', 'maxUnavailable') == 1
 
 role = documents.find { |item| item['kind'] == 'Role' }
 abort 'operator namespaced Role is missing' unless role
@@ -33,4 +43,4 @@ abort "unexpected cluster-scoped resources: #{cluster_resources.join(', ')}" unl
 cluster_verbs = cluster_rules.flat_map { |rule| Array(rule['verbs']) }.uniq.sort
 abort 'cluster preflight permissions are not read-only' unless cluster_verbs == %w[get list]
 
-puts 'Release operator is a singleton with bounded namespace and read-only cluster RBAC.'
+puts 'Release operator elects one leader with bounded namespace and read-only cluster RBAC.'

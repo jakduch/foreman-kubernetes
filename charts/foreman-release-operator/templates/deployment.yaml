@@ -1,3 +1,6 @@
+{{- if le (int .Values.controller.leaderLeaseDurationSeconds) (mul 2 (int .Values.controller.pollSeconds)) }}
+{{- fail "controller.leaderLeaseDurationSeconds must exceed twice controller.pollSeconds" }}
+{{- end }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -5,9 +8,12 @@ metadata:
   labels:
     {{- include "foreman-release-operator.labels" . | nindent 4 }}
 spec:
-  replicas: 1
+  replicas: {{ .Values.controller.replicas }}
   strategy:
-    type: Recreate
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
   selector:
     matchLabels:
       {{- include "foreman-release-operator.selectorLabels" . | nindent 6 }}
@@ -16,6 +22,15 @@ spec:
       labels:
         {{- include "foreman-release-operator.selectorLabels" . | nindent 8 }}
     spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels:
+                    {{- include "foreman-release-operator.selectorLabels" . | nindent 20 }}
       serviceAccountName: {{ include "foreman-release-operator.serviceAccountName" . }}
       automountServiceAccountToken: true
       terminationGracePeriodSeconds: {{ .Values.controller.terminationGracePeriodSeconds }}
@@ -42,10 +57,18 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.namespace
+            - name: POD_UID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.uid
             - name: POLL_SECONDS
               value: {{ .Values.controller.pollSeconds | quote }}
             - name: RELEASE_LEASE_DURATION_SECONDS
               value: {{ .Values.controller.releaseLeaseDurationSeconds | quote }}
+            - name: LEADER_LEASE_NAME
+              value: {{ .Values.controller.leaderLeaseName | quote }}
+            - name: LEADER_LEASE_DURATION_SECONDS
+              value: {{ .Values.controller.leaderLeaseDurationSeconds | quote }}
             - name: HOME
               value: /tmp
           securityContext:

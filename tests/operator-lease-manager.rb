@@ -6,6 +6,7 @@ require 'pathname'
 
 root = Pathname.new(File.expand_path('..', __dir__))
 require root.join('operator/lib/foreman_release/lease_manager').to_s
+require root.join('operator/lib/foreman_release/leader_elector').to_s
 
 class LeaseRunner
   attr_reader :calls
@@ -126,4 +127,35 @@ rescue ArgumentError => error
   raise unless error.message.include?('valid DNS label')
 end
 
-puts 'ForemanRelease Lease acquisition, renewal, expiry, and safe release passed.'
+leader_now = Time.iso8601('2026-09-24T13:00:00Z')
+leader_runner = LeaseRunner.new
+first_manager = ForemanRelease::LeaseManager.new(
+  runner: leader_runner,
+  duration_seconds: 30,
+  lease_name: 'controller-leader',
+  clock: -> { leader_now }
+)
+second_manager = ForemanRelease::LeaseManager.new(
+  runner: leader_runner,
+  duration_seconds: 30,
+  lease_name: 'controller-leader',
+  clock: -> { leader_now }
+)
+first_leader = ForemanRelease::LeaderElector.new(
+  namespace: 'platform',
+  identity: '11111111-1111-1111-1111-111111111111',
+  lease_manager: first_manager
+)
+second_leader = ForemanRelease::LeaderElector.new(
+  namespace: 'platform',
+  identity: '22222222-2222-2222-2222-222222222222',
+  lease_manager: second_manager
+)
+raise 'first controller did not become leader' unless first_leader.acquire.state == :succeeded
+raise 'second live controller was not fenced' unless second_leader.acquire.state == :busy
+leader_now += 31
+raise 'standby did not take over an expired leader Lease' unless second_leader.acquire.state == :succeeded
+raise 'stale controller released its successor Lease' if first_leader.release
+raise 'takeover did not retain the new Pod identity' unless leader_runner.lease.dig('spec', 'holderIdentity') == '22222222-2222-2222-2222-222222222222'
+
+puts 'ForemanRelease Lease acquisition, leader fencing, takeover, and safe release passed.'
