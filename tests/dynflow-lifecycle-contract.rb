@@ -14,7 +14,7 @@ abort "expected three Dynflow Deployments, got #{deployments.length}" unless dep
 
 deployments.each do |deployment|
   component = deployment.dig('metadata', 'labels', 'app.kubernetes.io/component')
-  expected_strategy = component == 'dynflow-orchestrator' ? 'Recreate' : nil
+  expected_strategy = component == 'dynflow-orchestrator' ? 'Recreate' : 'RollingUpdate'
   actual_strategy = deployment.dig('spec', 'strategy', 'type')
   unless actual_strategy == expected_strategy
     abort "#{component} has unexpected rollout strategy #{actual_strategy.inspect}"

@@ -29,6 +29,12 @@ spec:
   # lock owner and would therefore deadlock the rollout.
   strategy:
     type: Recreate
+  {{- else }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
   {{- end }}
   selector:
     matchLabels:

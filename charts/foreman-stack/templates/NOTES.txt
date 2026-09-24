@@ -29,8 +29,10 @@ See examples/secrets.example.yaml and docs/runtime-contracts.md before installin
 {{- $workerConnections := mul (int .Values.foreman.dynflow.workers) (int .Values.foreman.databasePools.dynflowWorker) }}
 {{- $hostsQueueConnections := mul (int .Values.foreman.dynflow.hostsQueueWorkers) (int .Values.foreman.databasePools.dynflowHostsQueue) }}
 {{- $fixedUtilityConnections := mul 2 (int .Values.foreman.databasePools.utility) }}
+{{- $rollingSurgeConnections := add (mul (int .Values.foreman.puma.workers) (int .Values.foreman.databasePools.web)) (int .Values.foreman.databasePools.dynflowWorker) (int .Values.foreman.databasePools.dynflowHostsQueue) }}
 Foreman PostgreSQL steady-state connection ceiling for this profile: {{ add $webConnections $workerConnections $hostsQueueConnections $fixedUtilityConnections }}
   web: {{ $webConnections }}; Dynflow workers: {{ $workerConnections }}; hosts queue: {{ $hostsQueueConnections }}; orchestrator and event daemon: {{ $fixedUtilityConnections }}
+  simultaneous rolling-update ceiling: {{ add $webConnections $workerConnections $hostsQueueConnections $fixedUtilityConnections $rollingSurgeConnections }}
   Allow another {{ .Values.foreman.databasePools.utility }} connections for each concurrent migration, registration, or recurring task Job.
 See docs/capacity-planning.md before sizing the external PostgreSQL services.
 {{- if or .Values.backup.enabled .Values.restore.enabled }}

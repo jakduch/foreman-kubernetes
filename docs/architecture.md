@@ -155,6 +155,14 @@ voluntary node drains without providing actual availability. Redundant
 components use `maxUnavailable: 1`, so increasing a deployment from two to
 many replicas never weakens the budget to a single surviving pod.
 
+Deployment rollout policy is explicit as well. Request-serving Foreman, Pulp,
+and Pulp control-proxy Deployments retain every available replica and add at
+most one surge Pod. Background worker pools may replace one replica at a time
+and likewise add at most one Pod. Singleton processes whose upstream locking
+or event ownership cannot overlap use `Recreate`. This removes Kubernetes'
+percentage rounding from the availability contract and bounds temporary node
+and database demand during a release.
+
 Topology spread is soft by default so development and single-node clusters can
 start. Production profiles can switch it to `DoNotSchedule`; Kubernetes then
 refuses to co-locate replicas merely to satisfy capacity, making the requested

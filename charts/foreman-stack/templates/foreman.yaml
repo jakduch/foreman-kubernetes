@@ -30,6 +30,11 @@ spec:
   {{- if not .Values.foreman.autoscaling.enabled }}
   replicas: {{ .Values.foreman.replicas }}
   {{- end }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
   selector:
     matchLabels:
       app.kubernetes.io/instance: {{ .Release.Name }}

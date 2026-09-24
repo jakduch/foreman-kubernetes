@@ -48,6 +48,11 @@ spec:
   {{- if not $service.autoscaling.enabled }}
   replicas: {{ $service.replicas }}
   {{- end }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
   selector:
     matchLabels:
       app.kubernetes.io/instance: {{ $root.Release.Name }}
@@ -181,6 +186,11 @@ metadata:
     {{- include "foreman-stack.componentLabels" (dict "root" . "component" "pulp-worker") | nindent 4 }}
 spec:
   replicas: {{ .Values.pulp.workers.replicas }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
   selector:
     matchLabels:
       app.kubernetes.io/instance: {{ .Release.Name }}

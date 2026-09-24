@@ -27,6 +27,12 @@ background = dynflow_workers * dynflow_worker_pool
 steady_state_foreman = web + background
 ```
 
+During a Helm revision, Foreman web, general Dynflow, and hosts-queue Dynflow
+Deployments can each add one surge Pod. Reserve an additional
+`puma_workers * web_pool + dynflow_worker_pool + hosts_queue_pool` connections
+for the worst case in which those rollouts overlap. The Helm notes report both
+steady-state and rolling-update ceilings.
+
 The two fixed utility processes are the Dynflow orchestrator and Katello event
 daemon. Add one utility pool for every migration, Pulp-registration, or
 recurring-task Job that may overlap. Pools are lazy ceilings, not a promise

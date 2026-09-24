@@ -188,6 +188,7 @@ ruby "${repo_root}/tests/foreman-shared-tmp-contract.rb" "${rendered}" true
 ruby "${repo_root}/tests/foreman-shared-tmp-contract.rb" "${rendered_s3}" false
 ruby "${repo_root}/tests/foreman-database-pool-contract.rb" "${rendered}"
 ruby "${repo_root}/tests/disruption-budget-contract.rb" "${rendered}"
+ruby "${repo_root}/tests/rollout-strategy-contract.rb" "${rendered}"
 ruby "${repo_root}/tests/recovery-storage-contract.rb" "${rendered_backup}" true
 ruby "${repo_root}/tests/recovery-storage-contract.rb" "${rendered_restore}" true
 ruby "${repo_root}/tests/recovery-storage-contract.rb" "${rendered_s3_backup}" false
