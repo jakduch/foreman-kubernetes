@@ -1,0 +1,74 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require 'open3'
+
+repo_root = File.expand_path('..', __dir__)
+manifest = <<~YAML
+  apiVersion: v1
+  kind: ServiceAccount
+  metadata:
+    name: internal
+  ---
+  apiVersion: v1
+  kind: PersistentVolumeClaim
+  metadata:
+    name: generated-default
+  spec:
+    accessModes: [ReadWriteOnce]
+  ---
+  apiVersion: v1
+  kind: PersistentVolumeClaim
+  metadata:
+    name: generated-fast
+  spec:
+    storageClassName: fast-rwx
+    accessModes: [ReadWriteMany]
+  ---
+  apiVersion: apps/v1
+  kind: Deployment
+  spec:
+    template:
+      spec:
+        serviceAccountName: external-runtime
+        containers:
+          - name: app
+        volumes:
+          - name: generated
+            persistentVolumeClaim:
+              claimName: generated-fast
+          - name: external
+            persistentVolumeClaim:
+              claimName: imported-content
+  ---
+  apiVersion: batch/v1
+  kind: Job
+  spec:
+    template:
+      spec:
+        serviceAccountName: internal
+        containers:
+          - name: task
+  ---
+  apiVersion: networking.k8s.io/v1
+  kind: Ingress
+  spec:
+    ingressClassName: nginx
+YAML
+
+output, error, status = Open3.capture3(
+  'ruby', File.join(repo_root, 'scripts/required-cluster-resources.rb'),
+  stdin_data: manifest
+)
+abort error unless status.success?
+
+expected = <<~OUTPUT
+  DefaultStorageClass\t
+  IngressClass\tnginx
+  PersistentVolumeClaim\timported-content
+  ServiceAccount\texternal-runtime
+  StorageClass\tfast-rwx
+OUTPUT
+abort "unexpected cluster resource inventory:\n#{output}" unless output == expected
+
+puts 'Required cluster resource discovery checks passed.'

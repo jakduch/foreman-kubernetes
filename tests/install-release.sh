@@ -22,8 +22,10 @@ cat > "${fake_bin}/helm" <<'SCRIPT'
 #!/usr/bin/env bash
 set -euo pipefail
 printf 'helm %s\n' "$*" >> "${FAKE_TOOL_LOG}"
-if [[ "$1" == status ]]; then
-  exit 1
+if [[ "$1" == list ]]; then
+  [[ "${FAKE_HELM_LIST_FAIL:-0}" == 0 ]] || exit 1
+  printf '%s\n' "${FAKE_HELM_LIST_JSON:-[]}"
+  exit 0
 fi
 if [[ "$1" == template && "$2" == foreman ]]; then
   printf '%s\n' \
@@ -67,6 +69,9 @@ if [[ "$*" == *'get secret required-runtime'* ]]; then
   fi
   printf '%s\n' "${FAKE_SECRET_JSON}"
 fi
+if [[ "$*" == 'get storageclass --output=json' ]]; then
+  printf '%s\n' '{"items":[{"metadata":{"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}]}'
+fi
 SCRIPT
 
 chmod +x "${fake_bin}/helm" "${fake_bin}/kubectl"
@@ -80,6 +85,36 @@ if PATH="${fake_bin}:${PATH}" \
 fi
 if [[ -s "${tool_log}" ]]; then
   echo 'candidate gate invoked cluster tools before rejecting the release set' >&2
+  exit 1
+fi
+
+: > "${tool_log}"
+if PATH="${fake_bin}:${PATH}" \
+  FAKE_TOOL_LOG="${tool_log}" \
+  FAKE_HELM_LIST_FAIL=1 \
+  ALLOW_CANDIDATE=1 \
+  "${repo_root}/scripts/install-release.sh" \
+    "${application_values}" "${execution_values}" >/dev/null 2>&1; then
+  echo 'installation treated a Helm release-list failure as an empty namespace' >&2
+  exit 1
+fi
+if grep -Fq 'helm upgrade --install ' "${tool_log}"; then
+  echo 'installation started after Helm release discovery failed' >&2
+  exit 1
+fi
+
+: > "${tool_log}"
+if PATH="${fake_bin}:${PATH}" \
+  FAKE_TOOL_LOG="${tool_log}" \
+  FAKE_HELM_LIST_JSON='[{"name":"foreman"}]' \
+  ALLOW_CANDIDATE=1 \
+  "${repo_root}/scripts/install-release.sh" \
+    "${application_values}" "${execution_values}" >/dev/null 2>&1; then
+  echo 'installation accepted an existing application release' >&2
+  exit 1
+fi
+if grep -Fq 'helm upgrade --install ' "${tool_log}"; then
+  echo 'installation overwrote an existing release' >&2
   exit 1
 fi
 

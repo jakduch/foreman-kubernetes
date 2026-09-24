@@ -64,10 +64,14 @@ execution_profile="${repo_root}/$(jq --exit-status --raw-output \
 
 kubectl get namespace "${namespace}" >/dev/null || \
   fail "namespace ${namespace} does not exist; create it and apply the external Secrets first"
-if helm status "${application_release}" --namespace "${namespace}" >/dev/null 2>&1; then
+installed_releases="$(helm list --namespace "${namespace}" --all --output json)" || \
+  fail "unable to inspect Helm releases in namespace ${namespace}"
+if jq --exit-status --arg release "${application_release}" \
+  'any(.[]; .name == $release)' <<<"${installed_releases}" >/dev/null; then
   fail "application release ${application_release} already exists; use scripts/upgrade-release.sh"
 fi
-if helm status "${execution_release}" --namespace "${namespace}" >/dev/null 2>&1; then
+if jq --exit-status --arg release "${execution_release}" \
+  'any(.[]; .name == $release)' <<<"${installed_releases}" >/dev/null; then
   fail "execution release ${execution_release} already exists; use scripts/upgrade-release.sh"
 fi
 
@@ -92,10 +96,34 @@ execution_resources="$(helm template "${execution_release}" "${repo_root}/charts
   --values "${execution_values}" \
   --values "${execution_profile}")"
 
+combined_resources="$(printf '%s\n---\n%s\n' "${application_resources}" "${execution_resources}")"
+
+echo 'Preflight: checking cluster storage, ingress, and external workload resources'
+required_resources="$(ruby "${repo_root}/scripts/required-cluster-resources.rb" <<<"${combined_resources}")"
+while IFS=$'\t' read -r resource_kind resource_name; do
+  [[ -n "${resource_kind}" ]] || continue
+  case "${resource_kind}" in
+    DefaultStorageClass)
+      storage_classes="$(kubectl get storageclass --output=json)" || \
+        fail 'unable to inspect StorageClasses'
+      jq --exit-status 'any(.items[]; .metadata.annotations["storageclass.kubernetes.io/is-default-class"] == "true")' \
+        <<<"${storage_classes}" >/dev/null || \
+        fail 'a rendered PVC relies on a default StorageClass, but none is configured'
+      ;;
+    StorageClass | IngressClass)
+      kubectl get "${resource_kind}" "${resource_name}" >/dev/null || \
+        fail "required ${resource_kind} ${resource_name} does not exist"
+      ;;
+    PersistentVolumeClaim | ServiceAccount)
+      kubectl --namespace "${namespace}" get "${resource_kind}" "${resource_name}" >/dev/null || \
+        fail "required ${resource_kind} ${namespace}/${resource_name} does not exist"
+      ;;
+    *) fail "unsupported preflight resource kind: ${resource_kind}" ;;
+  esac
+done <<<"${required_resources}"
+
 echo 'Preflight: checking externally managed Secrets and referenced keys'
-required_secrets="$(printf '%s\n---\n%s\n' \
-  "${application_resources}" "${execution_resources}" | \
-  ruby "${repo_root}/scripts/required-secrets.rb")"
+required_secrets="$(ruby "${repo_root}/scripts/required-secrets.rb" <<<"${combined_resources}")"
 while IFS=$'\t' read -r secret_name secret_keys; do
   [[ -n "${secret_name}" ]] || continue
   secret_json="$(kubectl --namespace "${namespace}" get secret "${secret_name}" --output=json)" || \

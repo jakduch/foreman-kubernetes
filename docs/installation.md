@@ -45,9 +45,11 @@ The installer performs these gates before changing the cluster:
 2. it refuses to overwrite an existing Helm release;
 3. it renders and lints both charts with deployment values followed by the
    authoritative digest-pinned image profiles;
-4. it discovers every non-optional Secret used by a Pod template and verifies
+4. it verifies every referenced IngressClass, named or default StorageClass,
+   external PVC, and external ServiceAccount;
+5. it discovers every non-optional Secret used by a Pod template and verifies
    both the Secret and each explicitly referenced key;
-5. it rejects maintenance-only renders that omit normal migration workloads.
+6. it rejects maintenance-only renders that omit normal migration workloads.
 
 It then waits for application migrations and Pulp registration, runs the
 application smoke test, installs the execution proxy, waits for its Pod, and
