@@ -12,6 +12,12 @@ The chart keeps component ownership separate and does not assume that independen
 
 The manifests were read from the official Quay repositories on 2026-09-24. No layers were downloaded. The current images are single-platform, so an ARM cluster needs explicit emulation and is not a release target until upstream publishes multi-architecture manifests.
 
+The disposable HA integration test additionally pins
+`apache/artemis:2.57.0-alpine` to its verified `linux/amd64` manifest digest
+`sha256:ca99ce1b72c5765a15dd507db4215591c43da623cd9f42db1bcd4319e5f4b579`.
+It is a test dependency rather than part of the supported application image
+set, and the full integration run is still pending.
+
 Use the candidate with another values file, keeping environment-specific values later so they win:
 
 ```sh

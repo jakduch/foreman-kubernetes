@@ -76,6 +76,7 @@ kubectl --namespace "${namespace}" create secret generic foreman-certificates \
 
 kubectl --namespace "${namespace}" create secret generic candlepin-runtime \
   --from-literal=database-password=candlepin-test \
+  --from-literal=artemis-broker-url='tcp://artemis:61616' \
   --dry-run=client -o yaml | kubectl apply -f -
 
 kubectl --namespace "${namespace}" create secret generic candlepin-certificates \

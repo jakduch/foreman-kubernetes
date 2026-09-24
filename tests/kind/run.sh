@@ -56,6 +56,40 @@ assert_pulp_registration() {
     bin/rails runner 'abort "Pulp proxy missing" unless SmartProxy.pulp_primary&.has_feature?("Pulpcore")'
 }
 
+assert_candlepin_ha() {
+  local ready_replicas
+
+  kubectl --namespace "${namespace}" rollout status \
+    deployment/foreman-foreman-stack-candlepin \
+    --timeout=10m
+
+  ready_replicas="$(
+    kubectl --namespace "${namespace}" get \
+      deployment/foreman-foreman-stack-candlepin \
+      --output=jsonpath='{.status.readyReplicas}'
+  )"
+  if [[ "${ready_replicas}" != 2 ]]; then
+    echo "Candlepin has ${ready_replicas:-0} ready replicas, expected 2" >&2
+    exit 1
+  fi
+}
+
+assert_candlepin_pod_recovery() {
+  local candlepin_pod
+
+  candlepin_pod="$(
+    kubectl --namespace "${namespace}" get pod \
+      --selector=app.kubernetes.io/component=candlepin \
+      --output=jsonpath='{.items[0].metadata.name}'
+  )"
+  kubectl --namespace "${namespace}" delete pod "${candlepin_pod}" \
+    --wait=true \
+    --timeout=5m
+
+  assert_candlepin_ha
+  assert_foreman_ready
+}
+
 set_database_probes() {
   local expected_value="$1"
   local database
@@ -170,6 +204,7 @@ install_dependencies() {
   kubectl apply --filename="${repo_root}/tests/kind/dependencies.yaml"
   kubectl --namespace "${namespace}" rollout status deployment/postgresql --timeout=5m
   kubectl --namespace "${namespace}" rollout status deployment/valkey --timeout=5m
+  kubectl --namespace "${namespace}" rollout status deployment/artemis --timeout=5m
   "${repo_root}/tests/kind/apply-secrets.sh" "${temporary_directory}"
 }
 
@@ -277,6 +312,8 @@ kubectl --namespace "${namespace}" wait \
   --timeout=10m
 
 assert_foreman_ready
+assert_candlepin_ha
+assert_candlepin_pod_recovery
 
 pulp_api_status="$(curl --silent --output /dev/null --write-out '%{http_code}' \
   --cacert "${temporary_directory}/ca.crt" \
@@ -322,6 +359,7 @@ if [[ "${skip_recovery_test}" != 1 ]]; then
   helm_apply
 
   assert_foreman_ready
+  assert_candlepin_ha
   assert_pulp_registration
   assert_database_probes before-backup
   assert_pulp_probe before-backup
@@ -344,7 +382,7 @@ kubectl --namespace "${namespace}" rollout status \
   --timeout=10m
 
 if [[ "${skip_recovery_test}" == 1 ]]; then
-  echo "Kind install, mTLS, registration, scale, and upgrade checks passed; recovery drill skipped."
+  echo "Kind install, Candlepin HA, mTLS, registration, scale, and upgrade checks passed; recovery drill skipped."
 else
-  echo "Kind install, mTLS, registration, backup, restore, scale, and upgrade checks passed."
+  echo "Kind install, Candlepin HA, mTLS, registration, backup, restore, scale, and upgrade checks passed."
 fi

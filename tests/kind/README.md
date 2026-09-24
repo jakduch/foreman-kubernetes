@@ -3,6 +3,9 @@
 `run.sh` creates a dedicated single-node kind cluster, installs ingress-nginx, PostgreSQL, Valkey, generated short-lived PKI, and the complete chart. It then verifies:
 
 - initial Pulp and Foreman migrations;
+- separate Candlepin migration ownership and two replicas using one external
+  Artemis broker plus clustered Quartz;
+- Candlepin request-service recovery after deleting one replica;
 - Foreman health both with and without the optional client certificate;
 - automatic Pulp Smart Proxy registration through the private mTLS endpoint;
 - absence of a public Pulp administrative API route;
@@ -21,7 +24,12 @@ The test is intentionally opt-in because it downloads the real application image
 tests/kind/run.sh
 ```
 
-The `Full integration` GitHub Actions workflow exposes the same drill through a
+The test Artemis broker deliberately allows anonymous connections because the
+current Candlepin client does not expose independent broker credentials. It is
+an in-namespace disposable dependency, not a production recommendation. Its
+Apache Artemis 2.57.0 amd64 image is pinned to the verified platform digest in
+`dependencies.yaml`. The
+`Full integration` GitHub Actions workflow exposes the same drill through a
 manual dispatch on an amd64 runner. Failed runs retain a short-lived diagnostic
 artifact and always remove the disposable cluster.
 

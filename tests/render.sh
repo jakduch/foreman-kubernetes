@@ -54,6 +54,12 @@ shellcheck -x \
   "${chart}/files/restore.sh" \
   "${chart}/files/candlepin-migrate.sh"
 
+grep -Fq \
+  'apache/artemis:2.57.0-alpine@sha256:ca99ce1b72c5765a15dd507db4215591c43da623cd9f42db1bcd4319e5f4b579' \
+  "${repo_root}/tests/kind/dependencies.yaml"
+grep -Fq -- "--from-literal=artemis-broker-url='tcp://artemis:61616'" \
+  "${repo_root}/tests/kind/apply-secrets.sh"
+
 grep -q 'name: test-foreman-stack-foreman' "${rendered}"
 grep -q 'name: test-foreman-stack-candlepin' "${rendered}"
 grep -q 'name: test-foreman-stack-dynflow-orchestrator' "${rendered}"
