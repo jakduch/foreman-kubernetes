@@ -1,20 +1,32 @@
 {{- if .Values.ingress.enabled }}
-{{- $foremanAnnotations := mergeOverwrite (dict
+{{- $foremanAnnotations := mergeOverwrite (deepCopy .Values.ingress.foreman.annotations) (dict
   "nginx.ingress.kubernetes.io/auth-tls-secret" (printf "%s/%s" .Release.Namespace .Values.ingress.foreman.clientCaSecret)
   "nginx.ingress.kubernetes.io/auth-tls-verify-client" "optional"
   "nginx.ingress.kubernetes.io/auth-tls-verify-depth" "3"
   "nginx.ingress.kubernetes.io/auth-tls-pass-certificate-to-upstream" "true"
+  "nginx.ingress.kubernetes.io/proxy-set-headers" (printf "%s/%s" .Release.Namespace (include "foreman-stack.foremanClientHeadersName" .))
   "nginx.ingress.kubernetes.io/proxy-body-size" "0"
   "nginx.ingress.kubernetes.io/proxy-read-timeout" "900"
-) .Values.ingress.foreman.annotations -}}
-{{- $pulpAnnotations := mergeOverwrite (dict
+) -}}
+{{- $pulpAnnotations := mergeOverwrite (deepCopy .Values.ingress.pulpContent.annotations) (dict
   "nginx.ingress.kubernetes.io/auth-tls-secret" (printf "%s/%s" .Release.Namespace .Values.ingress.pulpContent.clientCaSecret)
   "nginx.ingress.kubernetes.io/auth-tls-verify-client" "optional"
   "nginx.ingress.kubernetes.io/auth-tls-verify-depth" "3"
   "nginx.ingress.kubernetes.io/auth-tls-pass-certificate-to-upstream" "true"
   "nginx.ingress.kubernetes.io/proxy-body-size" "0"
   "nginx.ingress.kubernetes.io/proxy-read-timeout" "600"
-) .Values.ingress.pulpContent.annotations -}}
+) -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "foreman-stack.foremanClientHeadersName" . }}
+  labels:
+    {{- include "foreman-stack.componentLabels" (dict "root" . "component" "foreman-edge") | nindent 4 }}
+data:
+  SSL-CLIENT-CERT: $ssl_client_escaped_cert
+  SSL-CLIENT-S-DN: $ssl_client_s_dn
+  SSL-CLIENT-VERIFY: $ssl_client_verify
+---
 apiVersion: v1
 kind: ConfigMap
 metadata:

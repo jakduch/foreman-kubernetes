@@ -86,6 +86,15 @@ manifest = <<~YAML
   ---
   apiVersion: networking.k8s.io/v1
   kind: Ingress
+  metadata:
+    annotations:
+      nginx.ingress.kubernetes.io/auth-tls-secret: test/client-ca
+  spec:
+    tls:
+      - secretName: ingress-tls
+  ---
+  apiVersion: networking.k8s.io/v1
+  kind: Ingress
   spec:
     tls:
       - secretName: cert-manager-owned
@@ -98,8 +107,11 @@ output, error, status = Open3.capture3(
 abort error unless status.success?
 
 expected = <<~OUTPUT
+  cert-manager-owned\ttls.crt,tls.key
   certificate\ttls.crt,tls.key
+  client-ca\tca.crt
   database\tpassword,username
+  ingress-tls\ttls.crt,tls.key
   projected\ttoken
   registry-auth\t
   runtime\t

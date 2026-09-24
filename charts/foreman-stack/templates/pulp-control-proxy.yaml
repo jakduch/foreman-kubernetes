@@ -6,47 +6,7 @@ metadata:
     {{- include "foreman-stack.componentLabels" (dict "root" . "component" "pulp-control-proxy") | nindent 4 }}
 data:
   default.conf: |
-    map $ssl_client_s_dn $pulp_remote_user {
-      default "";
-      ~(?:^|,)CN={{ regexQuoteMeta .Values.platform.fqdn }}(?:,|$) admin;
-      {{- range .Values.pulp.controlProxy.trustedClientCommonNames }}
-      ~(?:^|,)CN={{ regexQuoteMeta . }}(?:,|$) admin;
-      {{- end }}
-    }
-
-    upstream pulp_api {
-      server {{ include "foreman-stack.pulpApiServiceName" . }}:{{ .Values.pulp.api.port }};
-      keepalive 32;
-    }
-
-    server {
-      listen {{ .Values.pulp.controlProxy.port }} ssl;
-      server_name _;
-      server_tokens off;
-      client_max_body_size 0;
-
-      ssl_certificate /etc/nginx/pki/tls.crt;
-      ssl_certificate_key /etc/nginx/pki/tls.key;
-      ssl_client_certificate /etc/nginx/pki/ca.crt;
-      ssl_verify_client on;
-      ssl_verify_depth 3;
-      ssl_protocols TLSv1.2 TLSv1.3;
-
-      location / {
-        if ($pulp_remote_user = "") { return 403; }
-
-        proxy_http_version 1.1;
-        proxy_request_buffering off;
-        proxy_read_timeout 600s;
-        proxy_set_header Connection "";
-        proxy_set_header Host $http_host;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto https;
-        proxy_set_header REMOTE-USER $pulp_remote_user;
-        proxy_set_header X-CLIENT-CERT "";
-        proxy_pass http://pulp_api;
-      }
-    }
+{{ include "foreman-stack.pulpControlProxyConfig" . | indent 4 }}
 ---
 apiVersion: v1
 kind: Service
@@ -82,7 +42,7 @@ spec:
         app.kubernetes.io/instance: {{ .Release.Name }}
         app.kubernetes.io/component: pulp-control-proxy
       annotations:
-        checksum/config: {{ toJson (dict "fqdn" .Values.platform.fqdn "controlProxy" .Values.pulp.controlProxy "apiPort" .Values.pulp.api.port) | sha256sum }}
+        checksum/config: {{ include "foreman-stack.pulpControlProxyConfig" . | sha256sum }}
         checksum/secrets: {{ .Values.secretRolloutToken | sha256sum }}
     spec:
       serviceAccountName: {{ include "foreman-stack.serviceAccountName" . }}

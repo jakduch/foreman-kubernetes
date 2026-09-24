@@ -68,6 +68,10 @@ runAsGroup: {{ . }}
 {{- printf "%s-foreman-config" (include "foreman-stack.fullname" .) }}
 {{- end }}
 
+{{- define "foreman-stack.foremanClientHeadersName" -}}
+{{- printf "%s-foreman-client-headers" (include "foreman-stack.fullname" .) }}
+{{- end }}
+
 {{- define "foreman-stack.candlepinConfigName" -}}
 {{- printf "%s-candlepin-config" (include "foreman-stack.fullname" .) }}
 {{- end }}
@@ -106,6 +110,50 @@ runAsGroup: {{ . }}
 
 {{- define "foreman-stack.pulpPublicApiHeadersName" -}}
 {{- printf "%s-pulp-public-api-headers" (include "foreman-stack.fullname" .) }}
+{{- end }}
+
+{{- define "foreman-stack.pulpControlProxyConfig" -}}
+map $ssl_client_s_dn $pulp_remote_user {
+  default "";
+  ~(?:^|,)CN={{ regexQuoteMeta .Values.platform.fqdn }}(?:,|$) admin;
+  {{- range .Values.pulp.controlProxy.trustedClientCommonNames }}
+  ~(?:^|,)CN={{ regexQuoteMeta . }}(?:,|$) admin;
+  {{- end }}
+}
+
+upstream pulp_api {
+  server {{ include "foreman-stack.pulpApiServiceName" . }}:{{ .Values.pulp.api.port }};
+  keepalive 32;
+}
+
+server {
+  listen {{ .Values.pulp.controlProxy.port }} ssl;
+  server_name _;
+  server_tokens off;
+  client_max_body_size 0;
+
+  ssl_certificate /etc/nginx/pki/tls.crt;
+  ssl_certificate_key /etc/nginx/pki/tls.key;
+  ssl_client_certificate /etc/nginx/pki/ca.crt;
+  ssl_verify_client on;
+  ssl_verify_depth 3;
+  ssl_protocols TLSv1.2 TLSv1.3;
+
+  location / {
+    if ($pulp_remote_user = "") { return 403; }
+
+    proxy_http_version 1.1;
+    proxy_request_buffering off;
+    proxy_read_timeout 600s;
+    proxy_set_header Connection "";
+    proxy_set_header Host $http_host;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_set_header REMOTE-USER $pulp_remote_user;
+    proxy_set_header X-CLIENT-CERT "";
+    proxy_pass http://pulp_api;
+  }
+}
 {{- end }}
 
 {{- define "foreman-stack.foremanEnv" -}}
@@ -169,6 +217,10 @@ runAsGroup: {{ . }}
 - name: foreman-generated-config
   mountPath: /etc/foreman/plugins/katello.yaml
   subPath: katello.yaml
+  readOnly: true
+- name: foreman-generated-config
+  mountPath: /usr/share/foreman/config/initializers/foreman_kubernetes_client_certificate.rb
+  subPath: foreman-kubernetes-client-certificate.rb
   readOnly: true
 - name: foreman-certificates
   mountPath: /etc/foreman/katello-default-ca.crt

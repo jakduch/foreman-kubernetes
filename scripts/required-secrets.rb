@@ -35,6 +35,23 @@ pod_spec_for = lambda do |document|
 end
 
 documents.each do |document|
+  if document['kind'] == 'Ingress'
+    Array(document.dig('spec', 'tls')).each do |tls|
+      name = tls['secretName'].to_s
+      references[name].merge(%w[tls.crt tls.key]) unless name.empty?
+    end
+
+    client_ca_reference = document.dig(
+      'metadata',
+      'annotations',
+      'nginx.ingress.kubernetes.io/auth-tls-secret'
+    ).to_s
+    unless client_ca_reference.empty?
+      client_ca = client_ca_reference.split('/', 2).last
+      references[client_ca] << 'ca.crt'
+    end
+  end
+
   pod_spec = pod_spec_for.call(document)
   next unless pod_spec.is_a?(Hash)
 

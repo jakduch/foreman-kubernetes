@@ -176,6 +176,11 @@ pods, and Dynaconf receives it as PostgreSQL's `sslrootcert` option.
 - The server certificate must cover the chart's Pulp control Service DNS name. Katello validates it with `foreman-certificates/ca.crt` and authenticates with `client_cert.pem` plus `client_key.pem`.
 - The ingress TLS Secrets use the standard `tls.crt` and `tls.key` keys.
 - `ingress-client-ca` contains `ca.crt` used by ingress-nginx to verify optional client certificates before replacing the upstream certificate headers.
+- The guarded installer and upgrade helper require those TLS and client-CA
+  Secrets to exist before changing releases. The Foreman ingress maps verified
+  client identity to `HTTP_SSL_CLIENT_CERT`, `HTTP_SSL_CLIENT_S_DN`, and
+  `HTTP_SSL_CLIENT_VERIFY`; its middleware decodes ingress-nginx's escaped PEM
+  before Foreman or Katello parses it.
 
 The default trusted common name for the Pulp control plane is `platform.fqdn`; additional names must be listed explicitly in `pulp.controlProxy.trustedClientCommonNames`.
 
