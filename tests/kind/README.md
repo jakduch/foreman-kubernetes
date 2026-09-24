@@ -45,7 +45,10 @@
   namespace restore and again after rotating its server TLS, Foreman client
   TLS, and SSH identities and restarting both ends of the SSH trust relation;
 - Dynflow worker scaling;
-- a second Helm revision with migration gates and a Foreman rollout.
+- a second Helm revision with migration gates and confirmed Foreman and Dynflow
+  Pod replacement while a Remote Execution job remains active and completes;
+- a configuration-changing execution-proxy rollout while another active job
+  completes, followed by a fresh job through the replacement Pod.
 
 The test is intentionally opt-in because it downloads the real application images and needs substantially more CPU, memory, and time than chart rendering:
 

@@ -31,7 +31,8 @@ helm_execution_apply() {
     --values "${repo_root}/tests/kind/execution-proxy-values.yaml" \
     --values "${execution_proxy_image_profile}" \
     --wait \
-    --timeout 15m
+    --timeout 15m \
+    "$@"
 }
 
 foreman_pod() {
@@ -44,6 +45,33 @@ pulp_worker_pod() {
   kubectl --namespace "${namespace}" get pod \
     --selector=app.kubernetes.io/component=pulp-worker \
     --output=jsonpath='{.items[0].metadata.name}'
+}
+
+pod_uids() {
+  local selector="$1"
+
+  kubectl --namespace "${namespace}" get pods \
+    --selector="${selector}" \
+    --output=json | jq --raw-output '.items[].metadata.uid' | sort
+}
+
+assert_pods_replaced() {
+  local selector="$1"
+  local previous_uids="$2"
+  local current_uids
+  local previous_uid
+
+  current_uids="$(pod_uids "${selector}")"
+  if [[ -z "${previous_uids}" || -z "${current_uids}" ]]; then
+    echo "Cannot prove Pod replacement for selector ${selector}" >&2
+    exit 1
+  fi
+  while IFS= read -r previous_uid; do
+    if grep -Fxq "${previous_uid}" <<<"${current_uids}"; then
+      echo "Pod ${previous_uid} for selector ${selector} survived a configuration-changing upgrade" >&2
+      exit 1
+    fi
+  done <<<"${previous_uids}"
 }
 
 assert_foreman_ready() {
@@ -298,6 +326,26 @@ assert_execution_plane() {
 
   EXPECTED_ROLE_REVISION="${role_revision}" \
     TEST_PROXY_INTERRUPTION="${test_proxy_interruption}" \
+    "${repo_root}/tests/kind/execution-plane.sh" "${temporary_directory}"
+}
+
+start_execution_upgrade_job() {
+  local upgrade_name="$1"
+  local state_file="$2"
+
+  EXECUTION_SCENARIO=start-upgrade \
+    EXECUTION_UPGRADE_NAME="${upgrade_name}" \
+    EXECUTION_STATE_FILE="${state_file}" \
+    "${repo_root}/tests/kind/execution-plane.sh" "${temporary_directory}"
+}
+
+finish_execution_upgrade_job() {
+  local upgrade_name="$1"
+  local state_file="$2"
+
+  EXECUTION_SCENARIO=finish-upgrade \
+    EXECUTION_UPGRADE_NAME="${upgrade_name}" \
+    EXECUTION_STATE_FILE="${state_file}" \
     "${repo_root}/tests/kind/execution-plane.sh" "${temporary_directory}"
 }
 
@@ -560,15 +608,39 @@ kubectl --namespace "${namespace}" rollout status \
   deployment/foreman-foreman-stack-dynflow-worker \
   --timeout=10m
 
+application_upgrade_state="${temporary_directory}/application-upgrade.json"
+foreman_uids_before="$(pod_uids 'app.kubernetes.io/component=foreman')"
+dynflow_orchestrator_uids_before="$(pod_uids 'app.kubernetes.io/component=dynflow-orchestrator')"
+dynflow_worker_uids_before="$(pod_uids 'app.kubernetes.io/component=dynflow-worker')"
+dynflow_hosts_queue_uids_before="$(pod_uids 'app.kubernetes.io/component=dynflow-worker-hosts-queue')"
+start_execution_upgrade_job application-upgrade "${application_upgrade_state}"
 helm_apply \
-  --set foreman.puma.threadsMax=6 \
-  --set foreman.dynflow.workers=2
+  --set foreman.dynflow.workers=2 \
+  --set foreman.dynflow.workerConcurrency=3
 
 kubectl --namespace "${namespace}" rollout status \
   deployment/foreman-foreman-stack-foreman \
   --timeout=10m
+assert_pods_replaced 'app.kubernetes.io/component=foreman' "${foreman_uids_before}"
+assert_pods_replaced \
+  'app.kubernetes.io/component=dynflow-orchestrator' \
+  "${dynflow_orchestrator_uids_before}"
+assert_pods_replaced 'app.kubernetes.io/component=dynflow-worker' "${dynflow_worker_uids_before}"
+assert_pods_replaced \
+  'app.kubernetes.io/component=dynflow-worker-hosts-queue' \
+  "${dynflow_hosts_queue_uids_before}"
+finish_execution_upgrade_job application-upgrade "${application_upgrade_state}"
 
 assert_application_smoke_test
+
+proxy_upgrade_state="${temporary_directory}/proxy-upgrade.json"
+execution_proxy_uids_before="$(pod_uids 'app.kubernetes.io/instance=execution,app.kubernetes.io/component=execution-proxy')"
+start_execution_upgrade_job proxy-upgrade "${proxy_upgrade_state}"
+helm_execution_apply --set proxy.logLevel=DEBUG
+assert_pods_replaced \
+  'app.kubernetes.io/instance=execution,app.kubernetes.io/component=execution-proxy' \
+  "${execution_proxy_uids_before}"
+finish_execution_upgrade_job proxy-upgrade "${proxy_upgrade_state}"
 
 rotate_execution_identity
 assert_execution_plane

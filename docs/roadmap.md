@@ -17,6 +17,9 @@
    then extend it from prepared successful, failed, and cancelled SSH/Ansible
    jobs, content replacement, fresh jobs after identity rotation, and
    restricted egress to a product decision on retrying interrupted jobs.
+   The harness now also prepares controlled Foreman/Dynflow and execution-proxy
+   upgrades during active jobs; those assertions require actual Pod replacement,
+   successful completion of the in-flight job, and a successful fresh job.
 
 ## Implemented, pending integration proof
 
@@ -50,8 +53,11 @@
   rejects execution of the stale revision. A running job is also interrupted by
   deleting the proxy Pod; it must leave the task in a terminal state before a
   fresh job proves the restarted proxy is usable. This deliberately does not
-  claim transparent handoff of an active SSH process. The drill has not yet
-  been executed against the published image set.
+  claim transparent handoff of an active SSH process. Configuration-changing
+  application and proxy upgrades are also prepared while jobs are active. They
+  require successful in-flight completion and reject upgrades that do not
+  replace the intended Pods. The drill has not yet been executed against the
+  published image set.
 
 ## Candlepin HA track
 

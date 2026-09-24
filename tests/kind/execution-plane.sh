@@ -14,6 +14,9 @@ target_name="execution-target.foreman.svc.cluster.local"
 role_name="foreman_kubernetes_test"
 role_revision="${EXPECTED_ROLE_REVISION:-v1}"
 test_proxy_interruption="${TEST_PROXY_INTERRUPTION:-0}"
+execution_scenario="${EXECUTION_SCENARIO:-full}"
+execution_state_file="${EXECUTION_STATE_FILE:-}"
+execution_upgrade_name="${EXECUTION_UPGRADE_NAME:-}"
 
 case "${role_revision}" in
   v1 | v2) ;;
@@ -30,6 +33,32 @@ case "${test_proxy_interruption}" in
     exit 2
     ;;
 esac
+
+case "${execution_scenario}" in
+  full | start-upgrade | finish-upgrade) ;;
+  *)
+    echo "unsupported execution scenario: ${execution_scenario}" >&2
+    exit 2
+    ;;
+esac
+
+if [[ "${execution_scenario}" != full ]]; then
+  if [[ -z "${execution_state_file}" || -z "${execution_upgrade_name}" ]]; then
+    echo 'EXECUTION_STATE_FILE and EXECUTION_UPGRADE_NAME are required for upgrade scenarios' >&2
+    exit 2
+  fi
+  case "${execution_state_file}" in
+    "${temporary_directory}"/*) ;;
+    *)
+      echo 'EXECUTION_STATE_FILE must be inside the temporary directory' >&2
+      exit 2
+      ;;
+  esac
+  if [[ ! "${execution_upgrade_name}" =~ ^[a-z0-9-]+$ ]]; then
+    echo 'EXECUTION_UPGRADE_NAME must contain only lowercase letters, numbers, and hyphens' >&2
+    exit 2
+  fi
+fi
 
 foreman_pod() {
   kubectl --namespace "${namespace}" get pod \
@@ -438,6 +467,77 @@ assert_interrupted_job_recovery() {
   run_job foreman-kubernetes-after-proxy-restart-ok Script "${proxy_id}"
 }
 
+start_upgrade_job() {
+  local proxy_id="$1"
+  local started_marker="foreman-kubernetes-${execution_upgrade_name}-started"
+  local finished_marker="foreman-kubernetes-${execution_upgrade_name}-finished"
+  local state_file_tmp="${execution_state_file}.tmp"
+  local invocation
+  local invocation_id
+  local task_id
+
+  kubectl --namespace "${namespace}" exec deployment/execution-target -- \
+    rm -f "/tmp/${started_marker}" "/tmp/${finished_marker}"
+
+  invocation="$(create_script_job \
+    "touch /tmp/${started_marker}; sleep 90; touch /tmp/${finished_marker}")"
+  invocation_id="$(jq --exit-status --raw-output '.id' <<<"${invocation}")"
+  task_id="$(jq --exit-status --raw-output '.dynflow_task.id' <<<"${invocation}")"
+
+  wait_for_job_proxy "${invocation_id}" "${proxy_id}"
+  wait_for_target_marker "${started_marker}"
+  jq --null-input \
+    --arg name "${execution_upgrade_name}" \
+    --argjson invocation_id "${invocation_id}" \
+    --arg task_id "${task_id}" \
+    --argjson proxy_id "${proxy_id}" \
+    --arg started_marker "${started_marker}" \
+    --arg finished_marker "${finished_marker}" '{
+      name: $name,
+      invocation_id: $invocation_id,
+      task_id: $task_id,
+      proxy_id: $proxy_id,
+      started_marker: $started_marker,
+      finished_marker: $finished_marker
+    }' > "${state_file_tmp}"
+  mv "${state_file_tmp}" "${execution_state_file}"
+
+  echo "Execution job ${invocation_id} is active for ${execution_upgrade_name}."
+}
+
+assert_upgrade_job() {
+  local state
+  local state_name
+  local invocation_id
+  local task_id
+  local proxy_id
+  local finished_marker
+
+  if [[ ! -s "${execution_state_file}" ]]; then
+    echo "upgrade execution state does not exist: ${execution_state_file}" >&2
+    exit 1
+  fi
+  state="$(jq --exit-status '.' "${execution_state_file}")"
+  state_name="$(jq --exit-status --raw-output '.name' <<<"${state}")"
+  if [[ "${state_name}" != "${execution_upgrade_name}" ]]; then
+    echo "upgrade state belongs to ${state_name}, expected ${execution_upgrade_name}" >&2
+    exit 1
+  fi
+
+  invocation_id="$(jq --exit-status --raw-output '.invocation_id' <<<"${state}")"
+  task_id="$(jq --exit-status --raw-output '.task_id' <<<"${state}")"
+  proxy_id="$(jq --exit-status --raw-output '.proxy_id' <<<"${state}")"
+  finished_marker="$(jq --exit-status --raw-output '.finished_marker' <<<"${state}")"
+
+  wait_for_task "${task_id}" success
+  kubectl --namespace "${namespace}" exec deployment/execution-target -- \
+    test -f "/tmp/${finished_marker}"
+  assert_job_proxy "${invocation_id}" "${execution_upgrade_name}" "${proxy_id}"
+  run_job "foreman-kubernetes-${execution_upgrade_name}-fresh-ok" Script "${proxy_id}"
+
+  echo "Active execution job and fresh execution both succeeded after ${execution_upgrade_name}."
+}
+
 run_role_job() {
   local host_id="$1"
   local proxy_id="$2"
@@ -474,25 +574,39 @@ run_role_job() {
   assert_job_proxy "${invocation_id}" 'Ansible role' "${proxy_id}"
 }
 
-organization_id="$(default_taxonomy_id organizations)"
-location_id="$(default_taxonomy_id locations)"
-assert_egress_boundary
-proxy_id="$(register_execution_proxy "${location_id}" "${organization_id}")"
-host_id="$(ensure_target_host "${location_id}" "${organization_id}")"
-configure_execution_defaults
-role_id="$(sync_ansible_role "${proxy_id}")"
-assign_ansible_role "${host_id}" "${role_id}"
+case "${execution_scenario}" in
+  full | start-upgrade)
+    organization_id="$(default_taxonomy_id organizations)"
+    location_id="$(default_taxonomy_id locations)"
+    assert_egress_boundary
+    proxy_id="$(register_execution_proxy "${location_id}" "${organization_id}")"
+    host_id="$(ensure_target_host "${location_id}" "${organization_id}")"
+    configure_execution_defaults
+    ;;
+esac
 
-ansible_template_id="$(foreman_api GET '/api/job_templates?per_page=all' | \
-  exact_result_id 'Run Command - Ansible Default')"
+case "${execution_scenario}" in
+  full)
+    role_id="$(sync_ansible_role "${proxy_id}")"
+    assign_ansible_role "${host_id}" "${role_id}"
 
-assert_failed_job "${proxy_id}"
-assert_cancelled_job "${proxy_id}"
-run_job foreman-kubernetes-rex-ok Script "${proxy_id}"
-run_job foreman-kubernetes-ansible-ok Ansible "${proxy_id}" "${ansible_template_id}"
-run_role_job "${host_id}" "${proxy_id}"
-if [[ "${test_proxy_interruption}" == 1 ]]; then
-  assert_interrupted_job_recovery "${proxy_id}"
-fi
+    ansible_template_id="$(foreman_api GET '/api/job_templates?per_page=all' | \
+      exact_result_id 'Run Command - Ansible Default')"
 
-echo "Execution proxy registration, failure/cancellation, role sync, SSH, Ansible command, and Ansible role ${role_revision} checks passed."
+    assert_failed_job "${proxy_id}"
+    assert_cancelled_job "${proxy_id}"
+    run_job foreman-kubernetes-rex-ok Script "${proxy_id}"
+    run_job foreman-kubernetes-ansible-ok Ansible "${proxy_id}" "${ansible_template_id}"
+    run_role_job "${host_id}" "${proxy_id}"
+    if [[ "${test_proxy_interruption}" == 1 ]]; then
+      assert_interrupted_job_recovery "${proxy_id}"
+    fi
+    echo "Execution proxy registration, failure/cancellation, role sync, SSH, Ansible command, and Ansible role ${role_revision} checks passed."
+    ;;
+  start-upgrade)
+    start_upgrade_job "${proxy_id}"
+    ;;
+  finish-upgrade)
+    assert_upgrade_job
+    ;;
+esac

@@ -155,6 +155,13 @@ reached the target, bypassing its normal termination grace period. The
 interrupted task may succeed or fail, but it must become terminal; a new command
 must then succeed through the replacement Pod. This tests control-plane
 recovery without promising transparent continuation of the active SSH process.
+Separately, the prepared controlled-upgrade path starts a long-running command,
+changes the Foreman/Dynflow configuration, and requires both the active command
+and a fresh command to succeed after all affected Pods have been replaced. It
+then repeats that contract for a configuration-changing `Recreate` rollout of
+the execution proxy. Unlike the forced interruption, these upgrade assertions
+require the in-flight command to finish successfully within the configured
+termination grace period.
 It is implemented but has not yet been executed against the published candidate
 images.
 
@@ -167,4 +174,5 @@ Still required before production support:
    assertions against the candidate images;
 4. run the prepared allow/deny egress probe and then validate deployment-specific
    Foreman and target networks;
-5. test an application and proxy upgrade while jobs are active.
+5. run the prepared active-job application and proxy upgrade assertions and
+   retain their Pod-replacement and job-result evidence.

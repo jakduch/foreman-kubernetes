@@ -217,7 +217,13 @@ grep -Fq 'Ansible role executed stale content revision' \
   "${repo_root}/tests/kind/execution-plane.sh"
 grep -Fq 'TEST_PROXY_INTERRUPTION' \
   "${repo_root}/tests/kind/execution-plane.sh"
+grep -Fq 'EXECUTION_SCENARIO' \
+  "${repo_root}/tests/kind/execution-plane.sh"
 grep -Fq 'assert_interrupted_job_recovery' \
+  "${repo_root}/tests/kind/execution-plane.sh"
+grep -Fq 'start_upgrade_job' \
+  "${repo_root}/tests/kind/execution-plane.sh"
+grep -Fq 'wait_for_task "${task_id}" success' \
   "${repo_root}/tests/kind/execution-plane.sh"
 grep -Fq -- '--grace-period=0' \
   "${repo_root}/tests/kind/execution-plane.sh"
@@ -232,6 +238,15 @@ grep -Fq 'rotate_execution_identity' "${repo_root}/tests/kind/run.sh"
 grep -Fq 'publish-ansible-content.sh" v2' "${repo_root}/tests/kind/run.sh"
 grep -Fq 'assert_execution_plane v2' "${repo_root}/tests/kind/run.sh"
 grep -Fq 'assert_execution_plane v1 1' "${repo_root}/tests/kind/run.sh"
+grep -Fq 'start_execution_upgrade_job application-upgrade' \
+  "${repo_root}/tests/kind/run.sh"
+grep -Fq 'finish_execution_upgrade_job application-upgrade' \
+  "${repo_root}/tests/kind/run.sh"
+grep -Fq 'start_execution_upgrade_job proxy-upgrade' \
+  "${repo_root}/tests/kind/run.sh"
+grep -Fq 'finish_execution_upgrade_job proxy-upgrade' \
+  "${repo_root}/tests/kind/run.sh"
+grep -Fq 'assert_pods_replaced' "${repo_root}/tests/kind/run.sh"
 grep -Fq -- '-purpose sslserver' "${repo_root}/tests/kind/run.sh"
 grep -Fq -- '-purpose sslclient' "${repo_root}/tests/kind/run.sh"
 
