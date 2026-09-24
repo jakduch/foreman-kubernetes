@@ -232,6 +232,9 @@ pulp:
       targetCPUUtilizationPercentage: 70
   workers:
     replicas: 4
+    # Pulpcore handles SIGTERM by finishing the active task before exiting.
+    # Repository sync and publication tasks can legitimately run for minutes.
+    terminationGracePeriodSeconds: 3600
   storage:
     # filesystem keeps Pulp artifacts on a shared RWX claim. s3 moves the
     # authoritative artifacts to S3 or an S3-compatible object store.

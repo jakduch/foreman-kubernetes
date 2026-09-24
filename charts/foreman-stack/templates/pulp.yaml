@@ -173,6 +173,7 @@ spec:
     spec:
       serviceAccountName: {{ include "foreman-stack.pulpServiceAccountName" . }}
       automountServiceAccountToken: false
+      terminationGracePeriodSeconds: {{ .Values.pulp.workers.terminationGracePeriodSeconds }}
       securityContext:
         fsGroup: 700
         fsGroupChangePolicy: OnRootMismatch
@@ -204,6 +205,29 @@ spec:
               readOnly: true
             {{- include "foreman-stack.pulpDatabaseCaVolumeMount" . | nindent 12 }}
             {{- include "foreman-stack.pulpObjectStorageCaVolumeMount" . | nindent 12 }}
+          readinessProbe:
+            exec:
+              command:
+                - python3
+                - -c
+                - |
+                  import os
+                  import socket
+
+                  os.environ.setdefault("DJANGO_SETTINGS_MODULE", "pulpcore.app.settings")
+                  import django
+                  django.setup()
+                  from pulpcore.app.models import AppStatus
+
+                  hostname = socket.gethostname()
+                  online = AppStatus.objects.online().filter(
+                      app_type="worker", name__endswith=f"@{hostname}"
+                  ).exists()
+                  raise SystemExit(0 if online else 1)
+            initialDelaySeconds: 5
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
           resources:
             {{- toYaml .Values.pulp.resources | nindent 12 }}
       volumes:

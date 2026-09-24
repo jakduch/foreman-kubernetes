@@ -164,7 +164,7 @@
     },
     "pulp": {
       "type": "object",
-      "required": ["serviceAccount", "existingRuntimeSecret", "existingConfigSecret", "existingDatabaseCaSecret", "database", "contentOrigin", "enabledPlugins", "controlProxy", "storage"],
+      "required": ["serviceAccount", "existingRuntimeSecret", "existingConfigSecret", "existingDatabaseCaSecret", "database", "contentOrigin", "enabledPlugins", "controlProxy", "api", "content", "workers", "storage"],
       "properties": {
         "serviceAccount": {
           "type": "object",
@@ -228,6 +228,15 @@
             "gunicornWorkers": { "type": "integer", "minimum": 1 },
             "gunicornTimeoutSeconds": { "type": "integer", "minimum": 1 },
             "autoscaling": { "$ref": "#/definitions/autoscaling" }
+          }
+        },
+        "workers": {
+          "type": "object",
+          "required": ["replicas", "terminationGracePeriodSeconds"],
+          "additionalProperties": false,
+          "properties": {
+            "replicas": { "type": "integer", "minimum": 1 },
+            "terminationGracePeriodSeconds": { "type": "integer", "minimum": 30 }
           }
         },
         "controlProxy": {

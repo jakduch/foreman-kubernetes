@@ -104,6 +104,11 @@ pending.
 - Every role requires a shared database, Valkey, symmetric key, and content
   storage. The chart supports either a shared filesystem or Pulpcore's
   `storages.backends.s3.S3Storage` backend.
+- Worker readiness requires the current Pod's Pulpcore database heartbeat, so
+  Helm cannot report a worker Deployment available before it has joined the
+  task pool. Worker Pods receive a one-hour termination grace period by
+  default because Pulpcore handles SIGTERM by finishing an active task; reduce
+  it only when interrupted synchronization and publication tasks are accepted.
 - S3 mode uses `/var/lib/pulp/tmp` only as per-pod scratch space and can redirect
   downloads to signed object-store URLs.
 - The `pulp_smart_proxy` plugin exposes Foreman-compatible feature discovery below `/pulp/api/v3/smart_proxy` and advertises `PULP_SMART_PROXY_PULP_URL` as Katello's API base URL.

@@ -26,11 +26,23 @@ end
 
 api_args = container_args(deployment(documents, 'pulp-api'), 'pulp-api')
 content_args = container_args(deployment(documents, 'pulp-content'), 'pulp-content')
+worker = deployment(documents, 'pulp-worker')
+worker_container = Array(worker&.dig('spec', 'template', 'spec', 'containers'))
+  .find { |container| container['name'] == 'pulp-worker' }
 
 abort 'Pulp API Gunicorn timeout differs from the image contract' unless option(api_args, '--timeout') == '90'
 abort 'Pulp API worker recycling is missing' unless option(api_args, '--max-requests') == '800'
 abort 'Pulp API worker recycling jitter is missing' unless option(api_args, '--max-requests-jitter') == '100'
 abort 'Pulp content Gunicorn timeout differs from the image contract' unless option(content_args, '--timeout') == '90'
 abort 'Pulp content unexpectedly received the API worker recycling flag' if content_args.include?('--max-requests')
+abort 'Pulp worker is missing' unless worker_container
+unless worker.dig('spec', 'template', 'spec', 'terminationGracePeriodSeconds') == 3600
+  abort 'Pulp worker cannot finish long tasks during shutdown'
+end
+readiness_command = Array(worker_container.dig('readinessProbe', 'exec', 'command')).join("\n")
+unless readiness_command.include?('AppStatus.objects.online()') &&
+       readiness_command.include?('name__endswith=f"@{hostname}"')
+  abort 'Pulp worker readiness does not verify its database heartbeat'
+end
 
-puts 'Pulp process settings preserve the official image wrapper contract.'
+puts 'Pulp process settings preserve request recycling and graceful worker lifecycle contracts.'
