@@ -80,4 +80,8 @@ created = resource_client.create('platform', {'apiVersion' => 'batch/v1', 'kind'
 raise 'created resource was not decoded' unless created.dig('metadata', 'name') == 'smoke'
 raise 'resource create did not use stdin' unless resource_runner.calls.last.last.include?('"kind":"Job"')
 
+cluster_runner = FakeRunner.new(JSON.generate('items' => []))
+ForemanRelease::KubernetesClient.new(runner: cluster_runner).resources(nil, 'storageclasses')
+raise 'cluster-scoped query included a namespace' if cluster_runner.calls.first.first.include?('--namespace')
+
 puts 'Kubernetes client protects status concurrency and keeps values in same-namespace Secrets.'

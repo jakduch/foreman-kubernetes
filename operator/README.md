@@ -38,6 +38,13 @@ and adopts deterministic smoke-test Jobs. The execution-proxy release follows
 the same operation identity and is applied only after the application smoke
 test succeeds.
 
+Before the Lease is acquired, `ClusterPreflight` derives dependencies from the
+exact combined render. It verifies referenced Secret keys, external PVCs and
+ServiceAccounts, explicit or default StorageClasses, the required IngressClass
+controller, and metrics API availability. The manual install and upgrade
+scripts use the same `ManifestRequirements` implementation, so their preflight
+inventory cannot drift from the controller.
+
 Operator-owned Jobs intentionally have no completion TTL. This preserves the
 result across a controller outage; a later Helm operation replaces the old
 revision resources. Jobs from the manual Helm workflow retain their one-hour
@@ -111,5 +118,5 @@ blocked retry, busy Lease, invalid transition, conditions, and operation
 replacement behavior. `tests/operator-reconciler.rb` simulates a controller
 restart during migration, safe-boundary pause, a failed validation, and an
 explicit retry. The runtime adapter is covered with command-level simulations,
-but a controller process, RBAC, image, cluster preflight integration, and real
-cluster tests are still required before installing the CRD in a cluster.
+but a controller process, RBAC, image, and real cluster tests are still required
+before installing the CRD in a cluster.

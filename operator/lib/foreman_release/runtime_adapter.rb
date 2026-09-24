@@ -5,6 +5,7 @@ require 'json'
 require 'pathname'
 require 'tmpdir'
 require 'yaml'
+require_relative 'cluster_preflight'
 require_relative 'command_runner'
 require_relative 'kubernetes_client'
 require_relative 'lease_manager'
@@ -34,11 +35,12 @@ module ForemanRelease
       keyword_init: true
     )
 
-    def initialize(root:, runner: CommandRunner.new, kubernetes_client: nil, lease_manager: nil)
+    def initialize(root:, runner: CommandRunner.new, kubernetes_client: nil, lease_manager: nil, preflight: nil)
       @root = Pathname.new(root).realpath
       @runner = runner
       @kubernetes_client = kubernetes_client || KubernetesClient.new(runner: runner)
       @lease_manager = lease_manager || LeaseManager.new(runner: runner)
+      @preflight = preflight || ClusterPreflight.new(@kubernetes_client)
       @catalog = ReleaseCatalog.load(@root)
       @values_reader = ValuesReader.new(@kubernetes_client)
       @application_chart = @root.join('charts/foreman-stack').to_s
@@ -59,6 +61,7 @@ module ForemanRelease
           context.profiles.execution_proxy_path, resource, operation
         )
         validate_rendered_contract!(application, execution)
+        @preflight.validate!(application + execution, resource.dig('metadata', 'namespace'))
       end
 
       Observation.new(

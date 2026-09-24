@@ -92,6 +92,18 @@ class RuntimeLeaseManager
   end
 end
 
+class RuntimePreflight
+  attr_reader :calls
+
+  def initialize
+    @calls = []
+  end
+
+  def validate!(documents, namespace)
+    @calls << [documents, namespace]
+  end
+end
+
 def complete_job(job)
   copy = Marshal.load(Marshal.dump(job))
   copy['status'] = {'conditions' => [{'type' => 'Complete', 'status' => 'True'}]}
@@ -113,6 +125,7 @@ def available_deployment(deployment)
 end
 
 runner = RecordingHelmRunner.new
+preflight = RuntimePreflight.new
 kubernetes = RuntimeKubernetesClient.new(
   application_values: root.join('examples/cluster-values.yaml').read,
   execution_values: root.join('examples/execution-proxy-values.yaml').read
@@ -121,7 +134,8 @@ adapter = ForemanRelease::RuntimeAdapter.new(
   root: root,
   runner: runner,
   kubernetes_client: kubernetes,
-  lease_manager: RuntimeLeaseManager.new
+  lease_manager: RuntimeLeaseManager.new,
+  preflight: preflight
 )
 resource = {
   'apiVersion' => 'platform.theforeman.org/v1alpha1',
@@ -149,6 +163,7 @@ operation = {'id' => '12345678-1234-1234-1234-123456789abc-g7'}
 validation = adapter.validate(resource, operation)
 raise 'release validation failed' unless validation.state == :succeeded
 raise 'validation did not pin all four release inputs' unless validation.details.keys.sort == ForemanRelease::RuntimeAdapter::INPUT_DIGESTS.keys.sort
+raise 'rendered cluster preflight was not executed' unless preflight.calls.length == 1 && preflight.calls.first.last == 'platform'
 operation.merge!(validation.details)
 raise 'Secret values were not written with mode 0600' unless runner.values_modes.all? { |mode| mode == 0o600 }
 

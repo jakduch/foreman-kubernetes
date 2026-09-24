@@ -1,69 +1,13 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
-require 'set'
+require 'pathname'
 require 'yaml'
 
-documents = YAML.load_stream($stdin.read).compact.select { |document| document.is_a?(Hash) }
-rendered = documents.each_with_object(Set.new) do |document, identities|
-  name = document.dig('metadata', 'name')
-  identities << [document['kind'], name] if document['kind'] && name
+root = Pathname.new(File.expand_path('..', __dir__))
+require root.join('operator/lib/foreman_release/manifest_requirements').to_s
+
+documents = YAML.load_stream($stdin.read).compact
+ForemanRelease::ManifestRequirements.new(documents).cluster_resources.each do |requirement|
+  puts requirement.join("\t")
 end
-requirements = Set.new
-
-pod_spec_for = lambda do |document|
-  case document['kind']
-  when 'Pod'
-    document['spec']
-  when 'Deployment', 'DaemonSet', 'ReplicaSet', 'StatefulSet', 'Job'
-    document.dig('spec', 'template', 'spec')
-  when 'CronJob'
-    document.dig('spec', 'jobTemplate', 'spec', 'template', 'spec')
-  end
-end
-
-documents.each do |document|
-  case document['kind']
-  when 'HorizontalPodAutoscaler'
-    metric_types = Array(document.dig('spec', 'metrics')).map { |metric| metric['type'] }.compact
-    if metric_types.any? { |metric_type| ['Resource', 'ContainerResource'].include?(metric_type) }
-      requirements << ['APIService', 'v1beta1.metrics.k8s.io', 'Available']
-    end
-  when 'PersistentVolumeClaim'
-    storage_class = document.dig('spec', 'storageClassName').to_s
-    if storage_class.empty?
-      requirements << ['DefaultStorageClass', '']
-    else
-      requirements << ['StorageClass', storage_class]
-    end
-  when 'Ingress'
-    ingress_class = document.dig('spec', 'ingressClassName').to_s
-    ingress_controller = document.dig(
-      'metadata',
-      'annotations',
-      'foreman-kubernetes.io/required-ingress-controller'
-    ).to_s
-    unless ingress_class.empty?
-      requirement = ['IngressClass', ingress_class]
-      requirement << ingress_controller unless ingress_controller.empty?
-      requirements << requirement
-    end
-  end
-
-  pod_spec = pod_spec_for.call(document)
-  next unless pod_spec.is_a?(Hash)
-
-  service_account = pod_spec['serviceAccountName'].to_s
-  if !service_account.empty? && !rendered.include?(['ServiceAccount', service_account])
-    requirements << ['ServiceAccount', service_account]
-  end
-
-  Array(pod_spec['volumes']).each do |volume|
-    claim_name = volume.dig('persistentVolumeClaim', 'claimName').to_s
-    next if claim_name.empty? || rendered.include?(['PersistentVolumeClaim', claim_name])
-
-    requirements << ['PersistentVolumeClaim', claim_name]
-  end
-end
-
-requirements.sort.each { |requirement| puts requirement.join("\t") }

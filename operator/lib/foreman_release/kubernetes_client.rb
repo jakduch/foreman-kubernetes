@@ -39,9 +39,7 @@ module ForemanRelease
     end
 
     def resources(namespace, type, labels: {})
-      command = [
-        'kubectl', '--namespace', namespace, 'get', type, '--output=json'
-      ]
+      command = kubectl(namespace, 'get', type, '--output=json')
       unless labels.empty?
         selector = labels.sort.map { |key, value| "#{key}=#{value}" }.join(',')
         command.insert(-1, '--selector', selector)
@@ -50,9 +48,7 @@ module ForemanRelease
     end
 
     def resource(namespace, type, name)
-      response = @runner.run(
-        'kubectl', '--namespace', namespace, 'get', type, name, '--output=json'
-      )
+      response = @runner.run(*kubectl(namespace, 'get', type, name, '--output=json'))
       JSON.parse(response)
     end
 
@@ -86,6 +82,14 @@ module ForemanRelease
         '--output=json'
       )
       JSON.parse(response)
+    end
+
+    private
+
+    def kubectl(namespace, *arguments)
+      command = ['kubectl']
+      command.push('--namespace', namespace) unless namespace.to_s.empty?
+      command.concat(arguments)
     end
   end
 end
