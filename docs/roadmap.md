@@ -110,6 +110,10 @@ cluster-facing reconciliation process is running yet. Its reconciliation loop
 now persists each phase before acting, resumes one deterministic operation
 after restart, and gives controller-owned migration and registration Jobs
 stable names plus owner labels for adoption.
+The first Kubernetes boundary now resolves digest-pinned in-image profiles,
+reads same-namespace values Secrets, and uses an optimistic resource-version
+precondition for status writes; Helm phase execution and Lease/Job observation
+remain to be connected.
 
 After the Helm lifecycle and runtime contracts are proven, add a small Go operator that:
 

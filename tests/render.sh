@@ -40,6 +40,8 @@ ruby "${repo_root}/tests/workflow-action-pins.rb" "${repo_root}/.github/workflow
 ruby "${repo_root}/tests/operator-contract.rb"
 ruby "${repo_root}/tests/operator-state-machine.rb"
 ruby "${repo_root}/tests/operator-reconciler.rb"
+ruby "${repo_root}/tests/operator-kubernetes-client.rb"
+ruby "${repo_root}/tests/operator-release-inputs.rb"
 ruby "${repo_root}/tests/values-schema-coverage.rb"
 ruby "${repo_root}/tests/recovery-image-contract.rb"
 

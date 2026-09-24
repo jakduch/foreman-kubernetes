@@ -16,6 +16,21 @@ ForemanRelease UID on deterministic migration and Pulp registration Jobs, so a
 future Kubernetes adapter can adopt them rather than launch duplicate schema
 changes.
 
+The adapter boundary now includes three concrete, tested primitives:
+
+- `ReleaseCatalog` resolves only in-image profiles, enforces candidate and
+  retired-set policy, verifies profile identity, and rejects mutable image
+  references;
+- `ValuesReader` loads application and execution-proxy values only from the
+  referenced Secret keys in the ForemanRelease namespace and requires each to
+  be a YAML mapping;
+- `KubernetesClient` lists namespaced releases, reads Secret keys without
+  placing their contents in command arguments, and updates the status
+  subresource with a JSON Patch `resourceVersion` precondition.
+
+The remaining runtime adapter must turn the reconciliation port calls into
+Helm, Lease, Job-adoption, rollout, and smoke-test observations.
+
 `ForemanRelease` is namespaced because its Helm releases, values Secrets,
 migration Jobs, and status all belong to one application namespace. The
 controller reads, but does not copy, the repository's digest-pinned
@@ -75,5 +90,5 @@ blocked retry, busy Lease, invalid transition, conditions, and operation
 replacement behavior. `tests/operator-reconciler.rb` simulates a controller
 restart during migration, safe-boundary pause, a failed validation, and an
 explicit retry. A Kubernetes adapter, controller image, RBAC, Lease renewal,
-status patching, and cluster integration tests are still required before
+Helm phase execution, and cluster integration tests are still required before
 installing the CRD in a cluster.
