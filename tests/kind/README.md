@@ -35,7 +35,8 @@
 - the complete Katello object graph and published file after restoration, so
   the recovery check covers real application state in addition to probes;
 - execution-proxy re-registration and successful new jobs after the clean
-  namespace restore and again after an execution-proxy Pod restart;
+  namespace restore and again after rotating its server TLS, Foreman client
+  TLS, and SSH identities and restarting both ends of the SSH trust relation;
 - Dynflow worker scaling;
 - a second Helm revision with migration gates and a Foreman rollout.
 

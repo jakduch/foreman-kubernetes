@@ -210,6 +210,9 @@ grep -Fq "if [[ ! -s \"\${workdir}/ca.crt\" ]]" \
 grep -Fq 'foreman-execution-proxy-tls' "${rendered_kind_backup}"
 grep -Fq 'foreman-execution-proxy-foreman-client' "${rendered_kind_backup}"
 grep -Fq 'foreman-execution-proxy-ssh' "${rendered_kind_backup}"
+grep -Fq 'rotate_execution_identity' "${repo_root}/tests/kind/run.sh"
+grep -Fq -- '-purpose sslserver' "${repo_root}/tests/kind/run.sh"
+grep -Fq -- '-purpose sslclient' "${repo_root}/tests/kind/run.sh"
 
 grep -q 'name: test-foreman-stack-foreman' "${rendered}"
 grep -q 'name: test-foreman-stack-candlepin' "${rendered}"

@@ -147,16 +147,17 @@ through Foreman, assigns it to the target, and executes it. An expected command
 failure and a cancelled long-running command must both reach terminal state
 before a successful command proves the executor remains usable. The drill
 repeats the workflow after a clean namespace restore and after restarting the
-proxy Pod. It is implemented but has not yet been executed against the
-published candidate images.
+proxy Pod with newly issued server TLS, client TLS, and SSH identities. It is
+implemented but has not yet been executed against the published candidate
+images.
 
 Still required before production support:
 
 1. run the complete pinned amd64 drill in CI and retain its evidence;
 2. run the prepared failure and cancellation assertions, then add an
    interrupted job across a Pod restart;
-3. verify replacement of already-imported role/collection content and SSH key
-   or certificate rotation;
+3. verify replacement of already-imported role/collection content; the prepared
+   identity rotation still needs its first live run;
 4. run the prepared allow/deny egress probe and then validate deployment-specific
    Foreman and target networks;
 5. test an application and proxy upgrade while jobs are active.

@@ -85,7 +85,7 @@ helm upgrade --install foreman charts/foreman-stack \
   --values examples/cluster-values.yaml
 ```
 
-Static render checks are available as `tests/render.sh` and run in the lightweight pull-request workflow together with ShellCheck. The opt-in disposable integration harness under `tests/kind/` exercises a real install, mTLS Pulp registration, successful, failed, and cancelled Remote Execution jobs, Ansible command execution, role discovery/import/assignment/execution through the egress-restricted central proxy, an explicit denied-destination probe, clean-namespace disaster recovery, scaling, proxy restart, and a second Helm revision. It cleans up the generated cluster and PKI by default and is not run for every change. A manual `Full integration` workflow provides the intended amd64 execution environment.
+Static render checks are available as `tests/render.sh` and run in the lightweight pull-request workflow together with ShellCheck. The opt-in disposable integration harness under `tests/kind/` exercises a real install, mTLS Pulp registration, successful, failed, and cancelled Remote Execution jobs, Ansible command execution, role discovery/import/assignment/execution through the egress-restricted central proxy, an explicit denied-destination probe, clean-namespace disaster recovery, full proxy TLS/client/SSH identity rotation, scaling, and a second Helm revision. It cleans up the generated cluster and PKI by default and is not run for every change. A manual `Full integration` workflow provides the intended amd64 execution environment.
 
 The recovery Jobs are intentionally one-shot rather than scheduled online
 backups. They enter through an explicit maintenance revision, verify that all

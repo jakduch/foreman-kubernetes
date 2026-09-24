@@ -185,9 +185,10 @@ The implementation drill is prepared but still unrun against the published
 images. It covers proxy registration, the exact feature boundary, successful,
 failed, and cancelled SSH jobs, real Ansible commands, declarative role-content
 publication, Foreman role sync and assignment, role execution, clean
-restoration, explicit allow/deny egress probes, and successful new jobs after a
-proxy restart. Smart Proxy Dynflow still uses SQLite, REx retains process-local job
-data, and the runners have no active-job handoff protocol. The schema therefore
+restoration, explicit allow/deny egress probes, and successful new jobs after
+rotating the proxy's server TLS, client TLS, and SSH identities. Smart Proxy
+Dynflow still uses SQLite, REx retains process-local job data, and the runners
+have no active-job handoff protocol. The schema therefore
 fixes the executor to one replica and uses `Recreate`; pretending that a Service
 in front of multiple independent executors is HA would lose job ownership
 during failure. The detailed contract is in

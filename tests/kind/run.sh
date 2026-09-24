@@ -295,6 +295,80 @@ assert_execution_plane() {
   "${repo_root}/tests/kind/execution-plane.sh" "${temporary_directory}"
 }
 
+rotate_execution_identity() {
+  local rotated_prefix="${temporary_directory}/execution-rotated"
+
+  ssh-keygen -q -t ed25519 -N '' \
+    -C foreman-kubernetes-rotated \
+    -f "${rotated_prefix}-ssh"
+  if cmp -s \
+    "${temporary_directory}/id_ed25519_foreman_proxy.pub" \
+    "${rotated_prefix}-ssh.pub"; then
+    echo 'Rotated SSH public key unexpectedly matches the original key' >&2
+    exit 1
+  fi
+
+  openssl req -new -newkey rsa:2048 -nodes \
+    -subj '/CN=execution-foreman-execution-proxy' \
+    -keyout "${rotated_prefix}-server.key" \
+    -out "${rotated_prefix}-server.csr" >/dev/null 2>&1
+  openssl x509 -req -sha256 -days 7 \
+    -in "${rotated_prefix}-server.csr" \
+    -CA "${temporary_directory}/ca.crt" \
+    -CAkey "${temporary_directory}/ca.key" \
+    -CAcreateserial \
+    -extfile <(printf '%s\n' \
+      'subjectAltName=DNS:execution-foreman-execution-proxy,DNS:execution-foreman-execution-proxy.foreman,DNS:execution-foreman-execution-proxy.foreman.svc' \
+      'extendedKeyUsage=serverAuth') \
+    -out "${rotated_prefix}-server.crt" >/dev/null 2>&1
+
+  openssl req -new -newkey rsa:2048 -nodes \
+    -subj '/CN=foreman.test' \
+    -keyout "${rotated_prefix}-client.key" \
+    -out "${rotated_prefix}-client.csr" >/dev/null 2>&1
+  openssl x509 -req -sha256 -days 7 \
+    -in "${rotated_prefix}-client.csr" \
+    -CA "${temporary_directory}/ca.crt" \
+    -CAkey "${temporary_directory}/ca.key" \
+    -CAcreateserial \
+    -extfile <(printf 'extendedKeyUsage=clientAuth\n') \
+    -out "${rotated_prefix}-client.crt" >/dev/null 2>&1
+
+  openssl verify \
+    -CAfile "${temporary_directory}/ca.crt" \
+    -purpose sslserver \
+    "${rotated_prefix}-server.crt" >/dev/null
+  openssl verify \
+    -CAfile "${temporary_directory}/ca.crt" \
+    -purpose sslclient \
+    "${rotated_prefix}-client.crt" >/dev/null
+
+  kubectl --namespace "${namespace}" create secret generic foreman-execution-proxy-tls \
+    --from-file=ca.crt="${temporary_directory}/ca.crt" \
+    --from-file=tls.crt="${rotated_prefix}-server.crt" \
+    --from-file=tls.key="${rotated_prefix}-server.key" \
+    --dry-run=client --output=yaml | kubectl apply --filename=-
+  kubectl --namespace "${namespace}" create secret generic foreman-execution-proxy-foreman-client \
+    --from-file=ca.crt="${temporary_directory}/ca.crt" \
+    --from-file=tls.crt="${rotated_prefix}-client.crt" \
+    --from-file=tls.key="${rotated_prefix}-client.key" \
+    --dry-run=client --output=yaml | kubectl apply --filename=-
+  kubectl --namespace "${namespace}" create secret generic foreman-execution-proxy-ssh \
+    --from-file=id_rsa_foreman_proxy="${rotated_prefix}-ssh" \
+    --from-file=id_rsa_foreman_proxy.pub="${rotated_prefix}-ssh.pub" \
+    --dry-run=client --output=yaml | kubectl apply --filename=-
+
+  kubectl --namespace "${namespace}" rollout restart \
+    deployment/execution-target \
+    deployment/execution-foreman-execution-proxy
+  kubectl --namespace "${namespace}" rollout status \
+    deployment/execution-target \
+    --timeout=5m
+  kubectl --namespace "${namespace}" rollout status \
+    deployment/execution-foreman-execution-proxy \
+    --timeout=10m
+}
+
 reset_namespace_for_restore() {
   local kind_node="${cluster_name}-control-plane"
 
@@ -332,7 +406,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-for command_name in kind kubectl helm openssl curl jq docker ssh-keygen; do
+for command_name in kind kubectl helm openssl curl jq docker ssh-keygen cmp; do
   if ! command -v "${command_name}" >/dev/null 2>&1; then
     echo "${command_name} is required" >&2
     exit 1
@@ -486,11 +560,7 @@ kubectl --namespace "${namespace}" rollout status \
   deployment/foreman-foreman-stack-foreman \
   --timeout=10m
 
-kubectl --namespace "${namespace}" rollout restart \
-  deployment/execution-foreman-execution-proxy
-kubectl --namespace "${namespace}" rollout status \
-  deployment/execution-foreman-execution-proxy \
-  --timeout=10m
+rotate_execution_identity
 assert_execution_plane
 
 if [[ "${skip_recovery_test}" == 1 ]]; then
