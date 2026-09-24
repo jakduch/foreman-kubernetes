@@ -52,6 +52,9 @@ manifest = <<~YAML
   ---
   apiVersion: networking.k8s.io/v1
   kind: Ingress
+  metadata:
+    annotations:
+      foreman-kubernetes.io/required-ingress-controller: k8s.io/ingress-nginx
   spec:
     ingressClassName: nginx
 YAML
@@ -64,7 +67,7 @@ abort error unless status.success?
 
 expected = <<~OUTPUT
   DefaultStorageClass\t
-  IngressClass\tnginx
+  IngressClass\tnginx\tk8s.io/ingress-nginx
   PersistentVolumeClaim\timported-content
   ServiceAccount\texternal-runtime
   StorageClass\tfast-rwx

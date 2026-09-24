@@ -12,6 +12,10 @@ mix image profiles from different sets.
 - DNS names and TLS material for the Foreman and Pulp endpoints;
 - the namespace and every Secret referenced by the selected values;
 - Helm, kubectl, jq, Ruby, and access to the digest-pinned images.
+- When ingress is enabled, an IngressClass backed by
+  `k8s.io/ingress-nginx`; the install and upgrade helpers verify the
+  controller because the client-certificate bridge uses ingress-nginx
+  variables and annotations.
 
 The chart does not create production credentials. Copy the example values into
 deployment-owned files outside this repository and create the referenced

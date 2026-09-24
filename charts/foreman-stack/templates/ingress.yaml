@@ -1,5 +1,6 @@
 {{- if .Values.ingress.enabled }}
 {{- $foremanAnnotations := mergeOverwrite (deepCopy .Values.ingress.foreman.annotations) (dict
+  "foreman-kubernetes.io/required-ingress-controller" .Values.ingress.controller
   "nginx.ingress.kubernetes.io/auth-tls-secret" (printf "%s/%s" .Release.Namespace .Values.ingress.foreman.clientCaSecret)
   "nginx.ingress.kubernetes.io/auth-tls-verify-client" "optional"
   "nginx.ingress.kubernetes.io/auth-tls-verify-depth" "3"
@@ -9,6 +10,7 @@
   "nginx.ingress.kubernetes.io/proxy-read-timeout" "900"
 ) -}}
 {{- $pulpAnnotations := mergeOverwrite (deepCopy .Values.ingress.pulpContent.annotations) (dict
+  "foreman-kubernetes.io/required-ingress-controller" .Values.ingress.controller
   "nginx.ingress.kubernetes.io/auth-tls-secret" (printf "%s/%s" .Release.Namespace .Values.ingress.pulpContent.clientCaSecret)
   "nginx.ingress.kubernetes.io/auth-tls-verify-client" "optional"
   "nginx.ingress.kubernetes.io/auth-tls-verify-depth" "3"

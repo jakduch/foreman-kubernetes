@@ -33,7 +33,16 @@ documents.each do |document|
     end
   when 'Ingress'
     ingress_class = document.dig('spec', 'ingressClassName').to_s
-    requirements << ['IngressClass', ingress_class] unless ingress_class.empty?
+    ingress_controller = document.dig(
+      'metadata',
+      'annotations',
+      'foreman-kubernetes.io/required-ingress-controller'
+    ).to_s
+    unless ingress_class.empty?
+      requirement = ['IngressClass', ingress_class]
+      requirement << ingress_controller unless ingress_controller.empty?
+      requirements << requirement
+    end
   end
 
   pod_spec = pod_spec_for.call(document)
@@ -52,4 +61,4 @@ documents.each do |document|
   end
 end
 
-requirements.sort.each { |kind, name| puts "#{kind}\t#{name}" }
+requirements.sort.each { |requirement| puts requirement.join("\t") }

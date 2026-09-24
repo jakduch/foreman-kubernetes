@@ -18,6 +18,9 @@ platform:
 ingress:
   enabled: false
   className: nginx
+  # The mTLS and header-sanitization contract uses ingress-nginx annotations
+  # and variables. A different implementation is not interchangeable.
+  controller: k8s.io/ingress-nginx
   foreman:
     host: foreman.example.test
     tlsSecret: foreman-ingress-tls

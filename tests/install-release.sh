@@ -53,6 +53,17 @@ if [[ "$1" == template && "$2" == foreman ]]; then
     '---' 'kind: Job' \
     '---' 'kind: Job' \
     '---' 'kind: Job'
+  if [[ "${FAKE_RENDER_INGRESS:-0}" == 1 ]]; then
+    printf '%s\n' \
+      '---' \
+      'apiVersion: networking.k8s.io/v1' \
+      'kind: Ingress' \
+      'metadata:' \
+      '  annotations:' \
+      '    foreman-kubernetes.io/required-ingress-controller: k8s.io/ingress-nginx' \
+      'spec:' \
+      '  ingressClassName: nginx'
+  fi
 fi
 if [[ -n "${FAKE_HELM_FAIL_MATCH:-}" && "$*" == *"${FAKE_HELM_FAIL_MATCH}"* ]]; then
   exit 1
@@ -71,6 +82,9 @@ if [[ "$*" == *'get secret required-runtime'* ]]; then
 fi
 if [[ "$*" == 'get storageclass --output=json' ]]; then
   printf '%s\n' '{"items":[{"metadata":{"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}]}'
+fi
+if [[ "$*" == 'get IngressClass nginx --output=json' ]]; then
+  printf '{"spec":{"controller":"%s"}}\n' "${FAKE_INGRESS_CONTROLLER:-k8s.io/ingress-nginx}"
 fi
 SCRIPT
 
@@ -182,6 +196,22 @@ if PATH="${fake_bin}:${PATH}" \
 fi
 if grep -Fq 'helm upgrade --install ' "${tool_log}"; then
   echo 'installation started after Secret key preflight failed' >&2
+  exit 1
+fi
+
+: > "${tool_log}"
+if PATH="${fake_bin}:${PATH}" \
+  FAKE_TOOL_LOG="${tool_log}" \
+  FAKE_RENDER_INGRESS=1 \
+  FAKE_INGRESS_CONTROLLER=example.invalid/controller \
+  ALLOW_CANDIDATE=1 \
+  "${repo_root}/scripts/install-release.sh" \
+    "${application_values}" "${execution_values}" >/dev/null 2>&1; then
+  echo 'installation accepted an incompatible ingress implementation' >&2
+  exit 1
+fi
+if grep -Fq 'helm upgrade --install ' "${tool_log}"; then
+  echo 'installation started after ingress implementation preflight failed' >&2
   exit 1
 fi
 

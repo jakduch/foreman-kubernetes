@@ -39,10 +39,14 @@
     "ingress": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["enabled", "className", "foreman", "pulpContent"],
+      "required": ["enabled", "className", "controller", "foreman", "pulpContent"],
       "properties": {
         "enabled": { "type": "boolean" },
         "className": { "type": "string", "minLength": 1 },
+        "controller": {
+          "const": "k8s.io/ingress-nginx",
+          "description": "The rendered authentication and header contracts require ingress-nginx."
+        },
         "foreman": { "$ref": "#/definitions/ingressEndpoint" },
         "pulpContent": { "$ref": "#/definitions/ingressEndpoint" }
       }

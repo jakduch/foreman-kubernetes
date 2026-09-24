@@ -85,7 +85,9 @@ Katello discovers Pulp through the `pulp_smart_proxy` endpoint served by Pulp it
 
 ### Public edge
 
-The optional ingress profile targets ingress-nginx and uses two hostnames:
+The optional ingress profile requires ingress-nginx and uses two hostnames.
+The release preflight verifies that the selected IngressClass advertises the
+`k8s.io/ingress-nginx` controller before making any release change:
 
 - the Foreman hostname sends every path to Foreman and passes verified optional client-certificate headers required by Katello registration;
 - the content hostname publishes Pulp content, container, Ansible Galaxy, static asset, and registry paths, but not the administrative `/pulp/api/v3` path.

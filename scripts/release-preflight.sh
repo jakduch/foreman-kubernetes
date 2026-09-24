@@ -6,12 +6,13 @@ check_required_cluster_resources() {
   local rendered_resources="$1"
   local namespace="$2"
   local repo_root="$3"
-  local required_resources resource_kind resource_name storage_classes
+  local required_resources resource_kind resource_name resource_contract
+  local storage_classes resource_json
 
   echo 'Preflight: checking cluster storage, ingress, and external workload resources'
   required_resources="$(ruby "${repo_root}/scripts/required-cluster-resources.rb" \
     <<<"${rendered_resources}")"
-  while IFS=$'\t' read -r resource_kind resource_name; do
+  while IFS=$'\t' read -r resource_kind resource_name resource_contract; do
     [[ -n "${resource_kind}" ]] || continue
     case "${resource_kind}" in
       DefaultStorageClass)
@@ -30,11 +31,24 @@ check_required_cluster_resources() {
           return 1
         }
         ;;
-      StorageClass | IngressClass)
+      StorageClass)
         kubectl get "${resource_kind}" "${resource_name}" >/dev/null || {
           echo "required ${resource_kind} ${resource_name} does not exist" >&2
           return 1
         }
+        ;;
+      IngressClass)
+        resource_json="$(kubectl get "${resource_kind}" "${resource_name}" --output=json)" || {
+          echo "required ${resource_kind} ${resource_name} does not exist" >&2
+          return 1
+        }
+        if [[ -n "${resource_contract}" ]]; then
+          jq --exit-status --arg controller "${resource_contract}" \
+            '.spec.controller == $controller' <<<"${resource_json}" >/dev/null || {
+            echo "IngressClass ${resource_name} is not managed by required controller ${resource_contract}" >&2
+            return 1
+          }
+        fi
         ;;
       PersistentVolumeClaim | ServiceAccount)
         kubectl --namespace "${namespace}" get "${resource_kind}" "${resource_name}" >/dev/null || {
