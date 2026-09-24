@@ -141,6 +141,61 @@ assert_secret_probe() {
   fi
 }
 
+assert_database_probes_absent() {
+  local actual_value
+  local database
+
+  for database in foreman candlepin pulp; do
+    actual_value="$(
+      kubectl --namespace "${namespace}" exec deployment/postgresql -- \
+        env "PGPASSWORD=${database}-test" \
+        psql \
+        --host=127.0.0.1 \
+        --username="${database}" \
+        --dbname="${database}" \
+        --tuples-only \
+        --no-align \
+        --command="SELECT to_regclass('public.foreman_kubernetes_recovery_probe') IS NULL"
+    )"
+    if [[ "${actual_value}" != t ]]; then
+      echo "${database} was not reset before the clean restore" >&2
+      exit 1
+    fi
+  done
+}
+
+install_dependencies() {
+  kubectl create namespace "${namespace}" --dry-run=client --output=yaml | kubectl apply --filename=-
+  kubectl apply --filename="${repo_root}/tests/kind/dependencies.yaml"
+  kubectl --namespace "${namespace}" rollout status deployment/postgresql --timeout=5m
+  kubectl --namespace "${namespace}" rollout status deployment/valkey --timeout=5m
+  "${repo_root}/tests/kind/apply-secrets.sh" "${temporary_directory}"
+}
+
+reset_namespace_for_restore() {
+  local kind_node="${cluster_name}-control-plane"
+
+  kubectl delete namespace "${namespace}" --wait=true
+  kubectl delete persistentvolume \
+    foreman-kind-pulp-data \
+    foreman-kind-recovery-repository \
+    --ignore-not-found=true \
+    --wait=true
+
+  docker exec "${kind_node}" \
+    find /var/local/foreman-kind-pulp \
+    -mindepth 1 \
+    -maxdepth 1 \
+    -exec rm -rf -- '{}' +
+  docker exec "${kind_node}" test -f /var/local/foreman-kind-recovery/config
+
+  install_dependencies
+  set_secret_probe after-reset
+  assert_secret_probe after-reset
+  assert_database_probes_absent
+  docker exec "${kind_node}" test ! -e /var/local/foreman-kind-pulp/recovery-probe
+}
+
 cleanup() {
   local exit_status=$?
   if [[ ${exit_status} -ne 0 ]] && kubectl get namespace "${namespace}" >/dev/null 2>&1; then
@@ -209,11 +264,7 @@ helm upgrade --install ingress-nginx ingress-nginx \
   --wait \
   --timeout 10m
 
-kubectl create namespace "${namespace}" --dry-run=client -o yaml | kubectl apply -f -
-kubectl apply -f "${repo_root}/tests/kind/dependencies.yaml"
-kubectl --namespace "${namespace}" rollout status deployment/postgresql --timeout=5m
-kubectl --namespace "${namespace}" rollout status deployment/valkey --timeout=5m
-"${repo_root}/tests/kind/apply-secrets.sh" "${temporary_directory}"
+install_dependencies
 
 helm_apply
 
@@ -255,6 +306,8 @@ if [[ "${skip_recovery_test}" != 1 ]]; then
   assert_database_probes after-backup
   assert_pulp_probe after-backup
   assert_secret_probe after-backup
+
+  reset_namespace_for_restore
 
   helm_apply \
     --set maintenance.enabled=true \

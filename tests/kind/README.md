@@ -8,8 +8,9 @@
 - absence of a public Pulp administrative API route;
 - an encrypted Restic backup of all three PostgreSQL databases, Pulp storage,
   and the declared Secret escrow;
-- restoration after deliberately changing independent probes in every database,
-  the Pulp filesystem, and a Kubernetes Secret;
+- restoration after deliberately changing independent probes, deleting the
+  entire application namespace, recreating empty databases and Pulp storage,
+  and retaining application state only in the Restic repository;
 - Foreman readiness and Pulp registration after leaving restore maintenance;
 - Dynflow worker scaling;
 - a second Helm revision with migration gates and a Foreman rollout.
