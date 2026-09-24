@@ -5,7 +5,9 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 chart="${repo_root}/charts/foreman-stack"
 rendered="$(mktemp)"
 rendered_ingress="$(mktemp)"
-trap 'rm -f "${rendered}" "${rendered_ingress}"' EXIT
+rendered_backup="$(mktemp)"
+rendered_restore="$(mktemp)"
+trap 'rm -f "${rendered}" "${rendered_ingress}" "${rendered_backup}" "${rendered_restore}"' EXIT
 
 helm lint "${chart}"
 helm template test "${chart}" > "${rendered}"
@@ -16,6 +18,21 @@ helm lint "${chart}" --values "${repo_root}/profiles/nightly-candidate-2026-09-2
 helm template foreman "${chart}" \
   --values "${repo_root}/tests/kind/values.yaml" \
   --values "${repo_root}/profiles/nightly-candidate-2026-09-23.yaml" >/dev/null
+helm template test "${chart}" \
+  --set maintenance.enabled=true \
+  --set backup.enabled=true \
+  --set backup.requestId=20260924-120000 > "${rendered_backup}"
+helm template test "${chart}" \
+  --set maintenance.enabled=true \
+  --set restore.enabled=true \
+  --set restore.requestId=20260924-130000 \
+  --set restore.confirmation=RESTORE > "${rendered_restore}"
+
+shellcheck -x \
+  -P "${chart}/files" \
+  "${chart}/files/recovery-common.sh" \
+  "${chart}/files/backup.sh" \
+  "${chart}/files/restore.sh"
 
 grep -q 'name: test-foreman-stack-foreman' "${rendered}"
 grep -q 'name: test-foreman-stack-candlepin' "${rendered}"
@@ -49,6 +66,29 @@ fi
 grep -q 'name: test-foreman-stack-pulp-api' "${rendered}"
 grep -q 'kind: NetworkPolicy' "${rendered}"
 grep -q 'app.kubernetes.io/component: pulp-control-proxy' "${rendered}"
+
+grep -q 'app.kubernetes.io/component: recovery-backup' "${rendered_backup}"
+grep -q 'name: BACKUP_REQUEST_ID' "${rendered_backup}"
+grep -q 'name: RESTIC_CACHE_DIR' "${rendered_backup}"
+grep -q 'resourceNames:' "${rendered_backup}"
+grep -q 'name: test-foreman-stack-backup-20260924-120000' "${rendered_backup}"
+if [[ "$(grep -c '^kind: Deployment$' "${rendered_backup}")" -ne 1 ]]; then
+  echo 'maintenance backup must retain only the non-writing Pulp control proxy Deployment' >&2
+  exit 1
+fi
+if [[ "$(grep -c '^kind: Job$' "${rendered_backup}")" -ne 1 ]]; then
+  echo 'maintenance backup must render only the requested backup Job' >&2
+  exit 1
+fi
+
+grep -q 'app.kubernetes.io/component: recovery-restore' "${rendered_restore}"
+grep -q 'name: RESTORE_CONFIRMATION' "${rendered_restore}"
+grep -A1 'name: RESTORE_CONFIRMATION' "${rendered_restore}" | grep -Eq 'value: "?RESTORE"?'
+grep -q 'name: test-foreman-stack-restore-20260924-130000' "${rendered_restore}"
+if [[ "$(grep -c '^kind: Job$' "${rendered_restore}")" -ne 1 ]]; then
+  echo 'maintenance restore must render only the requested restore Job' >&2
+  exit 1
+fi
 
 if grep -q 'helm.sh/hook: pre-install' "${rendered}"; then
   echo 'migration jobs must not run before their generated configuration exists' >&2
@@ -85,6 +125,33 @@ if helm template test "${chart}" \
   --set foreman.autoscaling.minReplicas=5 \
   --set foreman.autoscaling.maxReplicas=2 >/dev/null 2>&1; then
   echo 'expected an inverted autoscaling range to be rejected' >&2
+  exit 1
+fi
+
+if helm template test "${chart}" \
+  --set backup.enabled=true \
+  --set backup.requestId=20260924 >/dev/null 2>&1; then
+  echo 'expected backup without maintenance mode to be rejected' >&2
+  exit 1
+fi
+
+if helm template test "${chart}" \
+  --set maintenance.enabled=true \
+  --set restore.enabled=true \
+  --set restore.requestId=20260924 \
+  --set restore.confirmation=NO >/dev/null 2>&1; then
+  echo 'expected restore without exact confirmation to be rejected' >&2
+  exit 1
+fi
+
+if helm template test "${chart}" \
+  --set maintenance.enabled=true \
+  --set backup.enabled=true \
+  --set backup.requestId=20260924 \
+  --set restore.enabled=true \
+  --set restore.requestId=20260925 \
+  --set restore.confirmation=RESTORE >/dev/null 2>&1; then
+  echo 'expected simultaneous backup and restore to be rejected' >&2
   exit 1
 fi
 

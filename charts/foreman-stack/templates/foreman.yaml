@@ -12,6 +12,7 @@ spec:
     - name: http
       port: {{ .Values.foreman.service.port }}
       targetPort: http
+{{- if not .Values.maintenance.enabled }}
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -95,4 +96,5 @@ spec:
     matchLabels:
       app.kubernetes.io/instance: {{ .Release.Name }}
       app.kubernetes.io/component: foreman
+{{- end }}
 {{- end }}

@@ -1,4 +1,4 @@
-{{- if .Values.migrations.enabled }}
+{{- if and .Values.migrations.enabled (not .Values.maintenance.enabled) }}
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -34,10 +34,12 @@ spec:
               mountPath: /etc/pulp/certs/database_fields.symmetric.key
               subPath: database_fields.symmetric.key
               readOnly: true
+            {{- include "foreman-stack.pulpDatabaseCaVolumeMount" . | nindent 12 }}
       volumes:
         - name: pulp-config
           secret:
             secretName: {{ .Values.pulp.existingConfigSecret }}
+        {{- include "foreman-stack.pulpDatabaseCaVolume" . | nindent 8 }}
 ---
 apiVersion: batch/v1
 kind: Job
@@ -81,4 +83,5 @@ spec:
         - name: pulp-config
           secret:
             secretName: {{ .Values.pulp.existingConfigSecret }}
+        {{- include "foreman-stack.pulpDatabaseCaVolume" . | nindent 8 }}
 {{- end }}

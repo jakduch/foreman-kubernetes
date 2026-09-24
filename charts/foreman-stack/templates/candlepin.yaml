@@ -12,6 +12,7 @@ spec:
     - name: https
       port: {{ .Values.candlepin.service.port }}
       targetPort: https
+{{- if not .Values.maintenance.enabled }}
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -138,3 +139,4 @@ spec:
           secret:
             secretName: {{ .Values.candlepin.existingDatabaseCaSecret }}
         {{- end }}
+{{- end }}

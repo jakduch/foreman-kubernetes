@@ -1,4 +1,4 @@
-{{- if .Values.recurringTasks.enabled }}
+{{- if and .Values.recurringTasks.enabled (not .Values.maintenance.enabled) }}
 {{- $root := . }}
 {{- range $index, $task := .Values.recurringTasks.tasks }}
 {{- if $index }}

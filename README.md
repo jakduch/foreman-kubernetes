@@ -21,6 +21,8 @@ The initial Helm chart is under [`charts/foreman-stack`](charts/foreman-stack). 
 - independent optional HPAs for Foreman web, Pulp API, and Pulp content replicas;
 - ordered Pulp and Foreman migration Jobs;
 - Foreman recurring tasks as non-overlapping CronJobs.
+- maintenance-gated, encrypted backup and restore Jobs covering all three
+  PostgreSQL databases, Pulp content, and application Secrets.
 
 ## Current status
 
@@ -50,11 +52,18 @@ helm upgrade --install foreman charts/foreman-stack \
 
 Static render checks are available as `tests/render.sh` and run in the lightweight pull-request workflow together with ShellCheck. The opt-in disposable integration harness under `tests/kind/` exercises a real install, mTLS Pulp registration, scaling, and a second Helm revision. It cleans up the generated cluster and PKI by default and is not run for every change.
 
+The recovery Jobs are intentionally one-shot rather than scheduled online
+backups. They enter through an explicit maintenance revision, verify that all
+writers have stopped, and use an independently managed Restic repository. See
+[`docs/disaster-recovery.md`](docs/disaster-recovery.md) for the backup, restore,
+credential, and recovery-drill contracts.
+
 ## Design documents
 
 - [`docs/architecture.md`](docs/architecture.md) describes ownership and topology.
 - [`docs/runtime-contracts.md`](docs/runtime-contracts.md) records the verified upstream runtime contracts and current scaling limits.
 - [`docs/compatibility.md`](docs/compatibility.md) records digest-pinned image candidates and their test status.
+- [`docs/disaster-recovery.md`](docs/disaster-recovery.md) defines portable recovery sets and the destructive restore gate.
 - [`docs/roadmap.md`](docs/roadmap.md) lists the next implementation slices.
 
 ## Upstream source snapshots reviewed

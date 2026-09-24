@@ -1,3 +1,4 @@
+{{- if not .Values.maintenance.enabled }}
 {{- $root := . -}}
 {{- $workers := list
   (dict "name" "orchestrator" "replicas" 1 "config" "dynflow-orchestrator.yml")
@@ -64,4 +65,5 @@ spec:
       volumes:
         {{- include "foreman-stack.foremanVolumes" $root | nindent 8 }}
       {{- include "foreman-stack.topologySpread" (dict "Values" $root.Values "Release" $root.Release "component" (printf "dynflow-%s" $worker.name)) | nindent 6 }}
+{{- end }}
 {{- end }}

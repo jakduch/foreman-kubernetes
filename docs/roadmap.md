@@ -3,9 +3,20 @@
 ## Next vertical slice
 
 1. Run the opt-in kind integration harness against published image sets and record the first known-compatible digests.
-2. Add backup and restore Jobs for all three databases, Pulp content, PKI, and configuration Secrets.
-3. Complete the remaining workload security contexts, disruption budgets, and narrowly scoped egress policies.
-4. Add optional public routes for additional Pulp plugins only when their route and authentication contracts are covered by tests.
+2. Publish the recovery toolbox and exercise the maintenance-gated backup and restore Jobs in the amd64 integration environment.
+3. Extend that drill to replace all state and prove a clean-namespace restore before calling disaster recovery verified.
+4. Complete the remaining workload security contexts, disruption budgets, and narrowly scoped egress policies.
+5. Add optional public routes for additional Pulp plugins only when their route and authentication contracts are covered by tests.
+
+## Implemented, pending integration proof
+
+- One-shot, maintenance-gated recovery Jobs produce encrypted Restic snapshots
+  of all three databases, Pulp filesystem storage, and application Secrets.
+- Restore requires an explicit confirmation value, validates snapshot identity
+  and contents before deletion, and keeps recovery RBAC separate from runtime
+  ServiceAccounts.
+- PostgreSQL servers, database roles, Restic storage, repository credentials,
+  and infrastructure-level backups remain external ownership boundaries.
 
 ## Candlepin HA track
 

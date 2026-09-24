@@ -27,6 +27,7 @@ spec:
     - name: http
       port: {{ .Values.pulp.content.port }}
       targetPort: http
+{{- if not .Values.maintenance.enabled }}
 {{- $root := . }}
 {{- $services := list
   (dict "name" "api" "replicas" .Values.pulp.api.replicas "port" .Values.pulp.api.port "workers" .Values.pulp.api.gunicornWorkers "autoscaling" .Values.pulp.api.autoscaling)
@@ -91,6 +92,7 @@ spec:
               mountPath: /etc/pulp/certs/database_fields.symmetric.key
               subPath: database_fields.symmetric.key
               readOnly: true
+            {{- include "foreman-stack.pulpDatabaseCaVolumeMount" $root | nindent 12 }}
           readinessProbe:
             tcpSocket:
               port: http
@@ -110,6 +112,7 @@ spec:
         - name: pulp-config
           secret:
             secretName: {{ $root.Values.pulp.existingConfigSecret }}
+        {{- include "foreman-stack.pulpDatabaseCaVolume" $root | nindent 8 }}
       {{- include "foreman-stack.topologySpread" (dict "Values" $root.Values "Release" $root.Release "component" (printf "pulp-%s" $service.name)) | nindent 6 }}
 {{- end }}
 ---
@@ -155,6 +158,7 @@ spec:
               mountPath: /etc/pulp/certs/database_fields.symmetric.key
               subPath: database_fields.symmetric.key
               readOnly: true
+            {{- include "foreman-stack.pulpDatabaseCaVolumeMount" . | nindent 12 }}
           resources:
             {{- toYaml .Values.pulp.resources | nindent 12 }}
       volumes:
@@ -164,4 +168,6 @@ spec:
         - name: pulp-config
           secret:
             secretName: {{ .Values.pulp.existingConfigSecret }}
+        {{- include "foreman-stack.pulpDatabaseCaVolume" . | nindent 8 }}
       {{- include "foreman-stack.topologySpread" (dict "Values" .Values "Release" .Release "component" "pulp-worker") | nindent 6 }}
+{{- end }}

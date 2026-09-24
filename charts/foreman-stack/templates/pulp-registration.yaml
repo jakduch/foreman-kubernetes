@@ -1,4 +1,4 @@
-{{- if .Values.pulp.controlProxy.registration.enabled }}
+{{- if and .Values.pulp.controlProxy.registration.enabled (not .Values.maintenance.enabled) }}
 apiVersion: batch/v1
 kind: Job
 metadata:

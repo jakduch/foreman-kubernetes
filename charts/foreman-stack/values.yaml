@@ -53,6 +53,7 @@ foreman:
   service:
     port: 3000
   existingEnvSecret: foreman-runtime
+  databaseUrlSecretKey: DATABASE_URL
   existingCertificateSecret: foreman-certificates
   enabledPlugins:
     - foreman-tasks
@@ -111,6 +112,7 @@ pulp:
   databasePasswordSecretKey: database-password
   djangoSecretKey: django-secret-key
   existingConfigSecret: pulp-config
+  existingDatabaseCaSecret: ""
   database:
     host: postgres.example.test
     port: 5432
@@ -215,3 +217,53 @@ networkPolicy:
 
 affinity:
   spreadAcrossNodes: true
+
+maintenance:
+  # Removes all database-writing workloads while retaining Services, Ingresses,
+  # configuration, and persistent storage. Required for backup and restore Jobs.
+  enabled: false
+
+recovery:
+  image:
+    # Build images/recovery-toolbox and override this before enabling a recovery Job.
+    repository: foreman-kubernetes-recovery-toolbox
+    tag: dev
+    pullPolicy: IfNotPresent
+  repository:
+    # Must contain RESTIC_PASSWORD and, for remote backends, RESTIC_REPOSITORY
+    # plus any provider credentials required by Restic.
+    existingSecret: foreman-backup-repository
+    # Set for a local Restic repository. Keep empty for S3, Azure, SFTP, and
+    # other repositories configured through RESTIC_REPOSITORY.
+    existingClaim: ""
+    path: /repository
+  work:
+    # Database dumps are staged here. Use a dedicated claim when they may exceed
+    # the node's safe ephemeral-storage allowance.
+    existingClaim: ""
+    sizeLimit: 20Gi
+  activeDeadlineSeconds: 21600
+  quiescenceTimeoutSeconds: 600
+  extraSecretNames: []
+
+backup:
+  enabled: false
+  # Change for every requested backup. It becomes part of the immutable Job name.
+  requestId: ""
+  initializeRepository: false
+  retention:
+    enabled: true
+    keepDaily: 7
+    keepWeekly: 5
+    keepMonthly: 12
+    prune: false
+
+restore:
+  enabled: false
+  # Change for every requested restore. It becomes part of the immutable Job name.
+  requestId: ""
+  snapshot: latest
+  # Secret escrow is restored only when explicitly requested. Database access
+  # credentials must still match the externally managed PostgreSQL roles.
+  secrets: false
+  confirmation: ""

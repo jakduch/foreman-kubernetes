@@ -1,4 +1,4 @@
-{{- if .Values.podDisruptionBudget.enabled }}
+{{- if and .Values.podDisruptionBudget.enabled (not .Values.maintenance.enabled) }}
 {{- $root := . }}
 {{- range $index, $component := list "pulp-api" "pulp-content" "pulp-worker" }}
 {{- if $index }}

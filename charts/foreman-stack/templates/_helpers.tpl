@@ -155,6 +155,10 @@ app.kubernetes.io/component: {{ .component }}
   value: {{ .Values.pulp.database.port | quote }}
 - name: PULP_DATABASES__default__OPTIONS__sslmode
   value: {{ .Values.pulp.database.sslMode | quote }}
+{{- if .Values.pulp.existingDatabaseCaSecret }}
+- name: PULP_DATABASES__default__OPTIONS__sslrootcert
+  value: /etc/pulp/certs/db-ca.crt
+{{- end }}
 - name: PULP_REDIS_URL
   value: {{ printf "redis://%s:%v/%v" .Values.valkey.host .Values.valkey.port .Values.valkey.pulpDatabase | quote }}
 - name: PULP_SECRET_KEY
@@ -186,6 +190,23 @@ app.kubernetes.io/component: {{ .component }}
   value: "true"
 - name: PULP_CACHE_ENABLED
   value: "true"
+{{- end }}
+
+{{- define "foreman-stack.pulpDatabaseCaVolumeMount" -}}
+{{- if .Values.pulp.existingDatabaseCaSecret }}
+- name: pulp-database-ca
+  mountPath: /etc/pulp/certs/db-ca.crt
+  subPath: db-ca.crt
+  readOnly: true
+{{- end }}
+{{- end }}
+
+{{- define "foreman-stack.pulpDatabaseCaVolume" -}}
+{{- if .Values.pulp.existingDatabaseCaSecret }}
+- name: pulp-database-ca
+  secret:
+    secretName: {{ .Values.pulp.existingDatabaseCaSecret }}
+{{- end }}
 {{- end }}
 
 {{- define "foreman-stack.foremanMigrationWait" -}}
@@ -220,6 +241,7 @@ app.kubernetes.io/component: {{ .component }}
       mountPath: /etc/pulp/certs/database_fields.symmetric.key
       subPath: database_fields.symmetric.key
       readOnly: true
+    {{- include "foreman-stack.pulpDatabaseCaVolumeMount" . | nindent 4 }}
 {{- end }}
 
 {{- define "foreman-stack.topologySpread" -}}

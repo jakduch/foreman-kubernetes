@@ -1,3 +1,4 @@
+{{- if not .Values.maintenance.enabled }}
 {{- if .Values.foreman.autoscaling.enabled }}
 {{- if gt (int .Values.foreman.autoscaling.minReplicas) (int .Values.foreman.autoscaling.maxReplicas) }}
 {{- fail "foreman.autoscaling.minReplicas must not exceed maxReplicas" }}
@@ -60,5 +61,6 @@ spec:
         target:
           type: Utilization
           averageUtilization: {{ $service.autoscaling.targetCPUUtilizationPercentage }}
+{{- end }}
 {{- end }}
 {{- end }}
