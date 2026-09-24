@@ -17,6 +17,8 @@ deployments.each do |deployment|
   component = deployment.dig('spec', 'template', 'metadata', 'labels', 'app.kubernetes.io/component')
   next unless expected.include?(component)
 
+  deadline = deployment.dig('spec', 'progressDeadlineSeconds').to_i
+  abort "#{component} has no bounded progress deadline" unless deadline.positive?
   strategy = deployment.dig('spec', 'strategy') || {}
   if recreate.include?(component)
     abort "#{component} must use Recreate" unless strategy['type'] == 'Recreate'

@@ -25,6 +25,7 @@ metadata:
   labels:
     {{- include "foreman-stack.componentLabels" (dict "root" . "component" "candlepin") | nindent 4 }}
 spec:
+  progressDeadlineSeconds: {{ .Values.platform.deploymentProgressDeadlineSeconds }}
   replicas: {{ .Values.candlepin.replicas }}
   strategy:
     type: Recreate

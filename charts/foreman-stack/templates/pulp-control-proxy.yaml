@@ -30,6 +30,7 @@ metadata:
   labels:
     {{- include "foreman-stack.componentLabels" (dict "root" . "component" "pulp-control-proxy") | nindent 4 }}
 spec:
+  progressDeadlineSeconds: {{ .Values.platform.deploymentProgressDeadlineSeconds }}
   replicas: {{ .Values.pulp.controlProxy.replicas }}
   strategy:
     type: RollingUpdate

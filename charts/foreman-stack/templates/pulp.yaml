@@ -45,6 +45,7 @@ metadata:
   labels:
     {{- include "foreman-stack.componentLabels" (dict "root" $root "component" (printf "pulp-%s" $service.name)) | nindent 4 }}
 spec:
+  progressDeadlineSeconds: {{ $root.Values.platform.deploymentProgressDeadlineSeconds }}
   {{- if not $service.autoscaling.enabled }}
   replicas: {{ $service.replicas }}
   {{- end }}
@@ -196,6 +197,7 @@ metadata:
   labels:
     {{- include "foreman-stack.componentLabels" (dict "root" . "component" "pulp-worker") | nindent 4 }}
 spec:
+  progressDeadlineSeconds: {{ .Values.platform.deploymentProgressDeadlineSeconds }}
   replicas: {{ .Values.pulp.workers.replicas }}
   strategy:
     type: RollingUpdate

@@ -10,6 +10,7 @@ operation_id = ARGV.fetch(1)
 owner_uid = ARGV.fetch(2)
 deployment = documents.find { |resource| resource['kind'] == 'Deployment' }
 abort 'execution proxy Deployment is missing' unless deployment
+abort 'execution proxy Deployment has no bounded progress deadline' unless deployment.dig('spec', 'progressDeadlineSeconds').to_i.positive?
 
 labels = deployment.dig('metadata', 'labels') || {}
 pod_labels = deployment.dig('spec', 'template', 'metadata', 'labels') || {}

@@ -22,6 +22,7 @@ metadata:
   labels:
     {{- include "foreman-stack.componentLabels" (dict "root" $root "component" (printf "dynflow-%s" $worker.name)) | nindent 4 }}
 spec:
+  progressDeadlineSeconds: {{ $root.Values.platform.deploymentProgressDeadlineSeconds }}
   replicas: {{ $worker.replicas }}
   {{- if eq $worker.name "orchestrator" }}
   # A second orchestrator blocks during boot on the Redis singleton lock. A

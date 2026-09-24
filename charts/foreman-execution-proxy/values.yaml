@@ -24,6 +24,7 @@ image:
 # Smart Proxy Dynflow and the SSH provider retain process-local state. This
 # profile is deliberately a singleton until active-job handoff is supported.
 replicas: 1
+progressDeadlineSeconds: 600
 
 proxy:
   foremanUrl: https://foreman.example.test

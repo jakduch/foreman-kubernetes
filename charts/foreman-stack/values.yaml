@@ -17,6 +17,9 @@ platform:
   externalUrl: https://foreman.example.test
   aliases: []
   trustedProxies: []
+  # Kubernetes reports ProgressDeadlineExceeded before the controller's wider
+  # application phase timeout expires.
+  deploymentProgressDeadlineSeconds: 900
 
 # Set together only by a release controller. The operation ID makes migration
 # and registration Jobs stable across reconciliation retries; the owner UID

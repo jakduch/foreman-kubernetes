@@ -6,6 +6,7 @@ metadata:
   labels:
     {{- include "foreman-stack.componentLabels" (dict "root" . "component" "katello-event-daemon") | nindent 4 }}
 spec:
+  progressDeadlineSeconds: {{ .Values.platform.deploymentProgressDeadlineSeconds }}
   replicas: 1
   strategy:
     type: Recreate

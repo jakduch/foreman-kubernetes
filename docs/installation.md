@@ -149,6 +149,9 @@ both workload rollouts, and verification through `spec.timeouts`. A phase that
 exceeds its budget becomes `Blocked`; the operation Lease is released, but no
 schema or workload rollback is attempted. Correct the scheduling, image,
 storage, or endpoint failure and change `spec.retryToken` to reconcile again.
+Every managed Deployment also has a shorter Kubernetes progress deadline, so
+the controller can normally report the exact `ProgressDeadlineExceeded`
+workload before the broader phase budget is exhausted.
 
 ## Failure boundary
 

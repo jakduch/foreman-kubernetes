@@ -8,6 +8,7 @@ metadata:
   labels:
     {{- include "foreman-execution-proxy.labels" . | nindent 4 }}
 spec:
+  progressDeadlineSeconds: {{ .Values.progressDeadlineSeconds }}
   replicas: {{ .Values.replicas }}
   strategy:
     type: Recreate
