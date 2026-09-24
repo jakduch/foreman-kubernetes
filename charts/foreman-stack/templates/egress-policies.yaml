@@ -237,6 +237,54 @@ spec:
       ports:
         - protocol: TCP
           port: {{ .Values.pulp.api.port }}
+{{- if and .Values.smokeTest.enabled (not .Values.maintenance.enabled) }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "foreman-stack.fullname" . }}-smoke-test-egress
+  labels:
+    {{- include "foreman-stack.componentLabels" (dict "root" . "component" "smoke-test-egress") | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: smoke-test
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - {{- toYaml $dns | nindent 10 }}
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/instance: {{ .Release.Name }}
+              app.kubernetes.io/component: foreman
+      ports:
+        - protocol: TCP
+          port: http
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/instance: {{ .Release.Name }}
+              app.kubernetes.io/component: candlepin
+      ports:
+        - protocol: TCP
+          port: {{ .Values.candlepin.service.port }}
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/instance: {{ .Release.Name }}
+              app.kubernetes.io/component: pulp-api
+      ports:
+        - protocol: TCP
+          port: {{ .Values.pulp.api.port }}
+{{- end }}
 {{- if or .Values.backup.enabled .Values.restore.enabled }}
 ---
 apiVersion: networking.k8s.io/v1

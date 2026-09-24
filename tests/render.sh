@@ -121,7 +121,8 @@ helm template test "${chart}" \
   --set restore.requestId=20260924-130000 \
   --set restore.confirmation=RESTORE > "${rendered_restore}"
 helm template test "${chart}" \
-  --values "${repo_root}/tests/egress-values.yaml" > "${rendered_egress}"
+  --values "${repo_root}/tests/egress-values.yaml" \
+  --set foreman.service.port=3100 > "${rendered_egress}"
 helm template test "${chart}" \
   --values "${repo_root}/tests/egress-values.yaml" \
   --values "${repo_root}/tests/recovery-image-values.yaml" \
@@ -249,6 +250,8 @@ ruby "${repo_root}/tests/valkey-contract.rb" "${rendered_database_tls_disabled}"
 ruby "${repo_root}/tests/valkey-contract.rb" "${rendered_kind}" false
 ruby "${repo_root}/tests/recovery-egress-contract.rb" "${rendered_egress_backup}" true
 ruby "${repo_root}/tests/recovery-egress-contract.rb" "${rendered_egress_backup_local}" false
+ruby "${repo_root}/tests/smoke-network-policy-contract.rb" "${rendered_egress}" 3100
+ruby "${repo_root}/tests/smoke-network-policy-contract.rb" "${rendered_foreman_service_port}" 3100
 ruby "${repo_root}/tests/disruption-budget-contract.rb" "${rendered}"
 ruby "${repo_root}/tests/rollout-strategy-contract.rb" "${rendered}"
 ruby "${repo_root}/tests/topology-spread-contract.rb" "${rendered}" ScheduleAnyway
@@ -557,8 +560,8 @@ grep -A4 '^kind: PodDisruptionBudget$' "${rendered_singletons}" | \
   grep -q 'name: test-foreman-stack-pulp-control'
 ruby "${repo_root}/tests/disruption-budget-contract.rb" "${rendered_singletons}"
 
-if [[ "$(grep -c '^    - Egress$' "${rendered_egress}")" -ne 4 ]]; then
-  echo 'expected component-scoped Foreman, Pulp, Candlepin, and control-proxy egress policies' >&2
+if [[ "$(grep -c '^    - Egress$' "${rendered_egress}")" -ne 5 ]]; then
+  echo 'expected component-scoped Foreman, Pulp, Candlepin, control-proxy, and smoke-test egress policies' >&2
   exit 1
 fi
 grep -q 'cidr: 192.0.2.10/32' "${rendered_egress}"
