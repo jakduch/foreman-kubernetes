@@ -15,11 +15,17 @@ default_set = manifest.fetch('default')
 checks_path = root / 'compatibility/required-integration-checks.json'
 checks_contract = JSON.parse(checks_path.read)
 required_checks = checks_contract.fetch('checks')
+compatibility_documentation = (root / 'docs/compatibility.md').read
 
 raise 'unsupported release-set schema' unless manifest.fetch('schemaVersion') == 1
 raise 'unsupported integration checks schema' unless checks_contract.fetch('schemaVersion') == 1
 raise 'integration checks must be unique non-empty strings' unless required_checks == required_checks.uniq && required_checks.all? { |check| check.is_a?(String) && !check.empty? }
 raise "default release set #{default_set} does not exist" unless sets.key?(default_set)
+environment_values_position = compatibility_documentation.index('--values /secure/path/production-values.yaml')
+profile_position = compatibility_documentation.index('--values profiles/nightly-candidate-2026-09-23.yaml')
+unless environment_values_position && profile_position && environment_values_position < profile_position
+  raise 'compatibility documentation allows environment values to override pinned images'
+end
 
 def profile_path(root, relative_path)
   path = root.join(relative_path).cleanpath

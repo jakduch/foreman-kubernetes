@@ -81,12 +81,14 @@ contract review, not container provenance claims. The disposable SSH target
 uses the verified Alpine 3.22 amd64 manifest
 `sha256:3e9b4b680bfc9fb5269227cffbd6d42be39fbf7c0b908123913864aa4447e764`.
 
-Use the candidate with another values file, keeping environment-specific values later so they win:
+Use the candidate with an environment values file first and the compatibility
+profile last. The profile must win for image fields so environment-specific
+configuration cannot silently replace a reviewed digest with a moving tag:
 
 ```sh
 helm upgrade --install foreman charts/foreman-stack \
-  --values profiles/nightly-candidate-2026-09-23.yaml \
-  --values /secure/path/production-values.yaml
+  --values /secure/path/production-values.yaml \
+  --values profiles/nightly-candidate-2026-09-23.yaml
 ```
 
 The disposable drill uses the manifest default. Select another declared set
