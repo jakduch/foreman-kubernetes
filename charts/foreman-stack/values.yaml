@@ -39,6 +39,11 @@ serviceAccount:
   create: true
   name: ""
 
+smartProxy:
+  # Smart Proxies are independent edge or execution-plane services. This
+  # application chart deliberately does not co-locate one with Foreman.
+  mode: external
+
 foreman:
   image:
     repository: quay.io/foreman/foreman
@@ -58,6 +63,10 @@ foreman:
   enabledPlugins:
     - foreman-tasks
     - katello
+  pluginPolicy:
+    # The official image contains additional plugins, but they need their own
+    # runtime contracts and integration tests before being supported here.
+    allowUnverified: false
   puma:
     workers: 2
     threadsMin: 5

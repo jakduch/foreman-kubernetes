@@ -64,6 +64,8 @@ shellcheck -x \
   "${chart}/files/restore.sh" \
   "${chart}/files/candlepin-migrate.sh"
 
+ruby "${repo_root}/tests/plugin-compatibility.rb"
+
 grep -Fq \
   'apache/artemis:2.57.0-alpine@sha256:ca99ce1b72c5765a15dd507db4215591c43da623cd9f42db1bcd4319e5f4b579' \
   "${repo_root}/tests/kind/dependencies.yaml"
@@ -253,6 +255,28 @@ fi
 if helm template test "${chart}" \
   --set pulp.storage.backend=s3 >/dev/null 2>&1; then
   echo 'expected object storage without a bucket to be rejected' >&2
+  exit 1
+fi
+
+if helm template test "${chart}" \
+  --set-json 'foreman.enabledPlugins=["foreman-tasks","katello","foreman_ansible"]' >/dev/null 2>&1; then
+  echo 'expected unverified Foreman plugins to require an explicit policy override' >&2
+  exit 1
+fi
+
+if helm template test "${chart}" \
+  --set foreman.pluginPolicy.allowUnverified=true \
+  --set-json 'foreman.enabledPlugins=["foreman-tasks","katello","foreman_ansible"]' >/dev/null 2>&1; then
+  echo 'expected Foreman Ansible to require the Remote Execution plugin' >&2
+  exit 1
+fi
+
+helm template test "${chart}" \
+  --set foreman.pluginPolicy.allowUnverified=true \
+  --set-json 'foreman.enabledPlugins=["foreman-tasks","katello","foreman_remote_execution","foreman_ansible"]' >/dev/null
+
+if helm template test "${chart}" --set smartProxy.mode=embedded >/dev/null 2>&1; then
+  echo 'expected embedded Smart Proxy mode to be rejected' >&2
   exit 1
 fi
 

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft-07/schema#",
   "type": "object",
-  "required": ["platform", "ingress", "valkey", "sharedSecret", "foreman", "candlepin", "pulp", "networkPolicy", "maintenance", "recovery", "backup", "restore"],
+  "required": ["platform", "ingress", "valkey", "sharedSecret", "smartProxy", "foreman", "candlepin", "pulp", "networkPolicy", "maintenance", "recovery", "backup", "restore"],
   "properties": {
     "platform": {
       "type": "object",
@@ -38,15 +38,57 @@
         "candlepinOAuthSecretKey": { "type": "string", "minLength": 1 }
       }
     },
+    "smartProxy": {
+      "type": "object",
+      "required": ["mode"],
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "const": "external",
+          "description": "The application chart never embeds Smart Proxy network services in Foreman pods."
+        }
+      }
+    },
     "foreman": {
       "type": "object",
-      "required": ["existingEnvSecret", "databaseUrlSecretKey", "existingCertificateSecret"],
+      "required": ["existingEnvSecret", "databaseUrlSecretKey", "existingCertificateSecret", "enabledPlugins", "pluginPolicy"],
       "properties": {
         "replicas": { "type": "integer", "minimum": 1 },
         "autoscaling": { "$ref": "#/definitions/autoscaling" },
         "existingEnvSecret": { "type": "string", "minLength": 1 },
         "databaseUrlSecretKey": { "type": "string", "minLength": 1 },
         "existingCertificateSecret": { "type": "string", "minLength": 1 },
+        "enabledPlugins": {
+          "type": "array",
+          "minItems": 2,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "foreman-tasks",
+              "foreman_remote_execution",
+              "katello",
+              "foreman_google",
+              "foreman_azure_rm",
+              "foreman_kubevirt",
+              "foreman_rh_cloud",
+              "foreman_ansible",
+              "foreman_webhooks",
+              "foreman_virt_who_configure"
+            ]
+          },
+          "allOf": [
+            { "contains": { "const": "foreman-tasks" } },
+            { "contains": { "const": "katello" } }
+          ]
+        },
+        "pluginPolicy": {
+          "type": "object",
+          "required": ["allowUnverified"],
+          "additionalProperties": false,
+          "properties": {
+            "allowUnverified": { "type": "boolean" }
+          }
+        },
         "dynflow": {
           "type": "object",
           "properties": {
@@ -92,7 +134,7 @@
     },
     "pulp": {
       "type": "object",
-      "required": ["serviceAccount", "existingRuntimeSecret", "existingConfigSecret", "existingDatabaseCaSecret", "database", "contentOrigin", "controlProxy", "storage"],
+      "required": ["serviceAccount", "existingRuntimeSecret", "existingConfigSecret", "existingDatabaseCaSecret", "database", "contentOrigin", "enabledPlugins", "controlProxy", "storage"],
       "properties": {
         "serviceAccount": {
           "type": "object",
@@ -111,6 +153,29 @@
         "existingDatabaseCaSecret": { "type": "string" },
         "database": { "$ref": "#/definitions/database" },
         "contentOrigin": { "type": "string", "pattern": "^https?://" },
+        "enabledPlugins": {
+          "type": "array",
+          "minItems": 3,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "pulp_certguard",
+              "pulp_file",
+              "pulp_ansible",
+              "pulp_container",
+              "pulp_deb",
+              "pulp_ostree",
+              "pulp_python",
+              "pulp_rpm",
+              "pulp_smart_proxy"
+            ]
+          },
+          "allOf": [
+            { "contains": { "const": "pulp_certguard" } },
+            { "contains": { "const": "pulp_file" } },
+            { "contains": { "const": "pulp_smart_proxy" } }
+          ]
+        },
         "api": {
           "type": "object",
           "required": ["replicas", "port", "gunicornWorkers", "autoscaling"],
@@ -332,6 +397,50 @@
     }
   },
   "allOf": [
+    {
+      "if": {
+        "properties": {
+          "foreman": {
+            "properties": {
+              "pluginPolicy": {
+                "properties": { "allowUnverified": { "const": false } }
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "foreman": {
+            "properties": {
+              "enabledPlugins": {
+                "items": { "enum": ["foreman-tasks", "katello"] }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "foreman": {
+            "properties": {
+              "enabledPlugins": { "contains": { "const": "foreman_ansible" } }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "foreman": {
+            "properties": {
+              "enabledPlugins": { "contains": { "const": "foreman_remote_execution" } }
+            }
+          }
+        }
+      }
+    },
     {
       "if": {
         "properties": {

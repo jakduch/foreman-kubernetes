@@ -10,6 +10,12 @@
 6. Exercise the S3-compatible Pulp backend against a real versioned object
    store, including direct downloads, multipart uploads, credential rotation,
    and a coordinated database/bucket restore.
+7. Promote packaged plugins individually from the machine-readable inventory;
+   each needs migrations, runtime dependencies, one real workflow, restart,
+   scale, and recovery proof.
+8. Build a separate central-execution proxy profile for Remote Execution and
+   Ansible. Keep DHCP, DNS, TFTP, BMC, Realm, Discovery, Puppet/OpenVox, and
+   OpenSCAP out of that profile through a positive feature allow-list.
 
 ## Implemented, pending integration proof
 

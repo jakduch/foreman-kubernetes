@@ -159,4 +159,16 @@ policy. Their lifecycle and external ownership boundaries are defined in
 
 ## Network services
 
-DHCP, DNS, TFTP, BMC, and isolated provisioning networks are not moved into the central application pods. Smart Proxies remain edge agents close to those networks. A later chart will manage proxy registration and credentials without requiring the Kubernetes cluster to bridge every provisioning VLAN.
+DHCP, DNS, TFTP, BMC, and isolated provisioning networks are not moved into the central application pods. Smart Proxies remain edge agents close to those networks. They are not necessarily one fixed machine: a deployment can register multiple proxies and assign each subnet, organization, or location to the proxy that can actually reach it.
+
+The application chart fixes `smartProxy.mode` to `external`. It neither runs the
+Smart Proxy process nor exposes infrastructure service ports, host networking,
+privileged mode, or Linux capabilities. Functions historically co-located on
+an all-in-one Foreman server therefore do not silently move into the Foreman
+web container.
+
+A separate central execution proxy may later run Remote Execution and Ansible
+inside Kubernetes when its keys, artifacts, queues, callbacks, target egress,
+restart behavior, and scale semantics are proven. Network-control features
+remain forbidden in that profile. The detailed plugin and feature placement
+policy is in [`plugin-compatibility.md`](plugin-compatibility.md).

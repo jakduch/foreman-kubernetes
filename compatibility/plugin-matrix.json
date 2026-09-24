@@ -1,0 +1,108 @@
+{
+  "snapshot": {
+    "reviewedOn": "2026-09-24",
+    "foremanOciImagesCommit": "3aca77e57e1ccf5498312bea4fb9a66c7c1a40cb",
+    "pulpOciImagesCommit": "8a1bb6250901853f8666c997bf39343e7a54a5a6",
+    "foremanctlCommit": "cb135b25817fba875061a7d4495fe14ad2bd474e"
+  },
+  "foreman": [
+    {
+      "name": "foreman-tasks",
+      "enabledByDefault": true,
+      "placement": "application",
+      "status": "chart-wired-integration-pending",
+      "requires": ["dynflow", "postgresql", "valkey"]
+    },
+    {
+      "name": "katello",
+      "enabledByDefault": true,
+      "placement": "application",
+      "status": "chart-wired-integration-pending",
+      "requires": ["foreman-tasks", "candlepin", "pulp"]
+    },
+    {
+      "name": "foreman_remote_execution",
+      "enabledByDefault": false,
+      "placement": "application-plus-external-proxy",
+      "status": "packaged-runtime-contract-missing",
+      "requires": ["foreman-tasks", "smart_proxy_dynflow", "smart_proxy_remote_execution_ssh"]
+    },
+    {
+      "name": "foreman_ansible",
+      "enabledByDefault": false,
+      "placement": "application-plus-external-proxy",
+      "status": "packaged-runtime-contract-missing",
+      "requires": ["foreman_remote_execution", "smart_proxy_ansible"]
+    },
+    {
+      "name": "foreman_google",
+      "enabledByDefault": false,
+      "placement": "application",
+      "status": "packaged-integration-pending",
+      "requires": ["cloud-credentials", "provider-egress"]
+    },
+    {
+      "name": "foreman_azure_rm",
+      "enabledByDefault": false,
+      "placement": "application",
+      "status": "packaged-integration-pending",
+      "requires": ["cloud-credentials", "provider-egress"]
+    },
+    {
+      "name": "foreman_kubevirt",
+      "enabledByDefault": false,
+      "placement": "application",
+      "status": "packaged-integration-pending",
+      "requires": ["kubevirt-api-credentials", "provider-egress"]
+    },
+    {
+      "name": "foreman_rh_cloud",
+      "enabledByDefault": false,
+      "placement": "application",
+      "status": "packaged-integration-pending",
+      "requires": ["katello", "cloud-credentials", "provider-egress"]
+    },
+    {
+      "name": "foreman_webhooks",
+      "enabledByDefault": false,
+      "placement": "application",
+      "status": "packaged-integration-pending",
+      "requires": ["destination-egress"]
+    },
+    {
+      "name": "foreman_virt_who_configure",
+      "enabledByDefault": false,
+      "placement": "application-plus-external-service",
+      "status": "packaged-runtime-contract-missing",
+      "requires": ["virt-who-service"]
+    }
+  ],
+  "pulp": [
+    { "name": "pulp_certguard", "enabledByDefault": true, "status": "chart-wired-integration-pending" },
+    { "name": "pulp_file", "enabledByDefault": true, "status": "chart-wired-integration-pending" },
+    { "name": "pulp_ansible", "enabledByDefault": false, "status": "packaged-route-test-pending" },
+    { "name": "pulp_container", "enabledByDefault": true, "status": "chart-wired-integration-pending" },
+    { "name": "pulp_deb", "enabledByDefault": true, "status": "chart-wired-integration-pending" },
+    { "name": "pulp_ostree", "enabledByDefault": false, "status": "packaged-route-test-pending" },
+    { "name": "pulp_python", "enabledByDefault": false, "status": "packaged-route-test-pending" },
+    { "name": "pulp_rpm", "enabledByDefault": true, "status": "chart-wired-integration-pending" },
+    { "name": "pulp_smart_proxy", "enabledByDefault": true, "status": "chart-wired-integration-pending" }
+  ],
+  "smartProxyImagePlugins": [
+    {
+      "name": "remote_execution_ssh",
+      "placement": "central-execution-or-edge",
+      "status": "packaged-not-deployed"
+    },
+    {
+      "name": "ansible",
+      "placement": "central-execution-or-edge",
+      "status": "packaged-not-deployed"
+    },
+    {
+      "name": "container_gateway",
+      "placement": "edge-content",
+      "status": "packaged-not-deployed"
+    }
+  ]
+}

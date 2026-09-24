@@ -9,6 +9,9 @@ This repository composes separately released Foreman, Katello, Candlepin, and Pu
 - **Candlepin** remains its own Java service, image, configuration, and Deployment.
 - **Pulp** remains its own service family. API, content, and worker processes scale independently.
 - This repository owns only Kubernetes orchestration, upgrade sequencing, health contracts, and deployment policy.
+- Smart Proxies remain independent edge or execution-plane services. The
+  application chart never embeds DHCP, DNS, TFTP, or another generic proxy in
+  the Foreman web pods.
 
 The initial Helm chart is under [`charts/foreman-stack`](charts/foreman-stack). It renders:
 
@@ -79,6 +82,7 @@ credential, and recovery-drill contracts.
 - [`docs/architecture.md`](docs/architecture.md) describes ownership and topology.
 - [`docs/runtime-contracts.md`](docs/runtime-contracts.md) records the verified upstream runtime contracts and current scaling limits.
 - [`docs/compatibility.md`](docs/compatibility.md) records digest-pinned image candidates and their test status.
+- [`docs/plugin-compatibility.md`](docs/plugin-compatibility.md) records the packaged plugin inventory, proof level, and Smart Proxy placement policy.
 - [`docs/disaster-recovery.md`](docs/disaster-recovery.md) defines portable recovery sets and the destructive restore gate.
 - [`docs/candlepin-ha.md`](docs/candlepin-ha.md) defines the external broker, clustered scheduler, and migration boundary.
 - [`docs/pulp-object-storage.md`](docs/pulp-object-storage.md) defines the optional S3-compatible artifact backend and its recovery boundary.
