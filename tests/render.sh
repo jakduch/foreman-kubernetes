@@ -59,6 +59,16 @@ helm template test "${chart}" \
   --set pulp.content.replicas=1 \
   --set pulp.workers.replicas=1 > "${rendered_singletons}"
 
+for manifest in \
+  "${rendered}" \
+  "${rendered_ingress}" \
+  "${rendered_egress}" \
+  "${rendered_singletons}" \
+  "${rendered_ha}" \
+  "${rendered_s3}"; do
+  ruby "${repo_root}/tests/kubernetes-invariants.rb" "${manifest}"
+done
+
 shellcheck -x \
   -P "${chart}/files" \
   "${chart}/files/recovery-common.sh" \
