@@ -51,7 +51,7 @@
     },
     "foreman": {
       "type": "object",
-      "required": ["existingEnvSecret", "databaseUrlSecretKey", "existingCertificateSecret", "enabledPlugins", "pluginPolicy"],
+      "required": ["existingEnvSecret", "databaseUrlSecretKey", "existingCertificateSecret", "enabledPlugins", "pluginPolicy", "katelloEventDaemon"],
       "properties": {
         "replicas": { "type": "integer", "minimum": 1 },
         "autoscaling": { "$ref": "#/definitions/autoscaling" },
@@ -96,6 +96,15 @@
             "workerConcurrency": { "type": "integer", "minimum": 1 },
             "hostsQueueWorkers": { "type": "integer", "minimum": 1 },
             "hostsQueueConcurrency": { "type": "integer", "minimum": 1 }
+          }
+        },
+        "katelloEventDaemon": {
+          "type": "object",
+          "required": ["heartbeatIntervalSeconds", "heartbeatStaleSeconds", "resources"],
+          "properties": {
+            "heartbeatIntervalSeconds": { "type": "integer", "minimum": 1 },
+            "heartbeatStaleSeconds": { "type": "integer", "minimum": 2 },
+            "resources": { "type": "object" }
           }
         }
       }

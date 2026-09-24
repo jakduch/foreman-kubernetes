@@ -1,0 +1,103 @@
+{{- if not .Values.maintenance.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "foreman-stack.fullname" . }}-katello-event-daemon
+  labels:
+    {{- include "foreman-stack.componentLabels" (dict "root" . "component" "katello-event-daemon") | nindent 4 }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: katello-event-daemon
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "foreman-stack.name" . }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: katello-event-daemon
+      annotations:
+        checksum/config: {{ toJson (dict "platform" .Values.platform "valkey" .Values.valkey "foreman" .Values.foreman "candlepinService" (include "foreman-stack.candlepinServiceName" .)) | sha256sum }}
+    spec:
+      serviceAccountName: {{ include "foreman-stack.serviceAccountName" . }}
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        fsGroup: 994
+        fsGroupChangePolicy: OnRootMismatch
+        runAsGroup: 994
+        runAsNonRoot: true
+        runAsUser: 994
+        seccompProfile:
+          type: RuntimeDefault
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.migrations.enabled }}
+      initContainers:
+        {{- include "foreman-stack.foremanMigrationWait" . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: katello-event-daemon
+          image: {{ include "foreman-stack.image" .Values.foreman.image }}
+          imagePullPolicy: {{ .Values.foreman.image.pullPolicy }}
+          securityContext:
+            {{- include "foreman-stack.restrictedContainerSecurityContext" (dict "runAsUser" 994 "runAsGroup" 994) | nindent 12 }}
+          command:
+            - bin/rails
+            - runner
+            - /opt/foreman-kubernetes/katello-event-daemon.rb
+          env:
+            {{- include "foreman-stack.foremanEnv" . | nindent 12 }}
+            - name: KATELLO_EVENT_DAEMON_ENABLED
+              value: "true"
+            - name: KATELLO_EVENT_DAEMON_HEARTBEAT
+              value: /tmp/katello-event-daemon-heartbeat
+            - name: KATELLO_EVENT_DAEMON_HEARTBEAT_INTERVAL
+              value: {{ .Values.foreman.katelloEventDaemon.heartbeatIntervalSeconds | quote }}
+          envFrom:
+            - secretRef:
+                name: {{ .Values.foreman.existingEnvSecret }}
+          volumeMounts:
+            {{- include "foreman-stack.foremanVolumeMounts" . | nindent 12 }}
+            - name: foreman-generated-config
+              mountPath: /opt/foreman-kubernetes/katello-event-daemon.rb
+              subPath: katello-event-daemon.rb
+              readOnly: true
+          startupProbe:
+            exec:
+              command:
+                - /bin/bash
+                - -ec
+                - test -f "${KATELLO_EVENT_DAEMON_HEARTBEAT}"
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 60
+          readinessProbe:
+            exec:
+              command:
+                - /bin/bash
+                - -ec
+                - test -f "${KATELLO_EVENT_DAEMON_HEARTBEAT}" && test "$(( $(date +%s) - $(cat "${KATELLO_EVENT_DAEMON_HEARTBEAT}") ))" -lt {{ .Values.foreman.katelloEventDaemon.heartbeatStaleSeconds }}
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 3
+          livenessProbe:
+            exec:
+              command:
+                - /bin/bash
+                - -ec
+                - test -f "${KATELLO_EVENT_DAEMON_HEARTBEAT}" && test "$(( $(date +%s) - $(cat "${KATELLO_EVENT_DAEMON_HEARTBEAT}") ))" -lt {{ .Values.foreman.katelloEventDaemon.heartbeatStaleSeconds }}
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          resources:
+            {{- toYaml .Values.foreman.katelloEventDaemon.resources | nindent 12 }}
+      volumes:
+        {{- include "foreman-stack.foremanVolumes" . | nindent 8 }}
+      {{- include "foreman-stack.topologySpread" (dict "Values" .Values "Release" .Release "component" "katello-event-daemon") | nindent 6 }}
+{{- end }}

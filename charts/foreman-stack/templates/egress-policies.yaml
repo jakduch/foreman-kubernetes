@@ -37,6 +37,7 @@ spec:
           - dynflow-orchestrator
           - dynflow-worker
           - dynflow-worker-hosts-queue
+          - katello-event-daemon
           - foreman-cron
           - foreman-migrate
           - pulp-registration

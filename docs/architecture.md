@@ -144,6 +144,13 @@ the local process has opened and retained its listener. A database, Valkey, or
 peer-service outage must not make Kubernetes restart every otherwise healthy
 application process and amplify the outage into a restart loop.
 
+Katello's event daemon is a separate singleton Deployment. Upstream starts it
+lazily from Rails middleware and protects it with a PID file on the local
+filesystem, which cannot coordinate multiple web pods. All other
+Foreman-derived workloads therefore default the daemon off; the dedicated pod
+is the only process that enables it and publishes a local health heartbeat.
+Events remain durable in PostgreSQL while that pod is unavailable.
+
 The chart also exposes an opt-in-on-invocation Helm test. Its short-lived,
 unprivileged Job calls the Foreman/Katello aggregate health endpoint and the
 Candlepin and Pulp status endpoints through the same NetworkPolicy boundary as

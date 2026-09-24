@@ -76,6 +76,15 @@ foreman:
     workerConcurrency: 10
     hostsQueueWorkers: 1
     hostsQueueConcurrency: 5
+  katelloEventDaemon:
+    heartbeatIntervalSeconds: 5
+    heartbeatStaleSeconds: 30
+    resources:
+      requests:
+        cpu: 100m
+        memory: 512Mi
+      limits:
+        memory: 2Gi
   resources:
     requests:
       cpu: 500m

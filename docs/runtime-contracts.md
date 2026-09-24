@@ -57,6 +57,14 @@ Katello extends Foreman's ping response. Its checks expect:
 - at least one online Pulp worker and content app;
 - Foreman Tasks executors and the Katello event daemon.
 
+Katello starts its event daemon lazily from Rails middleware and coordinates a
+singleton only through a PID file below the local Rails `tmp` directory. That
+does not provide cross-pod exclusion. The chart disables it by default in every
+Foreman-derived process and runs it in one dedicated `Recreate` Deployment.
+That process publishes a local heartbeat only while Katello reports its event
+poller as running; readiness and liveness use the heartbeat, while event status
+continues to be shared with web pods through the configured Redis Rails cache.
+
 ## Candlepin image
 
 - Ends its image build with `USER tomcat`; the chart requires that resolved

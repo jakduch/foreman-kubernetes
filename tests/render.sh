@@ -112,6 +112,7 @@ done
 
 ruby "${repo_root}/tests/candlepin-port.rb" "${rendered_candlepin_port}" 24443
 ruby "${repo_root}/tests/pulp-process-contract.rb" "${rendered}"
+ruby "${repo_root}/tests/katello-event-daemon-contract.rb" "${rendered_egress}"
 
 ruby "${repo_root}/tests/kubernetes-invariants.rb" "${rendered_execution}"
 ruby "${repo_root}/tests/kubernetes-invariants.rb" "${rendered_execution_egress}"
@@ -281,6 +282,7 @@ grep -q 'name: test-foreman-stack-foreman' "${rendered}"
 grep -q 'name: test-foreman-stack-candlepin' "${rendered}"
 grep -q 'name: test-foreman-stack-dynflow-orchestrator' "${rendered}"
 grep -q 'name: test-foreman-stack-pulp-worker' "${rendered}"
+grep -q 'name: test-foreman-stack-katello-event-daemon' "${rendered}"
 RUBY_RENDERED_MANIFEST="${rendered}" ruby <<'RUBY'
 require 'yaml'
 
@@ -339,8 +341,8 @@ grep -q 'runAsUser: 994' "${rendered}"
 grep -q 'runAsUser: 700' "${rendered}"
 grep -q 'type: RuntimeDefault' "${rendered}"
 grep -q 'name: test-foreman-stack-dynflow-worker' "${rendered}"
-if [[ "$(grep -c 'startupProbe:' "${rendered}")" -ne 5 ]]; then
-  echo 'expected startup probes for Foreman, Candlepin, Pulp API/content, and the Pulp control proxy' >&2
+if [[ "$(grep -c 'startupProbe:' "${rendered}")" -ne 6 ]]; then
+  echo 'expected startup probes for Foreman, Katello events, Candlepin, Pulp API/content, and the Pulp control proxy' >&2
   exit 1
 fi
 if [[ "$(grep -A3 'livenessProbe:' "${rendered}" | grep -c 'tcpSocket:')" -ne 5 ]]; then
