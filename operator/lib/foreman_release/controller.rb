@@ -2,11 +2,12 @@
 
 require 'json'
 require 'time'
+require_relative 'controller_status'
 
 module ForemanRelease
   class Controller
     def initialize(namespace:, kubernetes_client:, reconciler:, leader_elector:, poll_seconds: 5,
-                   sleeper: ->(seconds) { sleep(seconds) }, output: $stdout)
+                   sleeper: ->(seconds) { sleep(seconds) }, output: $stdout, status: ControllerStatus.new)
       raise ArgumentError, 'controller namespace is required' if namespace.to_s.empty?
       raise ArgumentError, 'poll interval must be at least one second' if poll_seconds < 1
 
@@ -17,11 +18,13 @@ module ForemanRelease
       @poll_seconds = poll_seconds
       @sleeper = sleeper
       @output = output
+      @status = status
       @stopping = false
       @leadership_state = nil
     end
 
     def run
+      @status.started
       log('info', 'controller_started', namespace: @namespace, pollSeconds: @poll_seconds)
       begin
         until @stopping
@@ -30,6 +33,7 @@ module ForemanRelease
         end
       ensure
         @leader_elector.release
+        @status.stopped
       end
       log('info', 'controller_stopped', namespace: @namespace)
     end
@@ -38,14 +42,19 @@ module ForemanRelease
       leadership = @leader_elector.acquire
       unless leadership.state == :succeeded
         log_leadership('standby', leadership.message)
+        @status.cycle_succeeded
         return :standby
       end
       log_leadership('leader', leadership.message)
       @kubernetes_client.releases(@namespace).each do |resource|
         reconcile(resource)
       end
+      @status.cycle_succeeded
+      :leader
     rescue StandardError => error
+      @status.cycle_failed
       log('error', 'controller_cycle_failed', error: error.class.name, message: error.message)
+      :failed
     end
 
     def stop
@@ -58,6 +67,7 @@ module ForemanRelease
       return if @leadership_state == state
 
       @leadership_state = state
+      @status.role_changed(state)
       log('info', 'leadership_changed', state: state, message: message)
     end
 

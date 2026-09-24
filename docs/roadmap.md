@@ -115,5 +115,5 @@ takeover, restart adoption, foreign-owner contention, expiration, renewal,
 race-safe release, and the no-rollback boundary.
 
 The remaining operator work is real-cluster qualification of the published
-image and exact compatibility set, retained evidence, observability, and API
-versioning rather than another parallel implementation.
+image and exact compatibility set, retained evidence, alert-rule packaging,
+and API versioning rather than another parallel implementation.

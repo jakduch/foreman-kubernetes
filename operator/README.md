@@ -12,6 +12,14 @@ standby and an expired holder is replaced with a resource-version-guarded
 update. The release-operation Lease below remains a second fence shared with
 manual writers.
 
+The controller serves `/livez`, `/readyz`, and Prometheus text metrics on its
+health port. Readiness requires at least one successful leader or standby API
+cycle within the configured staleness window; a responsive process with a
+wedged or unreachable Kubernetes API therefore leaves Service endpoints
+without triggering an immediate liveness restart. Metrics expose only process
+state, current leader role, cycle counters, and the last successful timestamp,
+never release specs, Secret contents, or command output.
+
 `operator/lib/foreman_release/reconciler.rb` turns the transition contract into
 an idempotent reconciliation loop behind a side-effect adapter. It persists a
 phase before the following reconciliation performs work, observes active

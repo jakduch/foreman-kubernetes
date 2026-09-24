@@ -73,15 +73,18 @@ client = ControllerClient.new(releases)
 reconciler = ControllerReconciler.new
 output = StringIO.new
 leader = ControllerLeader.new
+controller_status = ForemanRelease::ControllerStatus.new
 controller = ForemanRelease::Controller.new(
   namespace: 'platform',
   kubernetes_client: client,
   reconciler: reconciler,
   leader_elector: leader,
+  status: controller_status,
   output: output
 )
 controller.run_once
 raise 'one failed resource stopped the reconciliation batch' unless reconciler.names == %w[foreman broken second]
+raise 'leader cycle was not published to health state' unless controller_status.snapshot.values_at(:role, :successful_cycles) == [:leader, 1]
 
 events = output.string.lines.map { |line| JSON.parse(line) }
 raise 'successful reconciliation was not logged' unless events.any? { |event| event['event'] == 'release_reconciled' && event['release'] == 'foreman' }
@@ -91,20 +94,24 @@ raise 'controller log exposed a release spec' if events.any? { |event| event.key
 
 standby_reconciler = ControllerReconciler.new
 standby_leader = ControllerLeader.new(:busy)
+standby_status = ForemanRelease::ControllerStatus.new
 standby = ForemanRelease::Controller.new(
   namespace: 'platform',
   kubernetes_client: ControllerClient.new(releases),
   reconciler: standby_reconciler,
   leader_elector: standby_leader,
+  status: standby_status,
   output: StringIO.new
 )
 raise 'standby controller did not skip reconciliation' unless standby.run_once == :standby
 raise 'standby controller reconciled a release' unless standby_reconciler.names.empty?
+raise 'standby cycle was not published to health state' unless standby_status.snapshot.values_at(:role, :successful_cycles) == [:standby, 1]
 
 client.error = RuntimeError.new('API unavailable')
 controller.run_once
 events = output.string.lines.map { |line| JSON.parse(line) }
 raise 'controller cycle failure was not isolated and logged' unless events.last['event'] == 'controller_cycle_failed'
+raise 'failed cycle did not clear leadership health' unless controller_status.snapshot.values_at(:role, :failed_cycles) == [:unknown, 1]
 
 ticks = []
 looping_client = ControllerClient.new([])

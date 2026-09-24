@@ -23,6 +23,18 @@ release_lease = environment.find { |entry| entry['name'] == 'RELEASE_LEASE_DURAT
 abort 'operator commands have no execution deadline' unless command_timeout&.fetch('value') == '60'
 abort 'operator commands have no termination grace period' unless command_grace&.fetch('value') == '5'
 abort 'operation Lease does not outlive bounded commands' unless release_lease&.fetch('value') == '300'
+health_port = environment.find { |entry| entry['name'] == 'HEALTH_PORT' }
+readiness_staleness = environment.find { |entry| entry['name'] == 'READINESS_MAX_STALENESS_SECONDS' }
+abort 'operator health port is not explicit' unless health_port&.fetch('value') == '9393'
+abort 'operator readiness staleness is not explicit' unless readiness_staleness&.fetch('value') == '180'
+container = deployment.dig('spec', 'template', 'spec', 'containers', 0)
+abort 'operator liveness does not use /livez' unless container.dig('livenessProbe', 'httpGet', 'path') == '/livez'
+abort 'operator readiness does not use /readyz' unless container.dig('readinessProbe', 'httpGet', 'path') == '/readyz'
+
+service = documents.find { |item| item['kind'] == 'Service' }
+abort 'operator metrics Service is missing' unless service
+metrics_port = Array(service.dig('spec', 'ports')).find { |port| port['name'] == 'metrics' }
+abort 'operator metrics Service does not target health port' unless metrics_port&.fetch('targetPort') == 'health'
 
 pdb = documents.find { |item| item['kind'] == 'PodDisruptionBudget' }
 abort 'operator PodDisruptionBudget is missing' unless pdb

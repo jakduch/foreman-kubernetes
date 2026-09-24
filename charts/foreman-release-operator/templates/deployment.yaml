@@ -73,6 +73,10 @@ spec:
               value: {{ .Values.controller.commandTimeoutSeconds | quote }}
             - name: COMMAND_TERMINATION_GRACE_SECONDS
               value: {{ .Values.controller.commandTerminationGraceSeconds | quote }}
+            - name: HEALTH_PORT
+              value: {{ .Values.health.port | quote }}
+            - name: READINESS_MAX_STALENESS_SECONDS
+              value: {{ .Values.health.readinessMaxStalenessSeconds | quote }}
             - name: RELEASE_LEASE_DURATION_SECONDS
               value: {{ .Values.controller.releaseLeaseDurationSeconds | quote }}
             - name: LEADER_LEASE_NAME
@@ -81,6 +85,24 @@ spec:
               value: {{ .Values.controller.leaderLeaseDurationSeconds | quote }}
             - name: HOME
               value: /tmp
+          ports:
+            - name: health
+              containerPort: {{ .Values.health.port }}
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: health
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: health
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 2
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:

@@ -7,6 +7,8 @@ root = Pathname.new(ENV.fetch('FOREMAN_KUBERNETES_ROOT', File.expand_path('../..
 $LOAD_PATH.unshift(root.join('operator/lib').to_s)
 
 require 'foreman_release/controller'
+require 'foreman_release/controller_status'
+require 'foreman_release/health_server'
 require 'foreman_release/kubernetes_client'
 require 'foreman_release/leader_elector'
 require 'foreman_release/lease_manager'
@@ -19,6 +21,8 @@ poll_seconds = Integer(ENV.fetch('POLL_SECONDS', '5'))
 lease_duration = Integer(ENV.fetch('RELEASE_LEASE_DURATION_SECONDS', '300'))
 command_timeout = Integer(ENV.fetch('COMMAND_TIMEOUT_SECONDS', '60'))
 command_termination_grace = Integer(ENV.fetch('COMMAND_TERMINATION_GRACE_SECONDS', '5'))
+health_port = Integer(ENV.fetch('HEALTH_PORT', '9393'))
+readiness_max_staleness = Integer(ENV.fetch('READINESS_MAX_STALENESS_SECONDS', '180'))
 leader_lease_duration = Integer(ENV.fetch('LEADER_LEASE_DURATION_SECONDS', '30'))
 leader_lease_name = ENV.fetch('LEADER_LEASE_NAME', 'foreman-release-controller-leader')
 pod_uid = ENV.fetch('POD_UID')
@@ -51,14 +55,25 @@ reconciler = ForemanRelease::Reconciler.new(
   adapter: adapter,
   status_writer: ->(resource, status) { kubernetes.write_status(resource, status) }
 )
+controller_status = ForemanRelease::ControllerStatus.new
 controller = ForemanRelease::Controller.new(
   namespace: namespace,
   kubernetes_client: kubernetes,
   reconciler: reconciler,
   leader_elector: leader_elector,
-  poll_seconds: poll_seconds
+  poll_seconds: poll_seconds,
+  status: controller_status
 )
+health_server = ForemanRelease::HealthServer.new(
+  status: controller_status,
+  port: health_port,
+  readiness_max_staleness_seconds: readiness_max_staleness
+).start
 
 Signal.trap('TERM') { controller.stop }
 Signal.trap('INT') { controller.stop }
-controller.run
+begin
+  controller.run
+ensure
+  health_server.stop
+end

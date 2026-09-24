@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft-07/schema#",
   "type": "object",
   "additionalProperties": false,
-  "required": ["nameOverride", "fullnameOverride", "imagePullSecrets", "image", "controller", "serviceAccount", "rbac", "resources"],
+  "required": ["nameOverride", "fullnameOverride", "imagePullSecrets", "image", "controller", "health", "service", "serviceAccount", "rbac", "resources"],
   "allOf": [
     {
       "if": { "properties": { "serviceAccount": { "properties": { "create": { "const": false } } } } },
@@ -44,6 +44,24 @@
         "leaderLeaseName": { "type": "string", "minLength": 1, "maxLength": 63, "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$" },
         "leaderLeaseDurationSeconds": { "type": "integer", "minimum": 30, "maximum": 300 },
         "terminationGracePeriodSeconds": { "type": "integer", "minimum": 5, "maximum": 300 }
+      }
+    },
+    "health": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["port", "readinessMaxStalenessSeconds"],
+      "properties": {
+        "port": { "type": "integer", "minimum": 1024, "maximum": 65535 },
+        "readinessMaxStalenessSeconds": { "type": "integer", "minimum": 15, "maximum": 3600 }
+      }
+    },
+    "service": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["annotations", "type"],
+      "properties": {
+        "annotations": { "type": "object", "additionalProperties": { "type": "string" } },
+        "type": { "type": "string", "enum": ["ClusterIP"] }
       }
     },
     "serviceAccount": {

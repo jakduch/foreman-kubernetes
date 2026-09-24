@@ -18,6 +18,14 @@ controller:
   leaderLeaseDurationSeconds: 30
   terminationGracePeriodSeconds: 30
 
+health:
+  port: 9393
+  readinessMaxStalenessSeconds: 180
+
+service:
+  annotations: {}
+  type: ClusterIP
+
 serviceAccount:
   create: true
   name: ""

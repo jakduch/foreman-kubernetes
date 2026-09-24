@@ -75,6 +75,12 @@ kubectl --namespace foreman apply --filename examples/foreman-release.yaml
 kubectl --namespace foreman get foremanrelease foreman --watch
 ```
 
+The operator Service exposes `/metrics` on port 9393 by default. Kubernetes
+uses `/livez` for process liveness and `/readyz` for the freshness of successful
+API cycles. Configure a Prometheus scraper through `service.annotations`, and
+alert on `foreman_release_controller_ready == 0`, increasing failed cycles, or
+an old `foreman_release_controller_last_success_timestamp_seconds`.
+
 Two candidates run by default. A short namespaced leader Lease allows only the
 Pod whose UID is the current holder to list and reconcile releases; the standby
 takes over only after that Lease expires or is explicitly released. A separate
