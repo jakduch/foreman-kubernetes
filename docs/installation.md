@@ -165,6 +165,9 @@ first controlled takeover of an already installed Helm release, verify that
 its values match the referenced Secret and compatibility profile, and return
 the flag to false after ownership labels appear. A newly installed release or
 one already labelled with this ForemanRelease UID needs no adoption override.
+An adopted release must expose its original `compatibilitySet` in its computed
+Helm values, and that set must be an allowed `upgradeFrom` source for the
+requested target. The adoption flag does not bypass release compatibility.
 
 Before changing a failed deployment, capture the Secret-redacted, read-only
 bundle described in [`diagnostics.md`](diagnostics.md). It preserves release,

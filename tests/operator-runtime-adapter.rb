@@ -10,7 +10,7 @@ require root.join('operator/lib/foreman_release/runtime_adapter').to_s
 
 class RecordingHelmRunner
   attr_reader :calls, :renders, :values_modes
-  attr_accessor :existing_releases
+  attr_accessor :existing_releases, :application_set, :execution_set
 
   def initialize
     @real = ForemanRelease::CommandRunner.new
@@ -18,6 +18,8 @@ class RecordingHelmRunner
     @renders = {}
     @values_modes = []
     @existing_releases = []
+    @application_set = 'nightly-candidate-2026-09-24'
+    @execution_set = 'nightly-candidate-2026-09-24'
   end
 
   def run(*command, stdin_data: '')
@@ -37,6 +39,13 @@ class RecordingHelmRunner
       JSON.generate('version' => command.include?('execution') ? 4 : 2)
     when %w[helm list]
       JSON.generate(@existing_releases.map { |name| {'name' => name} })
+    when %w[helm get]
+      release_name = command.fetch(3)
+      if release_name == 'execution'
+        JSON.generate('compatibilitySet' => @execution_set)
+      else
+        JSON.generate('platform' => {'compatibilitySet' => @application_set})
+      end
     when %w[helm template]
       output = @real.run(*command, stdin_data: stdin_data)
       @renders[command.fetch(2)] = YAML.load_stream(output).compact
@@ -232,7 +241,10 @@ raise 'durable operation ID was used as a shared holder identity' unless runtime
 
 validation = adapter.validate(resource, operation)
 raise 'release validation failed' unless validation.state == :succeeded
-raise 'validation did not pin all four release inputs' unless validation.details.keys.sort == ForemanRelease::RuntimeAdapter::INPUT_DIGESTS.keys.sort
+unless validation.details.keys.sort == (ForemanRelease::RuntimeAdapter::INPUT_DIGESTS.keys + ['sourceSets']).sort
+  raise 'validation did not pin all release inputs and source sets'
+end
+raise 'fresh installation unexpectedly recorded an installed source set' unless validation.details.fetch('sourceSets').empty?
 raise 'rendered cluster preflight was not executed' unless preflight.calls.length == 1 && preflight.calls.first.last == 'platform'
 raise 'Secret values were not written with mode 0600' unless runner.values_modes.all? { |mode| mode == 0o600 }
 
@@ -291,7 +303,20 @@ rescue ForemanRelease::InvalidRelease => error
   raise unless error.message.include?('application.adoptExisting=true')
 end
 resource['spec']['application']['adoptExisting'] = true
-raise 'explicit Helm release adoption was rejected' unless adapter.validate(resource, operation).state == :succeeded
+adoption = adapter.validate(resource, operation)
+raise 'explicit Helm release adoption was rejected' unless adoption.state == :succeeded
+unless adoption.details.fetch('sourceSets') == ['nightly-candidate-2026-09-24']
+  raise 'adopted Helm release source set was not validated and recorded'
+end
+runner.application_set = 'undeclared-set'
+begin
+  adapter.validate(resource, operation)
+  raise 'adoption from an undeclared compatibility set was accepted'
+rescue ForemanRelease::InvalidRelease => error
+  raise unless error.message.include?('is not declared')
+ensure
+  runner.application_set = 'nightly-candidate-2026-09-24'
+end
 resource['spec']['application']['adoptExisting'] = false
 runner.existing_releases = []
 

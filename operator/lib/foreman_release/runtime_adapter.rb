@@ -74,7 +74,8 @@ module ForemanRelease
     def validate(resource, operation)
       validate_release_ownership!(resource)
       validate_helm_ownership!(resource)
-      context = resolve_context(resource)
+      source_sets = installed_compatibility_sets(resource)
+      context = resolve_context(resource, source_sets: source_sets)
       with_value_files(context) do |application_values, execution_values|
         lint_chart(@application_chart, application_values, context.profiles.application_path, resource, operation)
         lint_chart(@execution_chart, execution_values, context.profiles.execution_proxy_path, resource, operation)
@@ -93,7 +94,7 @@ module ForemanRelease
       Observation.new(
         state: :succeeded,
         message: "validated compatibility set #{context.profiles.name}",
-        details: context.digests
+        details: context.digests.merge('sourceSets' => source_sets)
       )
     end
 
@@ -353,10 +354,11 @@ module ForemanRelease
       end
     end
 
-    def resolve_context(resource, operation = nil)
+    def resolve_context(resource, operation = nil, source_sets: [])
       profiles = @catalog.resolve(
         resource.dig('spec', 'compatibilitySet'),
-        allow_candidate: resource.dig('spec', 'allowCandidate') == true
+        allow_candidate: resource.dig('spec', 'allowCandidate') == true,
+        source_names: source_sets
       )
       values = @values_reader.read(resource)
       content = {
@@ -382,6 +384,35 @@ module ForemanRelease
         execution_values: values.execution_proxy,
         digests: digests
       )
+    end
+
+    def installed_compatibility_sets(resource)
+      sources = [
+        resource.dig('status', 'currentSet'),
+        resource.dig('status', 'lastSuccessfulSet')
+      ].compact
+      namespace = resource.dig('metadata', 'namespace')
+      [
+        [application_release(resource), %w[platform compatibilitySet]],
+        [execution_release(resource), %w[compatibilitySet]]
+      ].each do |release_name, path|
+        next unless helm_release_exists?(resource, release_name)
+
+        output = @runner.run(
+          'helm', 'get', 'values', release_name,
+          '--namespace', namespace, '--all', '--output=json'
+        )
+        values = JSON.parse(output)
+        source = path.reduce(values) { |value, key| value.is_a?(Hash) ? value[key] : nil }
+        if source.to_s.empty?
+          raise InvalidRelease, "Helm release #{release_name} does not identify its compatibility set"
+        end
+
+        sources << source
+      rescue JSON::ParserError => error
+        raise InvalidRelease, "cannot inspect Helm release #{release_name} values: #{error.message}"
+      end
+      sources.uniq
     end
 
     def with_rendered_application(resource, operation)

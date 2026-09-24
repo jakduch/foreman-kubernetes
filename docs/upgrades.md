@@ -17,6 +17,12 @@ The helper upgrades existing releases; it is not an installer. It requires:
   the environment-specific configuration and Secret references;
 - a `supported` entry in `compatibility/release-sets.json`.
 
+The selected entry must explicitly list every currently deployed application
+and execution-proxy compatibility set in `upgradeFrom`. This intentionally
+supports recovery from a split roll-forward, where the application already
+uses the target set but the proxy still uses an allowed predecessor. An
+undeclared or skipped source fails before migrations are submitted.
+
 Before reading release health, the helper atomically acquires the namespaced
 `foreman-kubernetes-release` Lease shared with the install helper. Another
 invocation stops and reports its holder instead of racing Helm. The process
@@ -30,6 +36,9 @@ qualification environments and does not promote the set. Retired sets are
 always rejected. The selected image profiles are applied after the
 environment-specific values, so their digest-pinned image references cannot be
 silently replaced by a moving tag in those files.
+The helper reads the installed set identities from Helm computed values only
+after acquiring the shared Lease. A release without that identity cannot be
+upgraded by this guarded path.
 
 ## Sequence
 

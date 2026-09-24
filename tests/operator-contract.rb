@@ -69,6 +69,9 @@ condition_required = conditions.dig('items', 'required')
 raise 'conditions must identify their observed generation' unless condition_required.include?('observedGeneration')
 
 operation = status_schema.dig('properties', 'operation', 'properties')
+unless operation.dig('sourceSets', 'type') == 'array' && operation.dig('sourceSets', 'uniqueItems') == true
+  raise 'operation status does not retain validated source compatibility sets'
+end
 %w[applicationValuesSha256 executionProxyValuesSha256 applicationProfileSha256 executionProxyProfileSha256].each do |digest|
   raise "operation status does not retain #{digest}" unless operation.dig(digest, 'pattern') == '^[0-9a-f]{64}$'
 end

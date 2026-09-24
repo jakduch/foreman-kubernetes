@@ -10,6 +10,13 @@ and rejects one-sided profile overrides, preventing a proxy candidate from
 being qualified accidentally against an unrelated application candidate. Every
 image reference in a declared set must be pinned by OCI digest.
 
+Each set also declares `upgradeFrom`. Every installed application and
+execution-proxy set must appear in that list before the target can be applied.
+The target itself is always included so a same-set reconcile, credential
+rotation, or drift repair remains possible. Old and retired sets stay in the
+catalog while they are valid upgrade sources; retirement prevents a new
+installation but does not implicitly create an unsafe upgrade jump.
+
 Set states have deliberately narrow meanings:
 
 - `candidate`: statically valid and manifest-verified, but the complete runtime

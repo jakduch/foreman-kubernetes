@@ -24,12 +24,19 @@ module ForemanRelease
 
     def initialize(root:, manifest:)
       @root = Pathname.new(root).realpath
+      unless manifest.fetch('schemaVersion') == 2
+        raise InvalidRelease, 'unsupported compatibility-set catalog schema'
+      end
+
       @sets = manifest.fetch('sets')
+      validate_upgrade_graph!
     end
 
-    def resolve(name, allow_candidate:)
+    def resolve(name, allow_candidate:, source_names: [])
       release_set = @sets[name]
       raise InvalidRelease, "unknown compatibility set: #{name}" unless release_set
+
+      validate_upgrade_paths!(name, source_names)
 
       status = release_set.fetch('status')
       case status
@@ -67,7 +74,41 @@ module ForemanRelease
       )
     end
 
+    def validate_upgrade_paths!(target_name, source_names)
+      target = @sets[target_name]
+      raise InvalidRelease, "unknown compatibility set: #{target_name}" unless target
+
+      Array(source_names).compact.uniq.each do |source_name|
+        unless @sets.key?(source_name)
+          raise InvalidRelease, "installed compatibility set is not declared: #{source_name}"
+        end
+        next if target.fetch('upgradeFrom').include?(source_name)
+
+        raise InvalidRelease, "upgrade from #{source_name} to #{target_name} is not allowed"
+      end
+    end
+
     private
+
+    def validate_upgrade_graph!
+      @sets.each do |set_name, release_set|
+        sources = release_set.fetch('upgradeFrom')
+        unless sources.is_a?(Array) && !sources.empty? &&
+               sources == sources.uniq && sources.all? { |source| source.is_a?(String) && !source.empty? }
+          raise InvalidRelease, "#{set_name} upgradeFrom must contain unique compatibility-set names"
+        end
+        unless sources.include?(set_name)
+          raise InvalidRelease, "#{set_name} must allow same-set reconciliation"
+        end
+
+        unknown = sources.reject { |source| @sets.key?(source) }
+        unless unknown.empty?
+          raise InvalidRelease, "#{set_name} references unknown upgrade sources: #{unknown.join(', ')}"
+        end
+      end
+    rescue KeyError
+      raise InvalidRelease, 'every compatibility set must declare upgradeFrom'
+    end
 
     def profile_path(relative_path)
       candidate = @root.join(relative_path)

@@ -94,6 +94,20 @@ start_release_lease_renewal "${namespace}" "${release_lease_name}" \
   "${release_holder_id}" "${release_lease_duration_seconds}" \
   "${release_lease_renew_interval_seconds}"
 
+application_source_set="$(helm get values "${application_release}" \
+  --namespace "${namespace}" --all --output=json | \
+  jq --exit-status --raw-output '.platform.compatibilitySet | select(type == "string" and length > 0)')" || \
+  fail "cannot determine the installed compatibility set for ${application_release}"
+execution_source_set="$(helm get values "${execution_release}" \
+  --namespace "${namespace}" --all --output=json | \
+  jq --exit-status --raw-output '.compatibilitySet | select(type == "string" and length > 0)')" || \
+  fail "cannot determine the installed compatibility set for ${execution_release}"
+for source_set in "${application_source_set}" "${execution_source_set}"; do
+  jq --exit-status --arg source "${source_set}" \
+    '.upgradeFrom | index($source) != null' <<<"${release_set}" >/dev/null || \
+    fail "upgrade from ${source_set} to ${compatibility_set} is not allowed"
+done
+
 echo "Preflight: checking current ${application_release} and ${execution_release} releases"
 helm status "${application_release}" --namespace "${namespace}" >/dev/null
 helm status "${execution_release}" --namespace "${namespace}" >/dev/null

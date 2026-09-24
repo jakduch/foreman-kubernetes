@@ -17,7 +17,7 @@ checks_contract = JSON.parse(checks_path.read)
 required_checks = checks_contract.fetch('checks')
 compatibility_documentation = (root / 'docs/compatibility.md').read
 
-raise 'unsupported release-set schema' unless manifest.fetch('schemaVersion') == 1
+raise 'unsupported release-set schema' unless manifest.fetch('schemaVersion') == 2
 raise 'unsupported integration checks schema' unless checks_contract.fetch('schemaVersion') == 1
 raise 'integration checks must be unique non-empty strings' unless required_checks == required_checks.uniq && required_checks.all? { |check| check.is_a?(String) && !check.empty? }
 raise "default release set #{default_set} does not exist" unless sets.key?(default_set)
@@ -46,6 +46,13 @@ sets.each do |set_name, release_set|
   status = release_set.fetch('status')
   raise "unsupported status for #{set_name}" unless %w[candidate supported retired].include?(status)
   raise "unsupported platform for #{set_name}" unless release_set.fetch('platform') == 'linux/amd64'
+  upgrade_sources = release_set.fetch('upgradeFrom')
+  unless upgrade_sources.is_a?(Array) && !upgrade_sources.empty? &&
+         upgrade_sources == upgrade_sources.uniq &&
+         upgrade_sources.all? { |source| source.is_a?(String) && sets.key?(source) }
+    raise "invalid upgrade sources for #{set_name}"
+  end
+  raise "same-set reconciliation is not allowed for #{set_name}" unless upgrade_sources.include?(set_name)
 
   application_profile_path = profile_path(root, release_set.fetch('applicationProfile'))
   execution_profile_path = profile_path(root, release_set.fetch('executionProxyProfile'))

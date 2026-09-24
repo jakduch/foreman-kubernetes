@@ -254,6 +254,12 @@ spec:
                       type: array
                       items:
                         type: string
+                    sourceSets:
+                      type: array
+                      uniqueItems: true
+                      items:
+                        type: string
+                        minLength: 1
                     applicationRevision:
                       type: integer
                       format: int64

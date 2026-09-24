@@ -161,6 +161,13 @@ compatibility sets. Both the application and execution-proxy values are
 referenced from same-namespace Secrets so credentials never enter the custom
 resource or its status.
 
+Preflight discovers compatibility-set identities from existing Helm releases
+and combines them with the last successful set retained in status. Every
+discovered source must be listed by the target set's `upgradeFrom` contract.
+The validated source list is retained in operation status, including split
+roll-forward states where application and proxy temporarily use different
+allowed sets.
+
 The controller owns release sequencing only:
 
 1. validate the selected compatibility set and referenced values;

@@ -18,6 +18,28 @@ end
 profiles = catalog.resolve('nightly-candidate-2026-09-24', allow_candidate: true)
 raise 'application profile was not resolved' unless File.file?(profiles.application_path)
 raise 'execution proxy profile was not resolved' unless File.file?(profiles.execution_proxy_path)
+catalog.validate_upgrade_paths!(
+  'nightly-candidate-2026-09-24',
+  ['nightly-candidate-2026-09-24']
+)
+begin
+  catalog.validate_upgrade_paths!('nightly-candidate-2026-09-24', ['undeclared-set'])
+  raise 'an undeclared installed compatibility set was accepted'
+rescue ForemanRelease::InvalidRelease => error
+  raise unless error.message.include?('is not declared')
+end
+
+manifest = JSON.parse(root.join('compatibility/release-sets.json').read)
+old_set = Marshal.load(Marshal.dump(manifest.dig('sets', 'nightly-candidate-2026-09-24')))
+old_set['upgradeFrom'] = ['old-set']
+manifest['sets']['old-set'] = old_set
+restricted_catalog = ForemanRelease::ReleaseCatalog.new(root: root, manifest: manifest)
+begin
+  restricted_catalog.validate_upgrade_paths!('nightly-candidate-2026-09-24', ['old-set'])
+  raise 'a disallowed upgrade path was accepted'
+rescue ForemanRelease::InvalidRelease => error
+  raise unless error.message.include?('is not allowed')
+end
 
 class SecretClient
   attr_reader :requests

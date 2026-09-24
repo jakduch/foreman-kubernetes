@@ -57,6 +57,12 @@ if [[ -n "${FAKE_HELM_FAIL_MATCH:-}" && "$*" == *"${FAKE_HELM_FAIL_MATCH}"* ]]; 
   fi
 fi
 case "$*" in
+  'get values foreman --namespace foreman --all --output=json')
+    printf '{"platform":{"compatibilitySet":"%s"}}\n' "${FAKE_APPLICATION_SET:-nightly-candidate-2026-09-24}"
+    ;;
+  'get values execution --namespace foreman --all --output=json')
+    printf '{"compatibilitySet":"%s"}\n' "${FAKE_EXECUTION_SET:-nightly-candidate-2026-09-24}"
+    ;;
   *'--show-only templates/foreman.yaml'*)
     printf '%s\n' 'kind: Service'
     if [[ "${FAKE_FOREMAN_DEPLOYMENT:-1}" == 1 ]]; then
@@ -150,6 +156,22 @@ fi
 
 : > "${tool_log}"
 
+if PATH="${fake_bin}:${PATH}" \
+  FAKE_TOOL_LOG="${tool_log}" \
+  FAKE_APPLICATION_SET='undeclared-set' \
+  ALLOW_CANDIDATE=1 \
+  "${repo_root}/scripts/upgrade-release.sh" \
+    "${application_values}" "${execution_values}" >/dev/null 2>&1; then
+  echo 'upgrade from an undeclared compatibility set was accepted' >&2
+  exit 1
+fi
+if grep -Fq 'helm status ' "${tool_log}" || grep -Fq 'helm upgrade ' "${tool_log}"; then
+  echo 'release preflight or mutation started after upgrade-path rejection' >&2
+  exit 1
+fi
+
+: > "${tool_log}"
+
 PATH="${fake_bin}:${PATH}" \
   FAKE_TOOL_LOG="${tool_log}" \
   FAKE_KUBECTL_FAIL_MATCH='create --filename -' \
@@ -173,6 +195,8 @@ PATH="${fake_bin}:${PATH}" \
 cat > "${temporary_directory}/expected.log" <<EOF
 kubectl get namespace foreman
 kubectl --namespace foreman create --filename -
+helm get values foreman --namespace foreman --all --output=json
+helm get values execution --namespace foreman --all --output=json
 helm status foreman --namespace foreman
 helm status execution --namespace foreman
 kubectl --namespace foreman wait --for=condition=Ready pod --selector=app.kubernetes.io/instance=execution,app.kubernetes.io/component=execution-proxy --timeout=10m
