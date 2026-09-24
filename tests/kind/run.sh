@@ -5,6 +5,7 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cluster_name="${KIND_CLUSTER_NAME:-foreman-stack-e2e}"
 namespace="foreman"
 release="foreman"
+image_profile="${IMAGE_PROFILE:-${repo_root}/profiles/nightly-candidate-2026-09-23.yaml}"
 created_cluster=false
 temporary_directory="$(mktemp -d)"
 
@@ -27,6 +28,17 @@ for command_name in kind kubectl helm openssl curl; do
     exit 1
   fi
 done
+
+if [[ ! -f "${image_profile}" ]]; then
+  echo "image profile does not exist: ${image_profile}" >&2
+  exit 1
+fi
+
+if [[ "$(uname -m)" != x86_64 && "$(uname -m)" != amd64 && "${ALLOW_EMULATION:-0}" != 1 ]]; then
+  echo "Foreman, Candlepin, and Pulp images are currently linux/amd64 only." >&2
+  echo "Run this test on amd64 or set ALLOW_EMULATION=1 to accept a slower emulated run." >&2
+  exit 1
+fi
 
 if kind get clusters | grep -Fxq "${cluster_name}"; then
   if [[ "${REUSE_CLUSTER:-0}" != 1 ]]; then
@@ -59,6 +71,7 @@ kubectl --namespace "${namespace}" rollout status deployment/valkey --timeout=5m
 helm upgrade --install "${release}" "${repo_root}/charts/foreman-stack" \
   --namespace "${namespace}" \
   --values "${repo_root}/tests/kind/values.yaml" \
+  --values "${image_profile}" \
   --wait \
   --wait-for-jobs \
   --timeout 30m
@@ -109,6 +122,7 @@ kubectl --namespace "${namespace}" rollout status \
 helm upgrade "${release}" "${repo_root}/charts/foreman-stack" \
   --namespace "${namespace}" \
   --values "${repo_root}/tests/kind/values.yaml" \
+  --values "${image_profile}" \
   --set foreman.puma.threadsMax=6 \
   --wait \
   --wait-for-jobs \

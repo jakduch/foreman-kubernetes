@@ -12,7 +12,10 @@ helm template test "${chart}" > "${rendered}"
 helm lint "${chart}" --values "${repo_root}/examples/cluster-values.yaml"
 helm template test "${chart}" --values "${repo_root}/examples/cluster-values.yaml" > "${rendered_ingress}"
 helm lint "${chart}" --values "${repo_root}/tests/kind/values.yaml"
-helm template foreman "${chart}" --values "${repo_root}/tests/kind/values.yaml" >/dev/null
+helm lint "${chart}" --values "${repo_root}/profiles/nightly-candidate-2026-09-23.yaml"
+helm template foreman "${chart}" \
+  --values "${repo_root}/tests/kind/values.yaml" \
+  --values "${repo_root}/profiles/nightly-candidate-2026-09-23.yaml" >/dev/null
 
 grep -q 'name: test-foreman-stack-foreman' "${rendered}"
 grep -q 'name: test-foreman-stack-candlepin' "${rendered}"

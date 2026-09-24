@@ -53,6 +53,7 @@ Static render checks are available as `tests/render.sh`. The opt-in disposable i
 
 - [`docs/architecture.md`](docs/architecture.md) describes ownership and topology.
 - [`docs/runtime-contracts.md`](docs/runtime-contracts.md) records the verified upstream runtime contracts and current scaling limits.
+- [`docs/compatibility.md`](docs/compatibility.md) records digest-pinned image candidates and their test status.
 - [`docs/roadmap.md`](docs/roadmap.md) lists the next implementation slices.
 
 ## Upstream source snapshots reviewed

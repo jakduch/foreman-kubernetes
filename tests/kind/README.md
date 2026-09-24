@@ -16,3 +16,5 @@ tests/kind/run.sh
 ```
 
 The temporary cluster and generated PKI are removed on success or failure. Set `KEEP_CLUSTER=1` only while diagnosing a failure. An existing cluster with the same name is never modified unless `REUSE_CLUSTER=1` is explicit.
+
+By default the harness uses the digest-pinned nightly candidate under `profiles/`. The published application images are currently `linux/amd64` only. The script refuses an ARM host unless `ALLOW_EMULATION=1` explicitly opts into the slower, host-dependent emulation path. `IMAGE_PROFILE=/absolute/path/to/values.yaml` selects another candidate set.
