@@ -106,9 +106,17 @@ Pulp external destinations. This avoids pretending that a hostname in the
 application configuration can be safely converted into an IP policy by Helm.
 
 Disruption budgets protect redundant Foreman, Pulp, Pulp control, and Dynflow
-worker pools. No budget is created for the single Candlepin or Dynflow
-orchestrator replicas: a `minAvailable: 1` budget on a singleton would block
-voluntary node drains without providing actual availability.
+worker pools. They are rendered from the minimum replica count, including the
+HPA minimum, and are omitted when a workload is configured as a singleton. No
+budget is created for Candlepin or the Dynflow orchestrator: a
+`minAvailable: 1` budget on a singleton would block voluntary node drains
+without providing actual availability.
+
+HTTP readiness checks keep dependency-aware endpoints out of traffic while
+separate TCP startup and liveness checks answer a narrower question: whether
+the local process has opened and retained its listener. A database, Valkey, or
+peer-service outage must not make Kubernetes restart every otherwise healthy
+application process and amplify the outage into a restart loop.
 
 ## State and upgrades
 

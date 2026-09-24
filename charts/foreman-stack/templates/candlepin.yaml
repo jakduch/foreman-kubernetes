@@ -113,6 +113,12 @@ spec:
               subPath: db-ca.crt
               readOnly: true
             {{- end }}
+          startupProbe:
+            tcpSocket:
+              port: https
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 60
           readinessProbe:
             httpGet:
               path: /candlepin/status
@@ -123,13 +129,11 @@ spec:
             timeoutSeconds: 5
             failureThreshold: 18
           livenessProbe:
-            httpGet:
-              path: /candlepin/status
+            tcpSocket:
               port: https
-              scheme: HTTPS
             initialDelaySeconds: 120
             periodSeconds: 20
-            timeoutSeconds: 10
+            timeoutSeconds: 2
             failureThreshold: 6
           resources:
             {{- toYaml .Values.candlepin.resources | nindent 12 }}

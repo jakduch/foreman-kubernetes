@@ -113,6 +113,12 @@ spec:
               readOnly: true
             - name: temporary
               mountPath: /tmp
+          startupProbe:
+            tcpSocket:
+              port: https
+            periodSeconds: 2
+            timeoutSeconds: 1
+            failureThreshold: 30
           readinessProbe:
             tcpSocket:
               port: https

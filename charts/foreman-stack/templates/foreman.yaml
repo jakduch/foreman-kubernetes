@@ -71,6 +71,12 @@ spec:
                 name: {{ .Values.foreman.existingEnvSecret }}
           volumeMounts:
             {{- include "foreman-stack.foremanVolumeMounts" . | nindent 12 }}
+          startupProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 60
           readinessProbe:
             httpGet:
               path: /api/v2/ping
@@ -80,19 +86,19 @@ spec:
             timeoutSeconds: 5
             failureThreshold: 12
           livenessProbe:
-            httpGet:
-              path: /api/v2/ping
+            tcpSocket:
               port: http
             initialDelaySeconds: 90
             periodSeconds: 20
-            timeoutSeconds: 10
+            timeoutSeconds: 2
             failureThreshold: 6
           resources:
             {{- toYaml .Values.foreman.resources | nindent 12 }}
       volumes:
         {{- include "foreman-stack.foremanVolumes" . | nindent 8 }}
       {{- include "foreman-stack.topologySpread" (dict "Values" .Values "Release" .Release "component" "foreman") | nindent 6 }}
-{{- if .Values.podDisruptionBudget.enabled }}
+{{- $minimumReplicas := ternary .Values.foreman.autoscaling.minReplicas .Values.foreman.replicas .Values.foreman.autoscaling.enabled }}
+{{- if and .Values.podDisruptionBudget.enabled (gt (int $minimumReplicas) 1) }}
 ---
 apiVersion: policy/v1
 kind: PodDisruptionBudget

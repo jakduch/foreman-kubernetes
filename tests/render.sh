@@ -8,7 +8,8 @@ rendered_ingress="$(mktemp)"
 rendered_backup="$(mktemp)"
 rendered_restore="$(mktemp)"
 rendered_egress="$(mktemp)"
-trap 'rm -f "${rendered}" "${rendered_ingress}" "${rendered_backup}" "${rendered_restore}" "${rendered_egress}"' EXIT
+rendered_singletons="$(mktemp)"
+trap 'rm -f "${rendered}" "${rendered_ingress}" "${rendered_backup}" "${rendered_restore}" "${rendered_egress}" "${rendered_singletons}"' EXIT
 
 helm lint "${chart}"
 helm template test "${chart}" > "${rendered}"
@@ -31,6 +32,13 @@ helm template test "${chart}" \
   --set restore.confirmation=RESTORE > "${rendered_restore}"
 helm template test "${chart}" \
   --values "${repo_root}/tests/egress-values.yaml" > "${rendered_egress}"
+helm template test "${chart}" \
+  --set foreman.replicas=1 \
+  --set foreman.dynflow.workers=1 \
+  --set foreman.dynflow.hostsQueueWorkers=1 \
+  --set pulp.api.replicas=1 \
+  --set pulp.content.replicas=1 \
+  --set pulp.workers.replicas=1 > "${rendered_singletons}"
 
 shellcheck -x \
   -P "${chart}/files" \
@@ -75,6 +83,32 @@ grep -q 'runAsUser: 994' "${rendered}"
 grep -q 'runAsUser: 700' "${rendered}"
 grep -q 'type: RuntimeDefault' "${rendered}"
 grep -q 'name: test-foreman-stack-dynflow-worker' "${rendered}"
+if [[ "$(grep -c 'startupProbe:' "${rendered}")" -ne 5 ]]; then
+  echo 'expected startup probes for Foreman, Candlepin, Pulp API/content, and the Pulp control proxy' >&2
+  exit 1
+fi
+if [[ "$(grep -A3 'livenessProbe:' "${rendered}" | grep -c 'tcpSocket:')" -ne 5 ]]; then
+  echo 'application liveness probes must test the local listener only' >&2
+  exit 1
+fi
+if grep -A3 'livenessProbe:' "${rendered}" | grep -q 'httpGet:'; then
+  echo 'application liveness probes must not restart pods for dependency health failures' >&2
+  exit 1
+fi
+grep -A4 'readinessProbe:' "${rendered}" | grep -q '/api/v2/ping'
+grep -A4 'readinessProbe:' "${rendered}" | grep -q '/candlepin/status'
+grep -A4 'readinessProbe:' "${rendered}" | grep -q '/pulp/api/v3/status/'
+
+if [[ "$(grep -c '^kind: PodDisruptionBudget$' "${rendered}")" -ne 6 ]]; then
+  echo 'expected disruption budgets for the default redundant workloads' >&2
+  exit 1
+fi
+if [[ "$(grep -c '^kind: PodDisruptionBudget$' "${rendered_singletons}")" -ne 1 ]]; then
+  echo 'singleton workloads must not receive drain-blocking disruption budgets' >&2
+  exit 1
+fi
+grep -A4 '^kind: PodDisruptionBudget$' "${rendered_singletons}" | \
+  grep -q 'name: test-foreman-stack-pulp-control'
 
 if [[ "$(grep -c '^    - Egress$' "${rendered_egress}")" -ne 4 ]]; then
   echo 'expected component-scoped Foreman, Pulp, Candlepin, and control-proxy egress policies' >&2

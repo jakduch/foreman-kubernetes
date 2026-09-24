@@ -101,16 +101,32 @@ spec:
               subPath: database_fields.symmetric.key
               readOnly: true
             {{- include "foreman-stack.pulpDatabaseCaVolumeMount" $root | nindent 12 }}
-          readinessProbe:
+          startupProbe:
             tcpSocket:
               port: http
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 60
+          readinessProbe:
+            {{- if eq $service.name "api" }}
+            httpGet:
+              path: /pulp/api/v3/status/
+              port: http
+            {{- else }}
+            tcpSocket:
+              port: http
+            {{- end }}
             initialDelaySeconds: 10
             periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
           livenessProbe:
             tcpSocket:
               port: http
             initialDelaySeconds: 60
             periodSeconds: 20
+            timeoutSeconds: 2
+            failureThreshold: 6
           resources:
             {{- toYaml $root.Values.pulp.resources | nindent 12 }}
       volumes:

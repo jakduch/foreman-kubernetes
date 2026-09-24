@@ -21,6 +21,8 @@
   capabilities, runtime-default seccomp, and no Kubernetes API token. Egress
   isolation is implemented but remains opt-in until deployment-specific
   PostgreSQL, Valkey, proxy, and repository destinations are supplied.
+- Startup and liveness checks are isolated from dependency-aware readiness,
+  and disruption budgets are emitted only for genuinely redundant workloads.
 
 ## Candlepin HA track
 
