@@ -21,6 +21,10 @@ The test is intentionally opt-in because it downloads the real application image
 tests/kind/run.sh
 ```
 
+The `Full integration` GitHub Actions workflow exposes the same drill through a
+manual dispatch on an amd64 runner. Failed runs retain a short-lived diagnostic
+artifact and always remove the disposable cluster.
+
 The temporary cluster and generated PKI are removed on success or failure. Set `KEEP_CLUSTER=1` only while diagnosing a failure. An existing cluster with the same name is never modified unless `REUSE_CLUSTER=1` is explicit.
 
 The harness builds `images/recovery-toolbox/Dockerfile` locally and loads it
@@ -28,4 +32,9 @@ into kind; it does not publish that test image. Set `SKIP_RECOVERY_TEST=1` for a
 faster install-only diagnostic run that omits the toolbox build and recovery
 drill.
 
-By default the harness uses the digest-pinned nightly candidate under `profiles/`. The published application images are currently `linux/amd64` only. The script refuses an ARM host unless `ALLOW_EMULATION=1` explicitly opts into the slower, host-dependent emulation path. `IMAGE_PROFILE=/absolute/path/to/values.yaml` selects another candidate set.
+By default the harness uses the digest-pinned nightly candidate under
+`profiles/` and a digest-pinned Kubernetes 1.34 kind node. The published
+application images are currently `linux/amd64` only. The script refuses an ARM
+host unless `ALLOW_EMULATION=1` explicitly opts into the slower, host-dependent
+emulation path. `IMAGE_PROFILE=/absolute/path/to/values.yaml` selects another
+candidate set; `KIND_NODE_IMAGE=...` selects another Kubernetes test image.

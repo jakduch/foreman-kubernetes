@@ -6,6 +6,7 @@ cluster_name="${KIND_CLUSTER_NAME:-foreman-stack-e2e}"
 namespace="foreman"
 release="foreman"
 image_profile="${IMAGE_PROFILE:-${repo_root}/profiles/nightly-candidate-2026-09-23.yaml}"
+kind_node_image="${KIND_NODE_IMAGE:-kindest/node:v1.34.11@sha256:44e222ee2132dab25ff87301682f89eb82c7880ea3a1bf543bfe9708fd08d67d}"
 created_cluster=false
 temporary_directory="$(mktemp -d)"
 skip_recovery_test="${SKIP_RECOVERY_TEST:-0}"
@@ -240,7 +241,8 @@ if kind get clusters | grep -Fxq "${cluster_name}"; then
 else
   kind create cluster \
     --name "${cluster_name}" \
-    --config "${repo_root}/tests/kind/kind-config.yaml"
+    --config "${repo_root}/tests/kind/kind-config.yaml" \
+    --image "${kind_node_image}"
   created_cluster=true
 fi
 
