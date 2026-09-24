@@ -18,6 +18,13 @@ platform:
   aliases: []
   trustedProxies: []
 
+# Set together only by a release controller. The operation ID makes migration
+# and registration Jobs stable across reconciliation retries; the owner UID
+# prevents adopting Jobs created for a different ForemanRelease object.
+releaseOperation:
+  id: ""
+  ownerUid: ""
+
 ingress:
   enabled: false
   className: nginx

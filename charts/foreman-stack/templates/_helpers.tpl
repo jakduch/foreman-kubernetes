@@ -22,6 +22,10 @@ app.kubernetes.io/name: {{ include "foreman-stack.name" .root }}
 app.kubernetes.io/instance: {{ .root.Release.Name }}
 app.kubernetes.io/component: {{ .component }}
 platform.theforeman.org/compatibility-set: {{ .root.Values.platform.compatibilitySet | quote }}
+{{- with .root.Values.releaseOperation.id }}
+platform.theforeman.org/release-operation: {{ . | quote }}
+platform.theforeman.org/release-owner: {{ $.root.Values.releaseOperation.ownerUid | quote }}
+{{- end }}
 {{- end }}
 
 {{- define "foreman-stack.podLabels" -}}
@@ -29,6 +33,23 @@ app.kubernetes.io/name: {{ include "foreman-stack.name" .root }}
 app.kubernetes.io/instance: {{ .root.Release.Name }}
 app.kubernetes.io/component: {{ .component }}
 platform.theforeman.org/compatibility-set: {{ .root.Values.platform.compatibilitySet | quote }}
+{{- with .root.Values.releaseOperation.id }}
+platform.theforeman.org/release-operation: {{ . | quote }}
+platform.theforeman.org/release-owner: {{ $.root.Values.releaseOperation.ownerUid | quote }}
+{{- end }}
+{{- end }}
+
+{{- define "foreman-stack.releaseOperationSuffix" -}}
+{{- default (printf "%v" .Release.Revision) .Values.releaseOperation.id -}}
+{{- end }}
+
+{{- define "foreman-stack.releaseJobName" -}}
+{{- $raw := printf "%s-%s-%s" (include "foreman-stack.fullname" .root) .component (include "foreman-stack.releaseOperationSuffix" .root) -}}
+{{- if gt (len $raw) 63 -}}
+{{- printf "%s-%s" ($raw | trunc 54 | trimSuffix "-") ($raw | sha256sum | trunc 8) -}}
+{{- else -}}
+{{- $raw -}}
+{{- end -}}
 {{- end }}
 
 {{- define "foreman-stack.serviceAccountName" -}}

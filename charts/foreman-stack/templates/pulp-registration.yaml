@@ -2,7 +2,7 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: {{ include "foreman-stack.fullname" . }}-pulp-register-{{ .Release.Revision }}
+  name: {{ include "foreman-stack.releaseJobName" (dict "root" . "component" "pulp-register") }}
   labels:
     {{- include "foreman-stack.componentLabels" (dict "root" . "component" "pulp-registration") | nindent 4 }}
 spec:
