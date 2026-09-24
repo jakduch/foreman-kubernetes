@@ -139,7 +139,11 @@ module ForemanRelease
         matching = live.select { |job| expected_names(expected).include?(job.dig('metadata', 'name')) }
         unless matching.length == expected.length
           submit_migration_bundle(resource, operation, resources, expected, matching)
-          return Observation.new(state: :pending, message: 'migration resources submitted; waiting for Jobs')
+          return Observation.new(
+            state: :pending,
+            message: 'migration resources submitted; waiting for Jobs',
+            details: {migrationJobs: expected_names(expected).sort}
+          )
         end
 
         observe_jobs(matching, details: {migrationJobs: expected_names(expected).sort})
@@ -152,13 +156,12 @@ module ForemanRelease
         raise InvalidRelease, 'application chart did not render any Deployments' if expected_deployments.empty?
 
         live_deployments = operation_resources(resource, operation, 'deployments')
-        if live_deployments.empty?
-          upgrade(
-            application_release(resource), @application_chart, values_path,
-            context.profiles.application_path, resource, operation,
-            skip_migration_jobs: true
+        missing_deployments = expected_names(expected_deployments) - expected_names(live_deployments)
+        unless missing_deployments.empty?
+          return submit_application_release(
+            resource, operation, context, values_path,
+            "submitted application release; waiting for Deployments: #{missing_deployments.join(', ')}"
           )
-          return Observation.new(state: :pending, message: 'application release submitted after successful migrations')
         end
         deployment_result = observe_deployments(expected_deployments, live_deployments)
         return deployment_result unless deployment_result.state == :succeeded
@@ -169,7 +172,13 @@ module ForemanRelease
           registration = live_jobs.select do |job|
             expected_names(expected_registration).include?(job.dig('metadata', 'name'))
           end
-          return incomplete_job_set(expected_registration, registration, 'Pulp registration') unless registration.length == expected_registration.length
+          unless registration.length == expected_registration.length
+            missing = expected_names(expected_registration) - expected_names(registration)
+            return submit_application_release(
+              resource, operation, context, values_path,
+              "resubmitted application release; waiting for Pulp registration Jobs: #{missing.join(', ')}"
+            )
+          end
 
           registration_result = observe_jobs(registration)
           return registration_result unless registration_result.state == :succeeded
@@ -193,12 +202,12 @@ module ForemanRelease
         raise InvalidRelease, 'execution proxy chart must render exactly one Deployment' unless expected.length == 1
 
         live = operation_resources(resource, operation, 'deployments', instance: execution_release(resource))
-        if live.empty?
-          upgrade(
-            execution_release(resource), @execution_chart, values_path,
-            context.profiles.execution_proxy_path, resource, operation
+        missing = expected_names(expected) - expected_names(live)
+        unless missing.empty?
+          return submit_execution_release(
+            resource, operation, context, values_path,
+            "submitted execution proxy release; waiting for Deployments: #{missing.join(', ')}"
           )
-          return Observation.new(state: :pending, message: 'execution proxy release submitted')
         end
 
         result = observe_deployments(expected, live)
@@ -491,6 +500,31 @@ module ForemanRelease
       )
     end
 
+    def submit_application_release(resource, operation, context, values_path, message)
+      upgrade(
+        application_release(resource), @application_chart, values_path,
+        context.profiles.application_path, resource, operation,
+        skip_migration_jobs: true
+      )
+      Observation.new(
+        state: :pending,
+        message: message,
+        details: {applicationSubmittedRevision: helm_revision(resource, application_release(resource))}
+      )
+    end
+
+    def submit_execution_release(resource, operation, context, values_path, message)
+      upgrade(
+        execution_release(resource), @execution_chart, values_path,
+        context.profiles.execution_proxy_path, resource, operation
+      )
+      Observation.new(
+        state: :pending,
+        message: message,
+        details: {executionProxySubmittedRevision: helm_revision(resource, execution_release(resource))}
+      )
+    end
+
     def submit_migration_bundle(resource, operation, rendered, expected_jobs, live_jobs)
       dependencies = migration_dependencies(rendered, expected_jobs)
       dependencies.each { |dependency| ensure_helm_dependency(resource, dependency) }
@@ -595,14 +629,6 @@ module ForemanRelease
 
     def expected_names(resources)
       resources.map { |resource| resource.dig('metadata', 'name') }
-    end
-
-    def incomplete_job_set(expected, matching, description)
-      missing = expected_names(expected) - expected_names(matching)
-      Observation.new(
-        state: :pending,
-        message: "waiting for #{description} Jobs: #{missing.join(', ')}"
-      )
     end
 
     def observe_jobs(resources, details: {})

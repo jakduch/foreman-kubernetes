@@ -2,8 +2,9 @@
 
 Foreman/Katello, Candlepin, Pulp, and the execution Smart Proxy are released
 independently, but they must be qualified and deployed as one compatibility
-set. `scripts/upgrade-release.sh` provides the current two-release sequencing
-contract until an operator owns this state machine.
+set. The `ForemanRelease` controller owns this sequencing for managed
+installations. `scripts/upgrade-release.sh` remains the guarded manual path for
+environments that have not adopted the controller.
 
 ## Preconditions
 

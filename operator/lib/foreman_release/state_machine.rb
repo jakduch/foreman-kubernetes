@@ -107,6 +107,20 @@ module ForemanRelease
       next_status
     end
 
+    def checkpoint(status:, generation:, now:, message:, details:)
+      next_status = deep_copy(status || {})
+      phase = next_status.fetch('phase', @initial_phase)
+      operation = next_status['operation']
+      raise ArgumentError, 'an active operation is required for a progress checkpoint' unless operation
+
+      next_status['observedGeneration'] = generation
+      operation.merge!(stringify_keys(details))
+      next_status['conditions'] = reconcile_conditions(
+        next_status['conditions'], phase, generation, now, 'ProgressObserved', message
+      )
+      next_status
+    end
+
     def quiescent?(status)
       @quiescent_phases.include?((status || {}).fetch('phase', @initial_phase))
     end

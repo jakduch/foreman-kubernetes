@@ -29,7 +29,7 @@ class FakeAdapter
       ForemanRelease::Observation.new(
         state: state,
         message: "#{method} is #{state}",
-        details: method == :ensure_migrations && state == :succeeded ? {migrationJobs: %w[job-a job-b job-c]} : {}
+        details: method == :ensure_migrations ? {migrationJobs: %w[job-a job-b job-c]} : {}
       )
     end
   end

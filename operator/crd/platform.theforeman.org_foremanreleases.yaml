@@ -232,7 +232,15 @@ spec:
                       type: integer
                       format: int64
                       minimum: 1
+                    applicationSubmittedRevision:
+                      type: integer
+                      format: int64
+                      minimum: 1
                     executionProxyRevision:
+                      type: integer
+                      format: int64
+                      minimum: 1
+                    executionProxySubmittedRevision:
                       type: integer
                       format: int64
                       minimum: 1

@@ -48,6 +48,12 @@ a new compatibility set. The Helm chart carries that ID plus the owning
 ForemanRelease UID on deterministic migration and Pulp registration Jobs, so a
 restarted controller adopts them rather than launching duplicate schema
 changes.
+Pending migration names and successfully submitted application/proxy Helm
+revisions are checkpointed into the active operation before the next poll. A
+missing member of an already submitted Deployment or registration-Job set
+causes the controller to idempotently resubmit that release with migration Jobs
+suppressed, instead of waiting until the phase timeout. This repairs partial
+resource deletion without re-running a schema change.
 
 The adapter boundary now includes three concrete, tested primitives:
 
@@ -193,7 +199,7 @@ stale controller report.
 The CRD and state graph are statically validated by `tests/operator-contract.rb`.
 `tests/operator-state-machine.rb` also executes the complete happy path, pause,
 blocked retry, busy Lease, invalid transition, conditions, and operation
-replacement behavior. `tests/operator-reconciler.rb` simulates a controller
+replacement and progress-checkpoint behavior. `tests/operator-reconciler.rb` simulates a controller
 restart during migration, safe-boundary pause, a failed validation, and an
 explicit retry. The two-candidate controller, leader takeover, bounded RBAC,
 chart, and publication image are present and covered by command-level

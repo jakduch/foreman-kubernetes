@@ -90,6 +90,8 @@ module ForemanRelease
           return :requeue
         end
 
+        persist_checkpoint(resource, status, observation) if checkpoint_required?(status, observation)
+
         return :requeue
       end
 
@@ -217,6 +219,23 @@ module ForemanRelease
       )
       @status_writer.call(resource, observed_status)
       :idle
+    end
+
+    def persist_checkpoint(resource, status, observation)
+      checkpoint = @state_machine.checkpoint(
+        status: status,
+        generation: resource.dig('metadata', 'generation'),
+        now: @clock.call,
+        message: observation.message || 'release progress observed',
+        details: observation.details
+      )
+      @status_writer.call(resource, checkpoint)
+    end
+
+    def checkpoint_required?(status, observation)
+      details = observation.details || {}
+      operation = status.fetch('operation', {})
+      details.any? { |key, value| operation[key.to_s] != value }
     end
 
     def paused?(status)

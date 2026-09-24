@@ -111,7 +111,9 @@ takes over only after that Lease expires or is explicitly released. A separate
 operation Lease continues to serialize the actual release mutation with manual
 install, upgrade, backup, and restore workflows. Every release operation is
 restart-safe: its input fingerprints, phase, operation Lease holder, migration
-Job names, and Helm revisions are durable. Change
+Job names, submitted Helm revisions, and verified Helm revisions are durable.
+If part of a submitted Deployment or registration-Job set disappears, the
+controller reapplies the same release with migration Jobs suppressed. Change
 `spec.retryToken` only after correcting a `Blocked` condition. Set
 `spec.paused=true` to stop at the next safe phase boundary; it never terminates
 an active migration or rollout.

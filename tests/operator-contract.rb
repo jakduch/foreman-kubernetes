@@ -70,6 +70,9 @@ operation = status_schema.dig('properties', 'operation', 'properties')
 end
 raise 'operation status does not retain timeout evidence' unless operation.dig('timeoutSeconds', 'minimum') == 1 &&
                                                            operation.dig('timedOutPhase', 'type') == 'string'
+%w[applicationSubmittedRevision executionProxySubmittedRevision].each do |revision|
+  raise "operation status does not retain #{revision}" unless operation.dig(revision, 'minimum') == 1
+end
 
 phases = status_schema.dig('properties', 'phase', 'enum')
 raise 'unsupported release state-machine schema' unless state_machine.fetch('schemaVersion') == 1

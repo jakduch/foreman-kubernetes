@@ -335,6 +335,7 @@ kubernetes.replace('configmaps', [existing_foreman_config])
 
 first_migration = adapter.ensure_migrations(resource, operation)
 raise 'initial migration reconciliation did not remain pending' unless first_migration.state == :pending
+raise 'submitted migration Job names were not checkpointed' unless first_migration.details.fetch(:migrationJobs).length == 3
 if runner.calls.map(&:first).any? { |command| command.first(2) == %w[helm upgrade] && command.include?('foreman') }
   raise 'application workloads were submitted before migrations completed'
 end
@@ -369,6 +370,9 @@ runner.existing_releases = []
 
 application_submission = adapter.ensure_application(resource, operation)
 raise 'application submission did not remain pending' unless application_submission.state == :pending
+unless application_submission.details == {applicationSubmittedRevision: 2}
+  raise 'application submission did not expose its Helm revision'
+end
 upgrade = runner.calls.map(&:first).find { |command| command.first(2) == %w[helm upgrade] && command.include?('foreman') }
 raise 'application Helm release was not submitted after migrations' unless upgrade
 raise 'runtime adapter used blocking Helm wait' if upgrade.any? { |argument| argument.start_with?('--wait') }
@@ -379,10 +383,22 @@ end
 
 application_render = runner.renders.fetch('foreman')
 deployments = application_render.select { |item| item['kind'] == 'Deployment' }.map { |item| available_deployment(item) }
+application_upgrades = runner.calls.count do |command, _stdin|
+  command.first(2) == %w[helm upgrade] && command.include?('foreman')
+end
+kubernetes.replace('deployments', deployments.drop(1))
+partial_application = adapter.ensure_application(resource, operation)
+raise 'partial application workload set was not repaired' unless partial_application.state == :pending
+unless runner.calls.count { |command, _stdin| command.first(2) == %w[helm upgrade] && command.include?('foreman') } == application_upgrades + 1
+  raise 'partial application workload set did not resubmit Helm ownership'
+end
 kubernetes.replace('deployments', deployments)
 registration_jobs = application_render.select do |item|
   item['kind'] == 'Job' && item.dig('metadata', 'labels', 'app.kubernetes.io/component') == 'pulp-registration'
 end
+kubernetes.replace('jobs', migration_jobs.map { |job| complete_job(job) })
+missing_registration = adapter.ensure_application(resource, operation)
+raise 'missing Pulp registration Job was not repaired' unless missing_registration.state == :pending
 kubernetes.replace('jobs', migration_jobs.map { |job| complete_job(job) } + registration_jobs.map { |job| complete_job(job) })
 application = adapter.ensure_application(resource, operation)
 raise "available application was not accepted: #{application.message}" unless application.state == :succeeded
@@ -398,6 +414,9 @@ raise 'completed application smoke Job was not adopted' unless adapter.ensure_ap
 
 proxy_submission = adapter.ensure_proxy(resource, operation)
 raise 'initial execution proxy reconciliation did not remain pending' unless proxy_submission.state == :pending
+unless proxy_submission.details == {executionProxySubmittedRevision: 4}
+  raise 'execution proxy submission did not expose its Helm revision'
+end
 proxy_upgrade = runner.calls.map(&:first).find { |command| command.first(2) == %w[helm upgrade] && command.include?('execution') }
 raise 'execution proxy Helm release was not submitted' unless proxy_upgrade
 raise 'execution operation ID was not passed to Helm' unless proxy_upgrade.include?("releaseOperation.id=#{operation.fetch('id')}")

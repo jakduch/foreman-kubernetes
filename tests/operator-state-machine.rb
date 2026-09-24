@@ -41,6 +41,20 @@ busy = machine.transition(
 )
 raise 'busy Lease did not preserve its timeout budget' unless busy.status['phaseStartedAt'] == busy_started_at
 
+status = machine.checkpoint(
+  status: status,
+  generation: 1,
+  now: now,
+  message: 'application release submitted',
+  details: {applicationSubmittedRevision: 2}
+)
+raise 'progress checkpoint changed the phase' unless status['phase'] == 'Preflight'
+unless status.dig('operation', 'applicationSubmittedRevision') == 2
+  raise 'progress checkpoint did not persist operation evidence'
+end
+progress = status['conditions'].find { |condition| condition['type'] == 'Progressing' }
+raise 'progress checkpoint did not refresh the condition' unless progress['reason'] == 'ProgressObserved'
+
 happy_path = [
   ['ValidationSucceeded', 'AcquiringLock', 'AcquireLease', {}],
   ['LeaseAcquired', 'Migrating', 'StartMigrationJobs', {migrationJobs: %w[candlepin pulp foreman]}],
@@ -158,6 +172,13 @@ begin
     now: now
   )
   raise 'operation without an ID was accepted'
+rescue ArgumentError
+  nil
+end
+
+begin
+  machine.checkpoint(status: {'phase' => 'Preflight'}, generation: 1, now: now, message: 'invalid', details: {})
+  raise 'progress checkpoint without an operation was accepted'
 rescue ArgumentError
   nil
 end
