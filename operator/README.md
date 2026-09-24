@@ -1,7 +1,10 @@
 # Foreman release operator contract
 
 This directory defines the API and deterministic lifecycle contract for the
-future release controller. It is not yet a running controller.
+release controller. `operator/lib/foreman_release/state_machine.rb` is the
+executable, side-effect-free transition core used to build durable status,
+conditions, operation identity, explicit retries, and pause observations. A
+cluster-facing reconciliation process is not running yet.
 
 `ForemanRelease` is namespaced because its Helm releases, values Secrets,
 migration Jobs, and status all belong to one application namespace. The
@@ -57,6 +60,8 @@ stale controller report.
 ## Current boundary
 
 The CRD and state graph are statically validated by `tests/operator-contract.rb`.
-A controller image, RBAC, Lease renewal, Job adoption, status patching, and
-restart/idempotency integration tests are still required before installing the
-CRD in a cluster.
+`tests/operator-state-machine.rb` also executes the complete happy path, pause,
+blocked retry, busy Lease, invalid transition, conditions, and operation
+replacement behavior. A controller image, RBAC, Lease renewal, Job adoption,
+status patching, and restart/idempotency integration tests are still required
+before installing the CRD in a cluster.

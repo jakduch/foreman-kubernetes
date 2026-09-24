@@ -37,6 +37,7 @@ trap 'rm -f "${rendered}" "${rendered_ingress}" "${rendered_ingress_overrides}" 
 ruby "${repo_root}/tests/yaml-duplicates.rb"
 ruby "${repo_root}/tests/workflow-action-pins.rb" "${repo_root}/.github/workflows"
 ruby "${repo_root}/tests/operator-contract.rb"
+ruby "${repo_root}/tests/operator-state-machine.rb"
 ruby "${repo_root}/tests/values-schema-coverage.rb"
 ruby "${repo_root}/tests/recovery-image-contract.rb"
 

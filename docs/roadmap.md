@@ -104,8 +104,9 @@ Still required:
 The namespaced `ForemanRelease` CRD and machine-readable lifecycle graph now
 define phase ordering, status conditions, same-namespace values references,
 pause semantics, explicit blocked retries, and the no-database-rollback rule.
-Their structural contract is covered by static tests, but no controller is
-running yet.
+The side-effect-free controller core executes that graph and is covered across
+success, pause, retry, contention, and invalid transitions, but no
+cluster-facing reconciliation process is running yet.
 
 After the Helm lifecycle and runtime contracts are proven, add a small Go operator that:
 
