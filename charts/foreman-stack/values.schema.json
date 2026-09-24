@@ -87,7 +87,7 @@
     "foreman": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["image", "replicas", "autoscaling", "service", "existingEnvSecret", "databaseUrlSecretKey", "encryptionKeySecretKey", "seedAdminUserSecretKey", "seedAdminPasswordSecretKey", "existingCertificateSecret", "enabledPlugins", "pluginPolicy", "puma", "databasePools", "dynflow", "katelloEventDaemon", "sharedTmp", "avatarStorage", "resources"],
+      "required": ["image", "replicas", "autoscaling", "service", "existingEnvSecret", "databaseUrlSecretKey", "encryptionKeySecretKey", "seedAdminUserSecretKey", "seedAdminPasswordSecretKey", "existingCertificateSecret", "existingDatabaseCaSecret", "database", "enabledPlugins", "pluginPolicy", "puma", "databasePools", "dynflow", "katelloEventDaemon", "sharedTmp", "avatarStorage", "resources"],
       "properties": {
         "image": { "$ref": "#/definitions/image" },
         "replicas": { "type": "integer", "minimum": 1 },
@@ -99,6 +99,8 @@
         "seedAdminUserSecretKey": { "type": "string", "minLength": 1 },
         "seedAdminPasswordSecretKey": { "type": "string", "minLength": 1 },
         "existingCertificateSecret": { "type": "string", "minLength": 1 },
+        "existingDatabaseCaSecret": { "type": "string" },
+        "database": { "$ref": "#/definitions/databaseTls" },
         "enabledPlugins": {
           "type": "array",
           "minItems": 2,
@@ -892,6 +894,14 @@
         "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
         "name": { "type": "string", "minLength": 1 },
         "user": { "type": "string", "minLength": 1 },
+        "sslMode": { "enum": ["disable", "allow", "prefer", "require", "verify-ca", "verify-full"] }
+      }
+    },
+    "databaseTls": {
+      "type": "object",
+      "required": ["sslMode"],
+      "additionalProperties": false,
+      "properties": {
         "sslMode": { "enum": ["disable", "allow", "prefer", "require", "verify-ca", "verify-full"] }
       }
     }

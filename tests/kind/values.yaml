@@ -22,6 +22,9 @@ valkey:
 
 foreman:
   replicas: 1
+  existingDatabaseCaSecret: ""
+  database:
+    sslMode: disable
   sharedTmp:
     existingClaim: foreman-tmp
   avatarStorage:
@@ -40,6 +43,7 @@ foreman:
 
 candlepin:
   replicas: 2
+  existingDatabaseCaSecret: ""
   highAvailability:
     enabled: true
     brokerUrlSecretKey: artemis-broker-url
@@ -64,6 +68,7 @@ candlepin:
       memory: 2500Mi
 
 pulp:
+  existingDatabaseCaSecret: ""
   database:
     host: postgresql
     port: 5432

@@ -178,6 +178,12 @@ server {
     secretKeyRef:
       name: {{ .Values.foreman.existingEnvSecret }}
       key: {{ .Values.foreman.databaseUrlSecretKey }}
+- name: PGSSLMODE
+  value: {{ .Values.foreman.database.sslMode | quote }}
+{{- if .Values.foreman.existingDatabaseCaSecret }}
+- name: PGSSLROOTCERT
+  value: /etc/foreman/certs/db-ca.crt
+{{- end }}
 - name: ENCRYPTION_KEY
   valueFrom:
     secretKeyRef:
@@ -247,6 +253,12 @@ server {
   mountPath: /etc/foreman/client_key.pem
   subPath: client_key.pem
   readOnly: true
+{{- if .Values.foreman.existingDatabaseCaSecret }}
+- name: foreman-database-ca
+  mountPath: /etc/foreman/certs/db-ca.crt
+  subPath: db-ca.crt
+  readOnly: true
+{{- end }}
 {{- end }}
 
 {{- define "foreman-stack.foremanVolumes" -}}
@@ -259,6 +271,14 @@ server {
 - name: foreman-certificates
   secret:
     secretName: {{ .Values.foreman.existingCertificateSecret }}
+{{- if .Values.foreman.existingDatabaseCaSecret }}
+- name: foreman-database-ca
+  secret:
+    secretName: {{ .Values.foreman.existingDatabaseCaSecret }}
+    items:
+      - key: db-ca.crt
+        path: db-ca.crt
+{{- end }}
 {{- end }}
 
 {{- define "foreman-stack.foremanAvatarVolumeMount" -}}
@@ -430,6 +450,9 @@ server {
 - name: pulp-database-ca
   secret:
     secretName: {{ .Values.pulp.existingDatabaseCaSecret }}
+    items:
+      - key: db-ca.crt
+        path: db-ca.crt
 {{- end }}
 {{- end }}
 

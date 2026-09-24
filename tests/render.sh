@@ -16,6 +16,7 @@ rendered_ha="$(mktemp)"
 rendered_candlepin_port="$(mktemp)"
 rendered_foreman_service_port="$(mktemp)"
 rendered_foreman_secret_contract="$(mktemp)"
+rendered_database_tls_disabled="$(mktemp)"
 rendered_image_pull_secrets="$(mktemp)"
 rendered_no_migrations="$(mktemp)"
 rendered_secret_rotation="$(mktemp)"
@@ -26,7 +27,7 @@ rendered_execution="$(mktemp)"
 rendered_execution_egress="$(mktemp)"
 rendered_execution_kind="$(mktemp)"
 rendered_execution_secret_rotation="$(mktemp)"
-trap 'rm -f "${rendered}" "${rendered_ingress}" "${rendered_ingress_overrides}" "${rendered_minimal_pulp_ingress}" "${rendered_backup}" "${rendered_restore}" "${rendered_egress}" "${rendered_singletons}" "${rendered_ha}" "${rendered_candlepin_port}" "${rendered_foreman_service_port}" "${rendered_foreman_secret_contract}" "${rendered_image_pull_secrets}" "${rendered_no_migrations}" "${rendered_secret_rotation}" "${rendered_s3}" "${rendered_s3_backup}" "${rendered_kind_backup}" "${rendered_execution}" "${rendered_execution_egress}" "${rendered_execution_kind}" "${rendered_execution_secret_rotation}"' EXIT
+trap 'rm -f "${rendered}" "${rendered_ingress}" "${rendered_ingress_overrides}" "${rendered_minimal_pulp_ingress}" "${rendered_backup}" "${rendered_restore}" "${rendered_egress}" "${rendered_singletons}" "${rendered_ha}" "${rendered_candlepin_port}" "${rendered_foreman_service_port}" "${rendered_foreman_secret_contract}" "${rendered_database_tls_disabled}" "${rendered_image_pull_secrets}" "${rendered_no_migrations}" "${rendered_secret_rotation}" "${rendered_s3}" "${rendered_s3_backup}" "${rendered_kind_backup}" "${rendered_execution}" "${rendered_execution_egress}" "${rendered_execution_kind}" "${rendered_execution_secret_rotation}"' EXIT
 
 ruby "${repo_root}/tests/yaml-duplicates.rb"
 ruby "${repo_root}/tests/operator-contract.rb"
@@ -115,6 +116,13 @@ helm template test "${chart}" \
   --set foreman.seedAdminUserSecretKey=custom-seed-user \
   --set foreman.seedAdminPasswordSecretKey=custom-seed-password > "${rendered_foreman_secret_contract}"
 helm template test "${chart}" \
+  --set foreman.database.sslMode=disable \
+  --set foreman.existingDatabaseCaSecret= \
+  --set candlepin.database.sslMode=disable \
+  --set candlepin.existingDatabaseCaSecret= \
+  --set pulp.database.sslMode=disable \
+  --set pulp.existingDatabaseCaSecret= > "${rendered_database_tls_disabled}"
+helm template test "${chart}" \
   --set 'imagePullSecrets[0].name=registry-auth' > "${rendered_image_pull_secrets}"
 helm template test "${chart}" \
   --set migrations.enabled=false > "${rendered_no_migrations}"
@@ -187,6 +195,8 @@ ruby "${repo_root}/tests/recurring-tasks-migration-barrier.rb" "${rendered_no_mi
 ruby "${repo_root}/tests/foreman-shared-tmp-contract.rb" "${rendered}" true
 ruby "${repo_root}/tests/foreman-shared-tmp-contract.rb" "${rendered_s3}" false
 ruby "${repo_root}/tests/foreman-database-pool-contract.rb" "${rendered}"
+ruby "${repo_root}/tests/database-tls-contract.rb" "${rendered}" verify-full true
+ruby "${repo_root}/tests/database-tls-contract.rb" "${rendered_database_tls_disabled}" disable false
 ruby "${repo_root}/tests/disruption-budget-contract.rb" "${rendered}"
 ruby "${repo_root}/tests/rollout-strategy-contract.rb" "${rendered}"
 ruby "${repo_root}/tests/recovery-storage-contract.rb" "${rendered_backup}" true
@@ -693,6 +703,24 @@ fi
 if helm template test "${chart}" \
   --set foreman.databasePools.web=4 >/dev/null 2>&1; then
   echo 'expected a web database pool smaller than Puma concurrency to be rejected' >&2
+  exit 1
+fi
+
+if helm template test "${chart}" \
+  --set foreman.existingDatabaseCaSecret= >/dev/null 2>&1; then
+  echo 'expected Foreman certificate verification without a database CA to be rejected' >&2
+  exit 1
+fi
+
+if helm template test "${chart}" \
+  --set candlepin.existingDatabaseCaSecret= >/dev/null 2>&1; then
+  echo 'expected Candlepin certificate verification without a database CA to be rejected' >&2
+  exit 1
+fi
+
+if helm template test "${chart}" \
+  --set pulp.existingDatabaseCaSecret= >/dev/null 2>&1; then
+  echo 'expected Pulp certificate verification without a database CA to be rejected' >&2
   exit 1
 fi
 

@@ -14,6 +14,9 @@
   .Values.pulp.existingConfigSecret
   .Values.pulp.controlProxy.existingCertificateSecret
 -}}
+{{- if .Values.foreman.existingDatabaseCaSecret }}
+{{- $secretNames = append $secretNames .Values.foreman.existingDatabaseCaSecret }}
+{{- end }}
 {{- if .Values.candlepin.existingDatabaseCaSecret }}
 {{- $secretNames = append $secretNames .Values.candlepin.existingDatabaseCaSecret }}
 {{- end }}
@@ -167,6 +170,12 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.foreman.existingEnvSecret }}
                   key: {{ .Values.foreman.databaseUrlSecretKey }}
+            - name: PGSSLMODE
+              value: {{ .Values.foreman.database.sslMode | quote }}
+            {{- if .Values.foreman.existingDatabaseCaSecret }}
+            - name: PGSSLROOTCERT
+              value: /etc/recovery/database-ca/foreman/db-ca.crt
+            {{- end }}
             - name: CANDLEPIN_DATABASE_HOST
               value: {{ .Values.candlepin.database.host | quote }}
             - name: CANDLEPIN_DATABASE_PORT
@@ -265,6 +274,11 @@ spec:
             - name: recovery-repository
               mountPath: {{ .Values.recovery.repository.path }}
             {{- end }}
+            {{- if .Values.foreman.existingDatabaseCaSecret }}
+            - name: foreman-database-ca
+              mountPath: /etc/recovery/database-ca/foreman
+              readOnly: true
+            {{- end }}
             {{- if .Values.candlepin.existingDatabaseCaSecret }}
             - name: candlepin-database-ca
               mountPath: /etc/recovery/database-ca/candlepin
@@ -303,14 +317,28 @@ spec:
           persistentVolumeClaim:
             claimName: {{ .Values.recovery.repository.existingClaim }}
         {{- end }}
+        {{- if .Values.foreman.existingDatabaseCaSecret }}
+        - name: foreman-database-ca
+          secret:
+            secretName: {{ .Values.foreman.existingDatabaseCaSecret }}
+            items:
+              - key: db-ca.crt
+                path: db-ca.crt
+        {{- end }}
         {{- if .Values.candlepin.existingDatabaseCaSecret }}
         - name: candlepin-database-ca
           secret:
             secretName: {{ .Values.candlepin.existingDatabaseCaSecret }}
+            items:
+              - key: db-ca.crt
+                path: db-ca.crt
         {{- end }}
         {{- if .Values.pulp.existingDatabaseCaSecret }}
         - name: pulp-database-ca
           secret:
             secretName: {{ .Values.pulp.existingDatabaseCaSecret }}
+            items:
+              - key: db-ca.crt
+                path: db-ca.crt
         {{- end }}
 {{- end }}

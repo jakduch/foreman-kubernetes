@@ -13,6 +13,10 @@ These contracts were taken from the current upstream source snapshots listed in 
   independently. The chart mounts a generated `database.yml`, preserves the
   secret `DATABASE_URL`, and assigns a process-specific pool that cannot be
   smaller than the process's thread concurrency.
+- The chart supplies `PGSSLMODE=verify-full` and a private PostgreSQL CA to
+  every Foreman process, migration barrier, and recovery command by default.
+  Keep TLS options out of `DATABASE_URL` so the typed chart policy cannot be
+  silently overridden by a conflicting URL query parameter.
 - Loads Katello through `FOREMAN_ENABLED_PLUGINS`; Katello is not a standalone server.
 - Exposes `/api/v2/ping`, including plugin health results. The endpoint returns
   HTTP 200 even when a nested check reports failure, so the chart parses its
@@ -152,6 +156,12 @@ All four key names are configurable. Runtime processes receive only the
 database URL and encryption key; the two seed credentials are exposed only to
 the Foreman migration-and-seed Job.
 
+`foreman-database-ca` contains `db-ca.crt`. The production default verifies
+both the PostgreSQL certificate chain and the hostname for web, Dynflow,
+recurring tasks, migrations, backup, and restore. A development profile that
+sets `foreman.database.sslMode=disable` must also clear
+`foreman.existingDatabaseCaSecret`.
+
 ### `foreman-shared`
 
 - `candlepin-oauth-secret`
@@ -176,7 +186,7 @@ The chart generates `settings.yaml`, `katello.yaml`, and all three Dynflow queue
   - `tomcat.crt`
   - `tomcat.key`
 
-The chart generates `candlepin.conf`, `server.xml`, `tomcat.conf`, `logging.properties`, and `logback.xml`. SmallRye environment overrides supply the database and OAuth secrets with a higher priority than the generated properties file. A separate optional Secret supplies `db-ca.crt` when database certificate validation is enabled. HA deployments may additionally mount a broker TLS Secret at `/etc/candlepin/artemis`; its filenames are referenced from the secret broker URL rather than copied into generated configuration.
+The chart generates `candlepin.conf`, `server.xml`, `tomcat.conf`, `logging.properties`, and `logback.xml`. SmallRye environment overrides supply the database and OAuth secrets with a higher priority than the generated properties file. `candlepin-database-ca` supplies `db-ca.crt`; the default JDBC mode is `verify-full`, including Liquibase and recovery. HA deployments may additionally mount a broker TLS Secret at `/etc/candlepin/artemis`; its filenames are referenced from the secret broker URL rather than copied into generated configuration.
 
 ### `pulp-runtime` and `pulp-config`
 
@@ -188,9 +198,11 @@ replace that Secret through annotations on Pulp's dedicated ServiceAccount. An
 optional object-storage CA Secret supplies the selected CA key through
 `AWS_CA_BUNDLE`.
 
-An optional Pulp database CA Secret contains `db-ca.crt`. When configured, the
-same trust root is mounted into API, content, worker, migration, and recovery
-pods, and Dynaconf receives it as PostgreSQL's `sslrootcert` option.
+`pulp-database-ca` contains `db-ca.crt`. The same trust root is mounted into
+API, content, worker, migration, and recovery pods, and Dynaconf receives it as
+PostgreSQL's `sslrootcert` option. The production default is `verify-full`.
+For either Pulp or Candlepin, a profile that disables database TLS must also
+clear the corresponding `existingDatabaseCaSecret` value.
 
 ### Edge and Pulp control certificates
 

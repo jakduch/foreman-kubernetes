@@ -1,3 +1,13 @@
+{{- $verifiedModes := list "verify-ca" "verify-full" -}}
+{{- if and (has .Values.foreman.database.sslMode $verifiedModes) (not .Values.foreman.existingDatabaseCaSecret) -}}
+{{- fail "foreman.existingDatabaseCaSecret is required when foreman.database.sslMode verifies the server certificate" -}}
+{{- end -}}
+{{- if and (has .Values.candlepin.database.sslMode $verifiedModes) (not .Values.candlepin.existingDatabaseCaSecret) -}}
+{{- fail "candlepin.existingDatabaseCaSecret is required when candlepin.database.sslMode verifies the server certificate" -}}
+{{- end -}}
+{{- if and (has .Values.pulp.database.sslMode $verifiedModes) (not .Values.pulp.existingDatabaseCaSecret) -}}
+{{- fail "pulp.existingDatabaseCaSecret is required when pulp.database.sslMode verifies the server certificate" -}}
+{{- end -}}
 apiVersion: v1
 kind: ConfigMap
 metadata:

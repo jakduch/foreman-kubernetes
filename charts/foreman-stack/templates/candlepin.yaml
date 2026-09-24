@@ -216,6 +216,9 @@ spec:
         - name: candlepin-database-ca
           secret:
             secretName: {{ .Values.candlepin.existingDatabaseCaSecret }}
+            items:
+              - key: db-ca.crt
+                path: db-ca.crt
         {{- end }}
         {{- if .Values.candlepin.highAvailability.existingBrokerTlsSecret }}
         - name: candlepin-broker-tls

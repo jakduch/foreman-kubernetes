@@ -71,6 +71,11 @@ foreman:
   seedAdminUserSecretKey: SEED_ADMIN_USER
   seedAdminPasswordSecretKey: SEED_ADMIN_PASSWORD
   existingCertificateSecret: foreman-certificates
+  existingDatabaseCaSecret: foreman-database-ca
+  database:
+    # Injected through libpq so web, workers, migrations, and recovery all use
+    # the same certificate-verification policy.
+    sslMode: verify-full
   enabledPlugins:
     - foreman-tasks
     - katello
@@ -145,7 +150,7 @@ candlepin:
   existingRuntimeSecret: candlepin-runtime
   databasePasswordSecretKey: database-password
   existingCertificateSecret: candlepin-certificates
-  existingDatabaseCaSecret: ""
+  existingDatabaseCaSecret: candlepin-database-ca
   highAvailability:
     enabled: false
     # The runtime Secret key contains the complete Artemis core client URL.
@@ -163,7 +168,7 @@ candlepin:
     port: 5432
     name: candlepin
     user: candlepin
-    sslMode: disable
+    sslMode: verify-full
   java:
     xms: 1g
     xmx: 4g
@@ -195,13 +200,13 @@ pulp:
   databasePasswordSecretKey: database-password
   djangoSecretKey: django-secret-key
   existingConfigSecret: pulp-config
-  existingDatabaseCaSecret: ""
+  existingDatabaseCaSecret: pulp-database-ca
   database:
     host: postgres.example.test
     port: 5432
     name: pulp
     user: pulp
-    sslMode: disable
+    sslMode: verify-full
   contentOrigin: https://content.example.test
   enabledPlugins:
     - pulp_certguard
