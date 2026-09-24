@@ -37,7 +37,9 @@ submits the application release once, adopts the operation-labelled migration
 and Pulp registration Jobs, observes every expected Deployment, then submits
 and adopts deterministic smoke-test Jobs. The execution-proxy release follows
 the same operation identity and is applied only after the application smoke
-test succeeds.
+test succeeds. Once available, an idempotent Rails Job registers it without an
+API password and requires Foreman to associate exactly Ansible, Dynflow, and
+Script before the final application and external mTLS smoke gates run.
 
 Before the Lease is acquired, `ClusterPreflight` derives dependencies from the
 exact combined render. It verifies referenced Secret keys, external PVCs and

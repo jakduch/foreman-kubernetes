@@ -120,20 +120,30 @@ helm lint charts/foreman-execution-proxy \
 helm upgrade --install execution charts/foreman-execution-proxy \
   --namespace foreman \
   --values examples/execution-proxy-values.yaml
+helm test foreman --namespace foreman --logs
 helm test execution --namespace foreman --logs
 ```
 
-The test connects to the proxy through its Service DNS name, verifies the
+The application test first registers or updates the execution proxy directly
+through Foreman's Rails model, so it needs no administrator password or API
+token. Saving the record performs Foreman's normal mTLS feature discovery; the
+Job succeeds only when Foreman associates exactly Ansible, Dynflow, and Script.
+It also rejects the ambiguous case where the desired name and URL already
+belong to different proxy records.
+
+The execution test connects to the proxy through its Service DNS name, verifies the
 server certificate against `proxy.existingTlsSecret`, presents Foreman's own
 client certificate, and requires the returned feature list to equal
 `ansible`, `dynflow`, and `script`. It therefore catches a wrong DNS SAN,
 untrusted Foreman identity, incorrect `trustedHosts`, and accidentally enabled
 network-facing proxy modules before the release is accepted.
 
-Register the Service URL in Foreman through Infrastructure > Smart Proxies or
-with Hammer, then refresh its features. Automatic registration is deliberately
-absent: a Helm workload should not retain Foreman administrator credentials,
-and proxy OAuth/bootstrap ownership belongs to the future operator.
+When `smartProxy.executionRegistration.enabled` is set in the application
+values, `ForemanRelease` adopts that Rails Job after the proxy rollout and
+registration is automatic. The Job uses the already mounted Foreman runtime
+and database identity; it does not retain Foreman administrator credentials.
+Manual Helm deployments run the same contract with `helm test foreman` only
+after the execution release is available.
 
 Before assigning the proxy to hosts, verify that Foreman shows only **Ansible**,
 **Dynflow**, and **Script**, imports the expected role versions, and can execute

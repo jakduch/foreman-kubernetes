@@ -78,6 +78,20 @@ smartProxy:
   # Smart Proxies are independent edge or execution-plane services. This
   # application chart deliberately does not co-locate one with Foreman.
   mode: external
+  executionRegistration:
+    # Enable only when the paired foreman-execution-proxy release is present.
+    # The controller adopts this test hook after the proxy rollout.
+    enabled: false
+    releaseName: execution
+    name: Kubernetes execution proxy
+    url: https://execution-foreman-execution-proxy:8443
+    port: 8443
+    expectedFeatures:
+      - Ansible
+      - Dynflow
+      - Script
+    retryAttempts: 30
+    retryIntervalSeconds: 5
 
 foreman:
   image:

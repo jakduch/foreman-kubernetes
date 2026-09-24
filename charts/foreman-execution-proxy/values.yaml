@@ -117,6 +117,7 @@ networkPolicy:
                 - dynflow-orchestrator
                 - dynflow-worker
                 - dynflow-worker-hosts-queue
+                - execution-proxy-registration
   egress:
     # Standard NetworkPolicy cannot resolve host names. Enable only after
     # declaring the Foreman and managed-host destinations below.

@@ -119,12 +119,27 @@
     "serviceAccount": { "$ref": "#/definitions/serviceAccount" },
     "smartProxy": {
       "type": "object",
-      "required": ["mode"],
+      "required": ["mode", "executionRegistration"],
       "additionalProperties": false,
       "properties": {
         "mode": {
           "const": "external",
           "description": "The application chart never embeds Smart Proxy network services in Foreman pods."
+        },
+        "executionRegistration": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["enabled", "releaseName", "name", "url", "port", "expectedFeatures", "retryAttempts", "retryIntervalSeconds"],
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "releaseName": { "type": "string", "minLength": 1 },
+            "name": { "type": "string", "minLength": 1 },
+            "url": { "type": "string", "pattern": "^https://" },
+            "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+            "expectedFeatures": { "const": ["Ansible", "Dynflow", "Script"] },
+            "retryAttempts": { "type": "integer", "minimum": 1, "maximum": 120 },
+            "retryIntervalSeconds": { "type": "integer", "minimum": 1, "maximum": 60 }
+          }
         }
       }
     },

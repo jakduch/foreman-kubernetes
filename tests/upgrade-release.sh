@@ -164,10 +164,11 @@ helm template foreman ${repo_root}/charts/foreman-stack --namespace foreman --va
 helm lint ${repo_root}/charts/foreman-execution-proxy --values ${execution_values} --values ${repo_root}/profiles/execution-proxy-nightly-candidate-2026-09-24.yaml
 helm template execution ${repo_root}/charts/foreman-execution-proxy --namespace foreman --values ${execution_values} --values ${repo_root}/profiles/execution-proxy-nightly-candidate-2026-09-24.yaml
 helm upgrade foreman ${repo_root}/charts/foreman-stack --namespace foreman --values ${application_values} --values ${repo_root}/profiles/nightly-candidate-2026-09-23.yaml --wait --wait-for-jobs --timeout 30m
-helm test foreman --namespace foreman --logs --timeout 10m
+helm test foreman --namespace foreman --filter name=.*-smoke-test$ --logs --timeout 10m
 helm upgrade execution ${repo_root}/charts/foreman-execution-proxy --namespace foreman --values ${execution_values} --values ${repo_root}/profiles/execution-proxy-nightly-candidate-2026-09-24.yaml --wait --timeout 30m
 kubectl --namespace foreman wait --for=condition=Ready pod --selector=app.kubernetes.io/instance=execution,app.kubernetes.io/component=execution-proxy --timeout=10m
 helm test foreman --namespace foreman --logs --timeout 10m
+helm test execution --namespace foreman --logs --timeout 10m
 kubectl --namespace foreman get lease foreman-kubernetes-release --output=jsonpath={.spec.holderIdentity}
 kubectl --namespace foreman delete lease foreman-kubernetes-release --wait=true
 EOF

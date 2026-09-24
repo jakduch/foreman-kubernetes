@@ -15,6 +15,14 @@ affinity:
   # every redundant component's minimum replica count.
   whenUnsatisfiable: DoNotSchedule
 
+smartProxy:
+  executionRegistration:
+    enabled: true
+    releaseName: execution
+    name: Kubernetes execution proxy
+    url: https://execution-foreman-execution-proxy:8443
+    port: 8443
+
 foreman:
   image:
     tag: nightly
@@ -27,6 +35,13 @@ foreman:
   dynflow:
     workers: 4
     hostsQueueWorkers: 2
+  enabledPlugins:
+    - foreman-tasks
+    - katello
+    - foreman_remote_execution
+    - foreman_ansible
+  pluginPolicy:
+    allowUnverified: true
 
 candlepin:
   image:

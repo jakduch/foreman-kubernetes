@@ -125,4 +125,5 @@ After the Helm lifecycle and runtime contracts are proven, add a small Go operat
 - creates migration Jobs and waits for their completion before rolling workloads;
 - reports component health in a custom resource status;
 - performs controlled upgrades and rollback gating;
-- manages Smart Proxy registration without taking ownership of edge DHCP/DNS networks.
+- keep Smart Proxy registration scoped to the paired execution proxy without
+  taking ownership of edge DHCP/DNS networks.

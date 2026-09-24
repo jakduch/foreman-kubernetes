@@ -193,12 +193,13 @@ grep -Fqx "${application_install}" "${tool_log}"
 grep -Fqx "${execution_install}" "${tool_log}"
 
 application_line="$(grep -Fn "${application_install}" "${tool_log}" | cut -d: -f1)"
-first_smoke_line="$(grep -Fn 'helm test foreman --namespace foreman --logs --timeout 10m' "${tool_log}" | head -n 1 | cut -d: -f1)"
+first_smoke_line="$(grep -Fn 'helm test foreman --namespace foreman --filter name=.*-smoke-test$ --logs --timeout 10m' "${tool_log}" | head -n 1 | cut -d: -f1)"
 execution_line="$(grep -Fn "${execution_install}" "${tool_log}" | cut -d: -f1)"
 if ! (( application_line < first_smoke_line && first_smoke_line < execution_line )); then
   echo 'execution proxy was installed before the application smoke gate' >&2
   exit 1
 fi
+grep -Fqx 'helm test execution --namespace foreman --logs --timeout 10m' "${tool_log}"
 
 : > "${tool_log}"
 if PATH="${fake_bin}:${PATH}" \

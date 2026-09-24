@@ -159,6 +159,7 @@ fi
 
 if ! helm test "${application_release}" \
   --namespace "${namespace}" \
+  --filter 'name=.*-smoke-test$' \
   --logs \
   --timeout "${preflight_timeout}"; then
   fail 'application revision is installed but its smoke test failed; do not roll back automatically after schema migrations'
@@ -179,6 +180,10 @@ kubectl --namespace "${namespace}" wait \
   --selector="app.kubernetes.io/instance=${execution_release},app.kubernetes.io/component=execution-proxy" \
   --timeout="${preflight_timeout}"
 helm test "${application_release}" \
+  --namespace "${namespace}" \
+  --logs \
+  --timeout "${preflight_timeout}"
+helm test "${execution_release}" \
   --namespace "${namespace}" \
   --logs \
   --timeout "${preflight_timeout}"

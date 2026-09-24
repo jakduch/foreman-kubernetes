@@ -174,8 +174,54 @@ validation = adapter.validate(resource, operation)
 raise 'release validation failed' unless validation.state == :succeeded
 raise 'validation did not pin all four release inputs' unless validation.details.keys.sort == ForemanRelease::RuntimeAdapter::INPUT_DIGESTS.keys.sort
 raise 'rendered cluster preflight was not executed' unless preflight.calls.length == 1 && preflight.calls.first.last == 'platform'
-operation.merge!(validation.details)
 raise 'Secret values were not written with mode 0600' unless runner.values_modes.all? { |mode| mode == 0o600 }
+
+valid_application_values = kubernetes.application_values
+application_config = YAML.safe_load(valid_application_values)
+application_config['smartProxy']['executionRegistration']['url'] = 'https://wrong-execution-service:8443'
+kubernetes.application_values = YAML.dump(application_config)
+begin
+  adapter.validate(resource, operation)
+  raise 'mismatched execution proxy registration URL was accepted'
+rescue ForemanRelease::InvalidRelease => error
+  raise unless error.message.include?('registration URL must be')
+ensure
+  kubernetes.application_values = valid_application_values
+end
+
+valid_execution_values = kubernetes.execution_values
+execution_config = YAML.safe_load(valid_execution_values)
+execution_config['smokeTest']['foremanCertificateSecret'] = 'another-foreman-certificate'
+kubernetes.execution_values = YAML.dump(execution_config)
+begin
+  adapter.validate(resource, operation)
+  raise 'mismatched Foreman client certificate Secret was accepted'
+rescue ForemanRelease::InvalidRelease => error
+  raise unless error.message.include?('application Foreman certificate Secret')
+ensure
+  kubernetes.execution_values = valid_execution_values
+end
+
+execution_config = YAML.safe_load(valid_execution_values)
+execution_config['networkPolicy']['ingress'] = {'peers' => [{
+  'podSelector' => {
+    'matchLabels' => {
+      'app.kubernetes.io/instance' => 'another-application',
+      'app.kubernetes.io/component' => 'foreman'
+    }
+  }
+}]}
+kubernetes.execution_values = YAML.dump(execution_config)
+begin
+  adapter.validate(resource, operation)
+  raise 'execution proxy ingress excluding the registration Job was accepted'
+rescue ForemanRelease::InvalidRelease => error
+  raise unless error.message.include?('rejects its Foreman registration Job')
+ensure
+  kubernetes.execution_values = valid_execution_values
+end
+
+operation.merge!(validation.details)
 
 runner.existing_releases = ['foreman']
 begin
@@ -262,9 +308,19 @@ proxy = adapter.ensure_proxy(resource, operation)
 raise "available execution proxy was not accepted: #{proxy.message}" unless proxy.state == :succeeded
 raise 'execution proxy Helm revision was not recorded' unless proxy.details == {executionProxyRevision: 4}
 
-final_smoke = adapter.ensure_final_smoke(resource, operation)
-raise 'final application smoke Job was not submitted asynchronously' unless final_smoke.state == :pending
-raise 'application smoke stages reused a Job name' unless kubernetes.created.map { |job| job.dig('metadata', 'name') }.uniq.length == 2
+registration = adapter.ensure_final_smoke(resource, operation)
+raise 'execution proxy registration Job was not submitted asynchronously' unless registration.state == :pending
+registration_job = kubernetes.created.last
+raise 'registration Job has the wrong component' unless registration_job.dig('metadata', 'labels', 'app.kubernetes.io/component') ==
+                                                    'execution-proxy-registration'
+registration_script = registration_job.dig('spec', 'template', 'spec', 'containers', 0, 'command').join("\n")
+raise 'registration Job does not verify exact Foreman features' unless registration_script.include?('proxy.features.reload.pluck(:name).sort')
+raise 'application verification Jobs reused a name' unless kubernetes.created.map { |job| job.dig('metadata', 'name') }.uniq.length == 2
+kubernetes.replace('jobs', kubernetes.resources('platform', 'jobs').map { |job| complete_job(job) })
+
+final_application_smoke = adapter.ensure_final_smoke(resource, operation)
+raise 'final application smoke Job was not submitted asynchronously' unless final_application_smoke.state == :pending
+raise 'verification Jobs did not receive distinct names' unless kubernetes.created.map { |job| job.dig('metadata', 'name') }.uniq.length == 3
 kubernetes.replace('jobs', kubernetes.resources('platform', 'jobs').map { |job| complete_job(job) })
 
 execution_smoke = adapter.ensure_final_smoke(resource, operation)
@@ -274,7 +330,7 @@ raise 'execution smoke Job has the wrong Helm instance' unless execution_job.dig
 raise 'execution smoke Job does not verify the proxy Service' unless execution_job.dig('spec', 'template', 'spec', 'containers', 0, 'env').any? do |entry|
   entry['name'] == 'PROXY_FEATURES_URL' && entry['value'] == 'https://execution-foreman-execution-proxy:8443/features'
 end
-raise 'three verification Jobs did not receive distinct names' unless kubernetes.created.map { |job| job.dig('metadata', 'name') }.uniq.length == 3
+raise 'four release verification Jobs did not receive distinct names' unless kubernetes.created.map { |job| job.dig('metadata', 'name') }.uniq.length == 4
 kubernetes.replace('jobs', kubernetes.resources('platform', 'jobs').map { |job| complete_job(job) })
 raise 'completed paired final smoke gate was not adopted' unless adapter.ensure_final_smoke(resource, operation).state == :succeeded
 

@@ -7,6 +7,7 @@ execution_chart="${repo_root}/charts/foreman-execution-proxy"
 operator_chart="${repo_root}/charts/foreman-release-operator"
 rendered="$(mktemp)"
 rendered_ingress="$(mktemp)"
+rendered_execution_registration="$(mktemp)"
 rendered_ingress_overrides="$(mktemp)"
 rendered_minimal_pulp_ingress="$(mktemp)"
 rendered_backup="$(mktemp)"
@@ -36,7 +37,7 @@ rendered_execution_kind="$(mktemp)"
 rendered_execution_operation="$(mktemp)"
 rendered_execution_secret_rotation="$(mktemp)"
 rendered_operator="$(mktemp)"
-trap 'rm -f "${rendered}" "${rendered_ingress}" "${rendered_ingress_overrides}" "${rendered_minimal_pulp_ingress}" "${rendered_backup}" "${rendered_restore}" "${rendered_egress}" "${rendered_egress_backup}" "${rendered_egress_backup_local}" "${rendered_singletons}" "${rendered_ha}" "${rendered_candlepin_port}" "${rendered_foreman_service_port}" "${rendered_foreman_secret_contract}" "${rendered_database_tls_disabled}" "${rendered_image_pull_secrets}" "${rendered_no_migrations}" "${rendered_release_operation}" "${rendered_secret_rotation}" "${rendered_s3}" "${rendered_s3_backup}" "${rendered_smtp}" "${rendered_smtp_backup}" "${rendered_kind}" "${rendered_kind_backup}" "${rendered_execution}" "${rendered_execution_egress}" "${rendered_execution_kind}" "${rendered_execution_operation}" "${rendered_execution_secret_rotation}" "${rendered_operator}"' EXIT
+trap 'rm -f "${rendered}" "${rendered_ingress}" "${rendered_execution_registration}" "${rendered_ingress_overrides}" "${rendered_minimal_pulp_ingress}" "${rendered_backup}" "${rendered_restore}" "${rendered_egress}" "${rendered_egress_backup}" "${rendered_egress_backup_local}" "${rendered_singletons}" "${rendered_ha}" "${rendered_candlepin_port}" "${rendered_foreman_service_port}" "${rendered_foreman_secret_contract}" "${rendered_database_tls_disabled}" "${rendered_image_pull_secrets}" "${rendered_no_migrations}" "${rendered_release_operation}" "${rendered_secret_rotation}" "${rendered_s3}" "${rendered_s3_backup}" "${rendered_smtp}" "${rendered_smtp_backup}" "${rendered_kind}" "${rendered_kind_backup}" "${rendered_execution}" "${rendered_execution_egress}" "${rendered_execution_kind}" "${rendered_execution_operation}" "${rendered_execution_secret_rotation}" "${rendered_operator}"' EXIT
 
 ruby "${repo_root}/tests/yaml-duplicates.rb"
 ruby "${repo_root}/tests/workflow-action-pins.rb" "${repo_root}/.github/workflows"
@@ -105,6 +106,9 @@ helm lint "${chart}" --values "${repo_root}/examples/execution-control-plane-val
 helm template test "${chart}" \
   --values "${repo_root}/examples/execution-control-plane-values.yaml" >/dev/null
 helm template test "${chart}" --values "${repo_root}/examples/cluster-values.yaml" > "${rendered_ingress}"
+helm template foreman "${chart}" \
+  --values "${repo_root}/examples/cluster-values.yaml" \
+  --values "${repo_root}/tests/egress-values.yaml" > "${rendered_execution_registration}"
 helm template test "${chart}" \
   --values "${repo_root}/examples/cluster-values.yaml" \
   --values "${repo_root}/tests/ingress-annotation-overrides.yaml" > "${rendered_ingress_overrides}"
@@ -328,6 +332,7 @@ ruby "${repo_root}/tests/execution-release-operation-contract.rb" \
   uid-123-generation-7 \
   12345678-1234-1234-1234-123456789abc
 ruby "${repo_root}/tests/execution-smoke-contract.rb" "${rendered_execution}"
+ruby "${repo_root}/tests/execution-registration-contract.rb" "${rendered_execution_registration}"
 ruby "${repo_root}/tests/secret-rollout-contract.rb" \
   "${rendered_execution}" "${rendered_execution_secret_rotation}"
 ruby "${repo_root}/tests/kubernetes-invariants.rb" "${rendered_operator}"

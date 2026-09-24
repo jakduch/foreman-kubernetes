@@ -140,6 +140,7 @@ fi
 
 if ! helm test "${application_release}" \
   --namespace "${namespace}" \
+  --filter 'name=.*-smoke-test$' \
   --logs \
   --timeout "${smoke_timeout}"; then
   fail 'application was installed but its smoke test failed; inspect it before installing the execution proxy'
@@ -160,6 +161,10 @@ kubectl --namespace "${namespace}" wait \
   --selector="app.kubernetes.io/instance=${execution_release},app.kubernetes.io/component=execution-proxy" \
   --timeout="${smoke_timeout}"
 helm test "${application_release}" \
+  --namespace "${namespace}" \
+  --logs \
+  --timeout "${smoke_timeout}"
+helm test "${execution_release}" \
   --namespace "${namespace}" \
   --logs \
   --timeout "${smoke_timeout}"

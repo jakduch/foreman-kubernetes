@@ -132,10 +132,12 @@ The installer performs these gates before changing application resources:
 
 It then waits for application migrations and Pulp registration, runs the
 application smoke test, installs the execution proxy, and waits for its Pod.
-The final gate repeats the application smoke test and then calls the execution
-proxy `/features` endpoint through Service DNS with Foreman's client
-certificate. The release is accepted only when server TLS, client trust, and
-the exact `Ansible`, `Dynflow`, and `Script` feature boundary all match.
+The final gate idempotently registers the proxy through Foreman's Rails model,
+repeats the application smoke test, and then calls the execution proxy
+`/features` endpoint through Service DNS with Foreman's client certificate.
+The release is accepted only when Foreman associates the proxy with exactly
+`Ansible`, `Dynflow`, and `Script`, server TLS and client trust match, and the
+external endpoint returns the same exact feature boundary.
 
 `RELEASE_LEASE_NAME`, `RELEASE_HOLDER_ID`,
 `RELEASE_LEASE_DURATION_SECONDS`, and

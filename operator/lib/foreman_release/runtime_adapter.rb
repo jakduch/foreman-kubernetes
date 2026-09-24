@@ -16,6 +16,7 @@ module ForemanRelease
   class RuntimeAdapter
     MIGRATION_COMPONENTS = %w[candlepin-migrate pulp-migrate foreman-migrate].freeze
     REGISTRATION_COMPONENT = 'pulp-registration'
+    EXECUTION_REGISTRATION_COMPONENT = 'execution-proxy-registration'
     OPERATION_LABEL = 'platform.theforeman.org/release-operation'
     OWNER_LABEL = 'platform.theforeman.org/release-owner'
     COMPONENT_LABEL = 'app.kubernetes.io/component'
@@ -166,6 +167,9 @@ module ForemanRelease
     def ensure_final_smoke(resource, operation)
       proxy = ensure_proxy(resource, operation)
       return proxy unless proxy.state == :succeeded
+
+      registration = ensure_execution_registration(resource, operation)
+      return registration unless registration.state == :succeeded
 
       application = ensure_smoke(resource, operation, 'final-application-smoke', source: :application)
       return application unless application.state == :succeeded
@@ -326,8 +330,97 @@ module ForemanRelease
       end
       raise InvalidRelease, 'application values must not enable maintenance mode' unless application.any? { |item| item['kind'] == 'Deployment' }
       raise InvalidRelease, 'application values must enable its smoke test' if jobs(application, ['smoke-test']).empty?
+      if jobs(application, [EXECUTION_REGISTRATION_COMPONENT]).empty?
+        raise InvalidRelease, 'application values must enable execution Smart Proxy registration'
+      end
       raise InvalidRelease, 'execution proxy chart must render exactly one Deployment' unless execution.count { |item| item['kind'] == 'Deployment' } == 1
       raise InvalidRelease, 'execution proxy values must enable its mTLS smoke test' if jobs(execution, ['smoke-test']).empty?
+      validate_execution_pair!(application, execution)
+    end
+
+    def validate_execution_pair!(application, execution)
+      service = execution.find do |item|
+        item['kind'] == 'Service' && item.dig('metadata', 'labels', COMPONENT_LABEL) == 'execution-proxy'
+      end
+      raise InvalidRelease, 'execution proxy Service is missing' unless service
+
+      service_port = Array(service.dig('spec', 'ports')).find { |port| port['name'] == 'https' }
+      raise InvalidRelease, 'execution proxy Service has no https port' unless service_port
+
+      registration = jobs(application, [EXECUTION_REGISTRATION_COMPONENT]).first
+      registration_env = container_environment(registration)
+      expected_url = "https://#{service.dig('metadata', 'name')}:#{service_port.fetch('port')}"
+      unless registration_env['EXECUTION_PROXY_URL'] == expected_url
+        raise InvalidRelease, "execution proxy registration URL must be #{expected_url}"
+      end
+      unless registration_env['EXECUTION_PROXY_FEATURES'] == 'Ansible,Dynflow,Script'
+        raise InvalidRelease, 'execution proxy registration must require exactly Ansible, Dynflow, and Script'
+      end
+
+      application_secret = secret_volume_name(jobs(application, ['smoke-test']).first, 'certificates')
+      execution_secret = projected_secret_name(
+        jobs(execution, ['smoke-test']).first, 'certificates', %w[client_cert.pem client_key.pem]
+      )
+      unless application_secret == execution_secret
+        raise InvalidRelease, 'execution proxy smoke test must use the application Foreman certificate Secret'
+      end
+
+      validate_registration_ingress!(registration, service, execution)
+    end
+
+    def container_environment(workload)
+      Array(workload.dig('spec', 'template', 'spec', 'containers')).first.fetch('env', []).to_h do |entry|
+        [entry['name'], entry['value']]
+      end
+    end
+
+    def secret_volume_name(workload, volume_name)
+      volume = Array(workload.dig('spec', 'template', 'spec', 'volumes')).find { |item| item['name'] == volume_name }
+      volume&.dig('secret', 'secretName')
+    end
+
+    def projected_secret_name(workload, volume_name, keys)
+      volume = Array(workload.dig('spec', 'template', 'spec', 'volumes')).find { |item| item['name'] == volume_name }
+      source = Array(volume&.dig('projected', 'sources')).find do |candidate|
+        item_keys = Array(candidate.dig('secret', 'items')).map { |item| item['key'] }
+        (keys - item_keys).empty?
+      end
+      source&.dig('secret', 'name')
+    end
+
+    def validate_registration_ingress!(registration, service, execution)
+      proxy_labels = service.dig('spec', 'selector') || {}
+      registration_labels = registration.dig('spec', 'template', 'metadata', 'labels') || {}
+      policies = execution.select do |item|
+        item['kind'] == 'NetworkPolicy' && Array(item.dig('spec', 'policyTypes')).include?('Ingress') &&
+          selector_matches?(item.dig('spec', 'podSelector') || {}, proxy_labels)
+      end
+      return if policies.empty?
+
+      permitted = policies.any? do |policy|
+        Array(policy.dig('spec', 'ingress')).any? do |rule|
+          port_allowed = Array(rule['ports']).any? { |port| port['port'] == service.dig('spec', 'ports', 0, 'port') }
+          port_allowed && Array(rule['from']).any? do |peer|
+            selector_matches?(peer['podSelector'] || {}, registration_labels)
+          end
+        end
+      end
+      raise InvalidRelease, 'execution proxy NetworkPolicy rejects its Foreman registration Job' unless permitted
+    end
+
+    def selector_matches?(selector, labels)
+      matches = (selector['matchLabels'] || {}).all? { |key, value| labels[key] == value }
+      expressions = Array(selector['matchExpressions']).all? do |expression|
+        value = labels[expression['key']]
+        case expression['operator']
+        when 'In' then Array(expression['values']).include?(value)
+        when 'NotIn' then !Array(expression['values']).include?(value)
+        when 'Exists' then labels.key?(expression['key'])
+        when 'DoesNotExist' then !labels.key?(expression['key'])
+        else false
+        end
+      end
+      matches && expressions
     end
 
     def upgrade(release_name, chart, values_path, profile_path, resource, operation)
@@ -430,32 +523,50 @@ module ForemanRelease
         template = jobs(resources, ['smoke-test']).first
         raise InvalidRelease, "#{source} smoke-test Job is disabled" unless template
 
-        smoke = smoke_job(template, resource, operation, stage, release_name)
-        live = operation_resources(resource, operation, 'jobs', instance: release_name).select do |job|
-          job.dig('metadata', 'name') == smoke.dig('metadata', 'name')
-        end
-        if live.empty?
-          begin
-            @kubernetes_client.create(resource.dig('metadata', 'namespace'), smoke)
-          rescue CommandError => error
-            raise unless error.stderr.include?('AlreadyExists')
+        ensure_operation_job(template, resource, operation, stage, release_name)
+      end
+    end
 
-            existing = @kubernetes_client.resource(
-              resource.dig('metadata', 'namespace'), 'job', smoke.dig('metadata', 'name')
-            )
-            labels = existing.dig('metadata', 'labels') || {}
-            unless labels[OPERATION_LABEL] == operation.fetch('id') &&
-                   labels[OWNER_LABEL] == resource.dig('metadata', 'uid')
-              raise InvalidRelease, "smoke Job #{smoke.dig('metadata', 'name')} belongs to another operation"
-            end
-          end
-          return Observation.new(state: :pending, message: "#{stage} Job submitted")
-        end
+    def ensure_execution_registration(resource, operation)
+      with_rendered_application(resource, operation) do |_context, _values_path, resources|
+        template = jobs(resources, [EXECUTION_REGISTRATION_COMPONENT]).first
+        raise InvalidRelease, 'execution Smart Proxy registration Job is disabled' unless template
 
-        result = observe_jobs(live)
-        return result unless result.state == :succeeded
+        ensure_operation_job(
+          template, resource, operation, 'execution-proxy-registration', application_release(resource)
+        )
+      end
+    end
 
-        Observation.new(state: :succeeded, message: "#{stage} passed")
+    def ensure_operation_job(template, resource, operation, stage, release_name)
+      expected = operation_job(template, resource, operation, stage, release_name)
+      live = operation_resources(resource, operation, 'jobs', instance: release_name).select do |job|
+        job.dig('metadata', 'name') == expected.dig('metadata', 'name')
+      end
+      if live.empty?
+        create_operation_job(resource, operation, expected, release_name)
+        return Observation.new(state: :pending, message: "#{stage} Job submitted")
+      end
+
+      result = observe_jobs(live)
+      return result unless result.state == :succeeded
+
+      Observation.new(state: :succeeded, message: "#{stage} passed")
+    end
+
+    def create_operation_job(resource, operation, expected, release_name)
+      @kubernetes_client.create(resource.dig('metadata', 'namespace'), expected)
+    rescue CommandError => error
+      raise unless error.stderr.include?('AlreadyExists')
+
+      existing = @kubernetes_client.resource(
+        resource.dig('metadata', 'namespace'), 'job', expected.dig('metadata', 'name')
+      )
+      labels = existing.dig('metadata', 'labels') || {}
+      unless labels[OPERATION_LABEL] == operation.fetch('id') &&
+             labels[OWNER_LABEL] == resource.dig('metadata', 'uid') &&
+             labels[INSTANCE_LABEL] == release_name
+        raise InvalidRelease, "Job #{expected.dig('metadata', 'name')} belongs to another release operation"
       end
     end
 
@@ -470,7 +581,7 @@ module ForemanRelease
       end
     end
 
-    def smoke_job(template, resource, operation, stage, release_name)
+    def operation_job(template, resource, operation, stage, release_name)
       job = Marshal.load(Marshal.dump(template))
       job['metadata']['name'] = bounded_name("#{release_name}-#{stage}-#{operation.fetch('id')}")
       job['metadata'].delete('namespace')

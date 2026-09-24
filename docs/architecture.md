@@ -261,6 +261,12 @@ Ansible inside Kubernetes. It owns a singleton Smart Proxy process, persistent
 Dynflow and runner state, a read-only Ansible content volume, mTLS and SSH
 identity mounts, target egress controls, and an exact positive feature
 readiness check. Network-control features remain forbidden in that profile.
+The namespaced release controller registers this proxy after rollout by
+adopting a Foreman Rails Job. It uses Foreman's existing database and mTLS
+identity rather than an administrator API credential, and admission requires
+that both Foreman's persisted feature associations and the external `/features`
+response contain exactly Ansible, Dynflow, and Script. Edge proxies remain
+outside this ownership boundary.
 
 The implementation drill is prepared but still unrun against the published
 images. It covers proxy registration, the exact feature boundary, successful,

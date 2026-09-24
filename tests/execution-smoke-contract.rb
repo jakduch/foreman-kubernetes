@@ -42,6 +42,14 @@ smoke_peer = Array(ingress&.dig('spec', 'ingress')).flat_map { |rule| Array(rule
     peer.dig('podSelector', 'matchLabels', 'app.kubernetes.io/component') == 'smoke-test'
 end
 abort 'proxy ingress does not permit its bounded smoke Job' unless smoke_peer
+registration_peer = Array(ingress&.dig('spec', 'ingress')).flat_map { |rule| Array(rule['from']) }.any? do |peer|
+  expressions = Array(peer.dig('podSelector', 'matchExpressions'))
+  expressions.any? do |expression|
+    expression['key'] == 'app.kubernetes.io/component' &&
+      Array(expression['values']).include?('execution-proxy-registration')
+  end
+end
+abort 'proxy ingress does not permit the bounded Foreman registration Job' unless registration_peer
 
 egress = policies.find { |policy| policy.dig('metadata', 'name') == 'execution-foreman-execution-proxy-smoke-test-egress' }
 abort 'execution smoke Job has no bounded egress policy' unless egress
