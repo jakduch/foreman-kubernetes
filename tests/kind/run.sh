@@ -287,8 +287,10 @@ configure_cluster_dns() {
 
 assert_execution_plane() {
   local role_revision="${1:-v1}"
+  local test_proxy_interruption="${2:-0}"
 
   EXPECTED_ROLE_REVISION="${role_revision}" \
+    TEST_PROXY_INTERRUPTION="${test_proxy_interruption}" \
     "${repo_root}/tests/kind/execution-plane.sh" "${temporary_directory}"
 }
 
@@ -494,7 +496,7 @@ if [[ "${pulp_api_status}" != 404 ]]; then
 fi
 
 assert_pulp_registration
-assert_execution_plane
+assert_execution_plane v1 1
 "${repo_root}/tests/kind/content-lifecycle.sh" \
   seed "${temporary_directory}" "${content_lifecycle_state}"
 

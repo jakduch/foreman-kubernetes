@@ -24,6 +24,9 @@
   by another synchronization and execution which rejects the stale revision;
 - expected-failure and cancellation paths followed by a successful job proving
   the executor remains usable;
+- deletion of the execution-proxy Pod after a long-running command reaches the
+  target; the task must become terminal and a fresh command must then succeed,
+  without claiming transparent continuation of the interrupted SSH process;
 - absence of a public Pulp administrative API route;
 - a Katello content lifecycle against an in-cluster deterministic file source:
   organization and product creation, repository synchronization, public Pulp

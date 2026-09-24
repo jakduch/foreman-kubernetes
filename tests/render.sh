@@ -215,6 +215,14 @@ grep -Fq 'EXPECTED_ROLE_REVISION' \
   "${repo_root}/tests/kind/execution-plane.sh"
 grep -Fq 'Ansible role executed stale content revision' \
   "${repo_root}/tests/kind/execution-plane.sh"
+grep -Fq 'TEST_PROXY_INTERRUPTION' \
+  "${repo_root}/tests/kind/execution-plane.sh"
+grep -Fq 'assert_interrupted_job_recovery' \
+  "${repo_root}/tests/kind/execution-plane.sh"
+grep -Fq -- '--grace-period=0' \
+  "${repo_root}/tests/kind/execution-plane.sh"
+grep -Fq 'foreman-kubernetes-after-proxy-restart-ok' \
+  "${repo_root}/tests/kind/execution-plane.sh"
 grep -Fq "if [[ ! -s \"\${workdir}/ca.crt\" ]]" \
   "${repo_root}/tests/kind/apply-secrets.sh"
 grep -Fq 'foreman-execution-proxy-tls' "${rendered_kind_backup}"
@@ -223,6 +231,7 @@ grep -Fq 'foreman-execution-proxy-ssh' "${rendered_kind_backup}"
 grep -Fq 'rotate_execution_identity' "${repo_root}/tests/kind/run.sh"
 grep -Fq 'publish-ansible-content.sh" v2' "${repo_root}/tests/kind/run.sh"
 grep -Fq 'assert_execution_plane v2' "${repo_root}/tests/kind/run.sh"
+grep -Fq 'assert_execution_plane v1 1' "${repo_root}/tests/kind/run.sh"
 grep -Fq -- '-purpose sslserver' "${repo_root}/tests/kind/run.sh"
 grep -Fq -- '-purpose sslclient' "${repo_root}/tests/kind/run.sh"
 

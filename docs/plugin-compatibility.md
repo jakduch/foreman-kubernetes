@@ -27,8 +27,8 @@ from the reviewed official image.
 | --- | --- | --- | --- |
 | `foreman-tasks` | yes | Foreman and Dynflow pods | full integration run |
 | `katello` | yes | Foreman pods | full Katello content lifecycle |
-| `foreman_remote_execution` | no | Foreman plus the execution Smart Proxy chart | success/failure/cancel workflows are modelled; live run and interrupted-job recovery remain |
-| `foreman_ansible` | no | Foreman plus the execution Smart Proxy chart | role import, execution, and content replacement are modelled; live run and interrupted runner recovery remain |
+| `foreman_remote_execution` | no | Foreman plus the execution Smart Proxy chart | success/failure/cancel and interrupted-job convergence are modelled; live run and retry policy remain |
+| `foreman_ansible` | no | Foreman plus the execution Smart Proxy chart | role import, execution, and content replacement are modelled; live run remains |
 | `foreman_google` | no | Foreman pods | provider credentials, egress, API test |
 | `foreman_azure_rm` | no | Foreman pods | provider credentials, egress, API test |
 | `foreman_kubevirt` | no | Foreman pods | KubeVirt credentials, egress, API test |

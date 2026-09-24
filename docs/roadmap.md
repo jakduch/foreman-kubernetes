@@ -16,7 +16,7 @@
 8. Run the prepared central-execution drill against the pinned amd64 image,
    then extend it from prepared successful, failed, and cancelled SSH/Ansible
    jobs, content replacement, fresh jobs after identity rotation, and
-   restricted egress to interrupted-job recovery.
+   restricted egress to a product decision on retrying interrupted jobs.
 
 ## Implemented, pending integration proof
 
@@ -47,8 +47,11 @@
   unrelated in-cluster destination, and repeats the jobs after clean restoration
   and complete proxy TLS/client/SSH identity rotation. It then replaces the
   already imported role with a second revision, synchronizes it again, and
-  rejects execution of the stale revision; the drill has not yet been executed
-  against the published image set.
+  rejects execution of the stale revision. A running job is also interrupted by
+  deleting the proxy Pod; it must leave the task in a terminal state before a
+  fresh job proves the restarted proxy is usable. This deliberately does not
+  claim transparent handoff of an active SSH process. The drill has not yet
+  been executed against the published image set.
 
 ## Candlepin HA track
 

@@ -150,14 +150,19 @@ repeats the workflow after a clean namespace restore and after restarting the
 proxy Pod with newly issued server TLS, client TLS, and SSH identities. It is
 then republished as a second Ansible role-content revision; Foreman synchronizes
 the existing role and the target must receive only the new revision's marker.
+The drill also forcibly deletes the proxy Pod after a long-running command has
+reached the target, bypassing its normal termination grace period. The
+interrupted task may succeed or fail, but it must become terminal; a new command
+must then succeed through the replacement Pod. This tests control-plane
+recovery without promising transparent continuation of the active SSH process.
 It is implemented but has not yet been executed against the published candidate
 images.
 
 Still required before production support:
 
 1. run the complete pinned amd64 drill in CI and retain its evidence;
-2. run the prepared failure and cancellation assertions, then add an
-   interrupted job across a Pod restart;
+2. run the prepared failure, cancellation, and interrupted-job assertions, then
+   decide whether application-level retry semantics are required;
 3. run the prepared already-imported role replacement and identity rotation
    assertions against the candidate images;
 4. run the prepared allow/deny egress probe and then validate deployment-specific

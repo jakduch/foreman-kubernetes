@@ -13,11 +13,20 @@ proxy_url="https://execution-foreman-execution-proxy:8443"
 target_name="execution-target.foreman.svc.cluster.local"
 role_name="foreman_kubernetes_test"
 role_revision="${EXPECTED_ROLE_REVISION:-v1}"
+test_proxy_interruption="${TEST_PROXY_INTERRUPTION:-0}"
 
 case "${role_revision}" in
   v1 | v2) ;;
   *)
     echo "unsupported expected Ansible content revision: ${role_revision}" >&2
+    exit 2
+    ;;
+esac
+
+case "${test_proxy_interruption}" in
+  0 | 1) ;;
+  *)
+    echo "TEST_PROXY_INTERRUPTION must be 0 or 1" >&2
     exit 2
     ;;
 esac
@@ -67,6 +76,7 @@ wait_for_task() {
                   when "success" then task.result == "success"
                   when "error" then task.result == "error"
                   when "not-success" then task.result != "success"
+                  when "terminal" then true
                   else false
                   end
           abort "Task #{task.id} (#{task.label}) ended with #{task.result}, expected #{expected}" unless valid
@@ -377,6 +387,57 @@ assert_cancelled_job() {
   assert_job_proxy "${invocation_id}" 'Cancelled Script' "${proxy_id}"
 }
 
+wait_for_target_marker() {
+  local marker="$1"
+
+  for _ in $(seq 1 120); do
+    if kubectl --namespace "${namespace}" exec deployment/execution-target -- \
+      test -f "/tmp/${marker}"; then
+      return
+    fi
+    sleep 1
+  done
+
+  echo "Target marker ${marker} was not created" >&2
+  exit 1
+}
+
+assert_interrupted_job_recovery() {
+  local proxy_id="$1"
+  local started_marker="foreman-kubernetes-interrupted-started"
+  local finished_marker="foreman-kubernetes-interrupted-finished"
+  local proxy_pod
+  local invocation
+  local invocation_id
+  local task_id
+
+  kubectl --namespace "${namespace}" exec deployment/execution-target -- \
+    rm -f "/tmp/${started_marker}" "/tmp/${finished_marker}"
+
+  invocation="$(create_script_job \
+    "touch /tmp/${started_marker}; sleep 60; touch /tmp/${finished_marker}")"
+  invocation_id="$(jq --exit-status --raw-output '.id' <<<"${invocation}")"
+  task_id="$(jq --exit-status --raw-output '.dynflow_task.id' <<<"${invocation}")"
+
+  wait_for_job_proxy "${invocation_id}" "${proxy_id}"
+  wait_for_target_marker "${started_marker}"
+  proxy_pod="$(kubectl --namespace "${namespace}" get pod \
+    --selector=app.kubernetes.io/instance=execution,app.kubernetes.io/component=execution-proxy \
+    --output=jsonpath='{.items[0].metadata.name}')"
+  kubectl --namespace "${namespace}" delete pod "${proxy_pod}" \
+    --grace-period=0 \
+    --force \
+    --wait=true \
+    --timeout=5m
+  kubectl --namespace "${namespace}" rollout status \
+    deployment/execution-foreman-execution-proxy \
+    --timeout=10m
+
+  wait_for_task "${task_id}" terminal
+  assert_job_proxy "${invocation_id}" 'Interrupted Script' "${proxy_id}"
+  run_job foreman-kubernetes-after-proxy-restart-ok Script "${proxy_id}"
+}
+
 run_role_job() {
   local host_id="$1"
   local proxy_id="$2"
@@ -430,5 +491,8 @@ assert_cancelled_job "${proxy_id}"
 run_job foreman-kubernetes-rex-ok Script "${proxy_id}"
 run_job foreman-kubernetes-ansible-ok Ansible "${proxy_id}" "${ansible_template_id}"
 run_role_job "${host_id}" "${proxy_id}"
+if [[ "${test_proxy_interruption}" == 1 ]]; then
+  assert_interrupted_job_recovery "${proxy_id}"
+fi
 
 echo "Execution proxy registration, failure/cancellation, role sync, SSH, Ansible command, and Ansible role ${role_revision} checks passed."
