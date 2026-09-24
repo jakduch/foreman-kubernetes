@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "foreman": {
+      "type": "object",
+      "required": ["existingEnvSecret", "existingConfigSecret"],
+      "properties": {
+        "replicas": { "type": "integer", "minimum": 1 },
+        "existingEnvSecret": { "type": "string", "minLength": 1 },
+        "existingConfigSecret": { "type": "string", "minLength": 1 },
+        "dynflow": {
+          "type": "object",
+          "properties": {
+            "workers": { "type": "integer", "minimum": 1 },
+            "hostsQueueWorkers": { "type": "integer", "minimum": 1 }
+          }
+        }
+      }
+    },
+    "candlepin": {
+      "type": "object",
+      "required": ["existingConfigSecret"],
+      "properties": {
+        "replicas": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1,
+          "description": "Candlepin remains single-replica until external Artemis and Quartz clustering are configured."
+        },
+        "existingConfigSecret": { "type": "string", "minLength": 1 }
+      }
+    },
+    "pulp": {
+      "type": "object",
+      "required": ["existingEnvSecret", "existingConfigSecret"],
+      "properties": {
+        "existingEnvSecret": { "type": "string", "minLength": 1 },
+        "existingConfigSecret": { "type": "string", "minLength": 1 },
+        "storage": {
+          "type": "object",
+          "properties": {
+            "accessMode": { "const": "ReadWriteMany" },
+            "size": { "type": "string", "pattern": "^[1-9][0-9]*(Ei|Pi|Ti|Gi|Mi|Ki)$" }
+          }
+        }
+      }
+    }
+  }
+}

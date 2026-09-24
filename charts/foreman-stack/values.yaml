@@ -1,0 +1,106 @@
+nameOverride: ""
+fullnameOverride: ""
+
+imagePullSecrets: []
+
+serviceAccount:
+  create: true
+  name: ""
+
+foreman:
+  image:
+    repository: quay.io/foreman/foreman
+    tag: nightly
+    pullPolicy: IfNotPresent
+  replicas: 2
+  service:
+    port: 3000
+  existingEnvSecret: foreman-runtime
+  existingConfigSecret: foreman-config
+  enabledPlugins:
+    - foreman-tasks
+    - katello
+  puma:
+    workers: 2
+    threadsMin: 5
+    threadsMax: 5
+  dynflow:
+    workers: 2
+    hostsQueueWorkers: 1
+  resources:
+    requests:
+      cpu: 500m
+      memory: 2Gi
+    limits:
+      memory: 4Gi
+
+candlepin:
+  image:
+    repository: quay.io/foreman/candlepin
+    tag: foreman-nightly
+    pullPolicy: IfNotPresent
+  # Phase 1 deliberately permits one replica only. See docs/runtime-contracts.md.
+  replicas: 1
+  existingConfigSecret: candlepin-config
+  service:
+    port: 23443
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      memory: 4Gi
+
+pulp:
+  image:
+    repository: quay.io/foreman/pulp
+    tag: foreman-nightly
+    pullPolicy: IfNotPresent
+  existingEnvSecret: pulp-runtime
+  existingConfigSecret: pulp-config
+  api:
+    replicas: 2
+    port: 24817
+    gunicornWorkers: 2
+  content:
+    replicas: 2
+    port: 24816
+    gunicornWorkers: 2
+  workers:
+    replicas: 4
+  storage:
+    existingClaim: ""
+    storageClass: ""
+    accessMode: ReadWriteMany
+    size: 100Gi
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      memory: 2Gi
+
+migrations:
+  enabled: true
+
+recurringTasks:
+  enabled: true
+  tasks:
+    - name: hourly
+      schedule: "7 * * * *"
+      rakeTask: cron:hourly
+    - name: daily
+      schedule: "17 0 * * *"
+      rakeTask: cron:daily
+    - name: weekly
+      schedule: "27 0 * * 0"
+      rakeTask: cron:weekly
+    - name: monthly
+      schedule: "37 0 1 * *"
+      rakeTask: cron:monthly
+
+podDisruptionBudget:
+  enabled: true
+
+affinity:
+  spreadAcrossNodes: true

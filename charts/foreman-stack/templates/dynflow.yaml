@@ -1,0 +1,63 @@
+{{- $root := . -}}
+{{- $workers := list
+  (dict "name" "orchestrator" "replicas" 1 "config" "dynflow-orchestrator.yml")
+  (dict "name" "worker" "replicas" .Values.foreman.dynflow.workers "config" "dynflow-worker.yml")
+  (dict "name" "worker-hosts-queue" "replicas" .Values.foreman.dynflow.hostsQueueWorkers "config" "dynflow-worker-hosts-queue.yml")
+-}}
+{{- range $index, $worker := $workers }}
+{{- if $index }}
+---
+{{- end }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "foreman-stack.fullname" $root }}-dynflow-{{ $worker.name }}
+  labels:
+    {{- include "foreman-stack.componentLabels" (dict "root" $root "component" (printf "dynflow-%s" $worker.name)) | nindent 4 }}
+spec:
+  replicas: {{ $worker.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ $root.Release.Name }}
+      app.kubernetes.io/component: dynflow-{{ $worker.name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "foreman-stack.name" $root }}
+        app.kubernetes.io/instance: {{ $root.Release.Name }}
+        app.kubernetes.io/component: dynflow-{{ $worker.name }}
+    spec:
+      serviceAccountName: {{ include "foreman-stack.serviceAccountName" $root }}
+      securityContext:
+        fsGroup: 994
+        fsGroupChangePolicy: OnRootMismatch
+      containers:
+        - name: dynflow
+          image: {{ include "foreman-stack.image" $root.Values.foreman.image }}
+          imagePullPolicy: {{ $root.Values.foreman.image.pullPolicy }}
+          command:
+            - /usr/libexec/foreman/sidekiq-selinux
+          args:
+            - -e
+            - production
+            - -r
+            - ./extras/dynflow-sidekiq.rb
+            - -C
+            - /etc/foreman/dynflow/runtime.yml
+          env:
+            {{- include "foreman-stack.foremanEnv" $root | nindent 12 }}
+          envFrom:
+            - secretRef:
+                name: {{ $root.Values.foreman.existingEnvSecret }}
+          volumeMounts:
+            {{- include "foreman-stack.foremanVolumeMounts" $root | nindent 12 }}
+            - name: foreman-config
+              mountPath: /etc/foreman/dynflow/runtime.yml
+              subPath: {{ $worker.config }}
+              readOnly: true
+          resources:
+            {{- toYaml $root.Values.foreman.resources | nindent 12 }}
+      volumes:
+        {{- include "foreman-stack.foremanVolumes" $root | nindent 8 }}
+      {{- include "foreman-stack.topologySpread" (dict "Values" $root.Values "Release" $root.Release "component" (printf "dynflow-%s" $worker.name)) | nindent 6 }}
+{{- end }}

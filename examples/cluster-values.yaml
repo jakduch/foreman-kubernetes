@@ -1,0 +1,27 @@
+foreman:
+  image:
+    tag: nightly
+  replicas: 3
+  dynflow:
+    workers: 4
+    hostsQueueWorkers: 2
+
+candlepin:
+  image:
+    tag: foreman-nightly
+  replicas: 1
+
+pulp:
+  image:
+    tag: foreman-nightly
+  api:
+    replicas: 3
+    gunicornWorkers: 2
+  content:
+    replicas: 3
+    gunicornWorkers: 2
+  workers:
+    replicas: 8
+  storage:
+    storageClass: cephfs
+    size: 500Gi

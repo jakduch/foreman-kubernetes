@@ -1,0 +1,86 @@
+{{- if .Values.migrations.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "foreman-stack.fullname" . }}-pulp-migrate-{{ .Release.Revision }}
+  labels:
+    {{- include "foreman-stack.componentLabels" (dict "root" . "component" "pulp-migrate") | nindent 4 }}
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: "-20"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: pulp-migrate
+    spec:
+      restartPolicy: OnFailure
+      serviceAccountName: {{ include "foreman-stack.serviceAccountName" . }}
+      securityContext:
+        fsGroup: 700
+      containers:
+        - name: migrate
+          image: {{ include "foreman-stack.image" .Values.pulp.image }}
+          imagePullPolicy: {{ .Values.pulp.image.pullPolicy }}
+          command:
+            - pulpcore-manager
+            - migrate
+            - --noinput
+          envFrom:
+            - secretRef:
+                name: {{ .Values.pulp.existingEnvSecret }}
+          volumeMounts:
+            - name: pulp-config
+              mountPath: /etc/pulp/certs/database_fields.symmetric.key
+              subPath: database_fields.symmetric.key
+              readOnly: true
+      volumes:
+        - name: pulp-config
+          secret:
+            secretName: {{ .Values.pulp.existingConfigSecret }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "foreman-stack.fullname" . }}-foreman-migrate-{{ .Release.Revision }}
+  labels:
+    {{- include "foreman-stack.componentLabels" (dict "root" . "component" "foreman-migrate") | nindent 4 }}
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: "-10"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: foreman-migrate
+    spec:
+      restartPolicy: OnFailure
+      serviceAccountName: {{ include "foreman-stack.serviceAccountName" . }}
+      securityContext:
+        fsGroup: 994
+      containers:
+        - name: migrate
+          image: {{ include "foreman-stack.image" .Values.foreman.image }}
+          imagePullPolicy: {{ .Values.foreman.image.pullPolicy }}
+          command:
+            - /bin/bash
+            - -ec
+            - bin/rails db:migrate && bin/rails db:seed
+          env:
+            {{- include "foreman-stack.foremanEnv" . | nindent 12 }}
+          envFrom:
+            - secretRef:
+                name: {{ .Values.foreman.existingEnvSecret }}
+          volumeMounts:
+            {{- include "foreman-stack.foremanVolumeMounts" . | nindent 12 }}
+      volumes:
+        {{- include "foreman-stack.foremanVolumes" . | nindent 8 }}
+{{- end }}

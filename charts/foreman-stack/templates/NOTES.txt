@@ -1,0 +1,10 @@
+Foreman stack resources were rendered for release {{ .Release.Name }}.
+
+The chart expects these pre-created Secrets:
+  - {{ .Values.foreman.existingEnvSecret }} (Foreman environment)
+  - {{ .Values.foreman.existingConfigSecret }} (Foreman, Katello, and Dynflow files)
+  - {{ .Values.candlepin.existingConfigSecret }} (Candlepin and Tomcat files/certificates)
+  - {{ .Values.pulp.existingEnvSecret }} (Pulp settings)
+  - {{ .Values.pulp.existingConfigSecret }} (Pulp symmetric key)
+
+See examples/secrets.example.yaml and docs/runtime-contracts.md before installing.
