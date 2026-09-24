@@ -143,7 +143,11 @@ CIDRs and list every PostgreSQL listener port in
 declared database and Valkey
 ports, required in-release service calls, and explicitly declared Foreman or
 Pulp external destinations. Candlepin HA additionally requires an explicit
-Artemis destination. This avoids pretending that a hostname in application
+Artemis destination. A backup or restore Job receives its own policy: it can
+reach DNS, PostgreSQL, the explicitly declared Kubernetes API endpoint, and a
+declared remote Restic endpoint. The latter rule is omitted for a repository
+PVC. This avoids leaving the credential-rich recovery Pod unrestricted and
+avoids pretending that a hostname in application
 configuration can be safely converted into an IP policy by Helm.
 
 Disruption budgets protect redundant Foreman, Candlepin, Pulp, Pulp control,

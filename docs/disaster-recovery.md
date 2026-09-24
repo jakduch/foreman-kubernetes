@@ -84,6 +84,15 @@ For a local Restic repository, put only `RESTIC_PASSWORD` in the Secret and set
 `recovery.repository.existingClaim`. The chart then sets `RESTIC_REPOSITORY` to
 `recovery.repository.path` inside that claim.
 
+When restricted egress is enabled, set
+`networkPolicy.egress.recovery.apiServer` to the control-plane endpoint used by
+the in-cluster Kubernetes Service. A remote repository also requires
+`networkPolicy.egress.recovery.repository`; list only the CIDRs and ports used
+by that Restic backend (for example TCP 443 for S3 or TCP 22 for SFTP). The
+repository rule is not rendered when `recovery.repository.existingClaim` is
+set. Helm refuses to create a recovery Job with missing destinations instead
+of silently giving this credential-rich Pod unrestricted egress.
+
 Database dumps use an `emptyDir` with `recovery.work.sizeLimit` by default. Set
 `recovery.work.existingClaim` when the three compressed dumps may exceed a
 node's safe ephemeral-storage allowance.

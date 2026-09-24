@@ -11,6 +11,8 @@ rendered_minimal_pulp_ingress="$(mktemp)"
 rendered_backup="$(mktemp)"
 rendered_restore="$(mktemp)"
 rendered_egress="$(mktemp)"
+rendered_egress_backup="$(mktemp)"
+rendered_egress_backup_local="$(mktemp)"
 rendered_singletons="$(mktemp)"
 rendered_ha="$(mktemp)"
 rendered_candlepin_port="$(mktemp)"
@@ -28,7 +30,7 @@ rendered_execution="$(mktemp)"
 rendered_execution_egress="$(mktemp)"
 rendered_execution_kind="$(mktemp)"
 rendered_execution_secret_rotation="$(mktemp)"
-trap 'rm -f "${rendered}" "${rendered_ingress}" "${rendered_ingress_overrides}" "${rendered_minimal_pulp_ingress}" "${rendered_backup}" "${rendered_restore}" "${rendered_egress}" "${rendered_singletons}" "${rendered_ha}" "${rendered_candlepin_port}" "${rendered_foreman_service_port}" "${rendered_foreman_secret_contract}" "${rendered_database_tls_disabled}" "${rendered_image_pull_secrets}" "${rendered_no_migrations}" "${rendered_secret_rotation}" "${rendered_s3}" "${rendered_s3_backup}" "${rendered_kind}" "${rendered_kind_backup}" "${rendered_execution}" "${rendered_execution_egress}" "${rendered_execution_kind}" "${rendered_execution_secret_rotation}"' EXIT
+trap 'rm -f "${rendered}" "${rendered_ingress}" "${rendered_ingress_overrides}" "${rendered_minimal_pulp_ingress}" "${rendered_backup}" "${rendered_restore}" "${rendered_egress}" "${rendered_egress_backup}" "${rendered_egress_backup_local}" "${rendered_singletons}" "${rendered_ha}" "${rendered_candlepin_port}" "${rendered_foreman_service_port}" "${rendered_foreman_secret_contract}" "${rendered_database_tls_disabled}" "${rendered_image_pull_secrets}" "${rendered_no_migrations}" "${rendered_secret_rotation}" "${rendered_s3}" "${rendered_s3_backup}" "${rendered_kind}" "${rendered_kind_backup}" "${rendered_execution}" "${rendered_execution_egress}" "${rendered_execution_kind}" "${rendered_execution_secret_rotation}"' EXIT
 
 ruby "${repo_root}/tests/yaml-duplicates.rb"
 ruby "${repo_root}/tests/operator-contract.rb"
@@ -106,6 +108,17 @@ helm template test "${chart}" \
 helm template test "${chart}" \
   --values "${repo_root}/tests/egress-values.yaml" > "${rendered_egress}"
 helm template test "${chart}" \
+  --values "${repo_root}/tests/egress-values.yaml" \
+  --set maintenance.enabled=true \
+  --set backup.enabled=true \
+  --set backup.requestId=egress-remote > "${rendered_egress_backup}"
+helm template test "${chart}" \
+  --values "${repo_root}/tests/egress-values.yaml" \
+  --set maintenance.enabled=true \
+  --set backup.enabled=true \
+  --set backup.requestId=egress-local \
+  --set recovery.repository.existingClaim=restic-repository > "${rendered_egress_backup_local}"
+helm template test "${chart}" \
   --values "${repo_root}/tests/ha-values.yaml" > "${rendered_ha}"
 helm template test "${chart}" \
   --set candlepin.service.port=24443 > "${rendered_candlepin_port}"
@@ -148,6 +161,8 @@ for manifest in \
   "${rendered}" \
   "${rendered_ingress}" \
   "${rendered_egress}" \
+  "${rendered_egress_backup}" \
+  "${rendered_egress_backup_local}" \
   "${rendered_singletons}" \
   "${rendered_ha}" \
   "${rendered_candlepin_port}" \
@@ -201,6 +216,8 @@ ruby "${repo_root}/tests/database-tls-contract.rb" "${rendered_database_tls_disa
 ruby "${repo_root}/tests/valkey-contract.rb" "${rendered}" true
 ruby "${repo_root}/tests/valkey-contract.rb" "${rendered_database_tls_disabled}" true
 ruby "${repo_root}/tests/valkey-contract.rb" "${rendered_kind}" false
+ruby "${repo_root}/tests/recovery-egress-contract.rb" "${rendered_egress_backup}" true
+ruby "${repo_root}/tests/recovery-egress-contract.rb" "${rendered_egress_backup_local}" false
 ruby "${repo_root}/tests/disruption-budget-contract.rb" "${rendered}"
 ruby "${repo_root}/tests/rollout-strategy-contract.rb" "${rendered}"
 ruby "${repo_root}/tests/recovery-storage-contract.rb" "${rendered_backup}" true
@@ -780,6 +797,34 @@ if helm template test "${chart}" \
   echo 'expected egress isolation with all NetworkPolicies disabled to be rejected' >&2
   exit 1
 fi
+
+if helm template test "${chart}" \
+  --values "${repo_root}/tests/egress-values.yaml" \
+  --set maintenance.enabled=true \
+  --set backup.enabled=true \
+  --set backup.requestId=missing-api \
+  --set-json 'networkPolicy.egress.recovery.apiServer.peers=[]' >/dev/null 2>&1; then
+  echo 'expected restricted recovery without a Kubernetes API peer to be rejected' >&2
+  exit 1
+fi
+
+if helm template test "${chart}" \
+  --values "${repo_root}/tests/egress-values.yaml" \
+  --set maintenance.enabled=true \
+  --set backup.enabled=true \
+  --set backup.requestId=missing-repository \
+  --set-json 'networkPolicy.egress.recovery.repository.peers=[]' >/dev/null 2>&1; then
+  echo 'expected remote recovery without a Restic repository peer to be rejected' >&2
+  exit 1
+fi
+
+helm template test "${chart}" \
+  --values "${repo_root}/tests/egress-values.yaml" \
+  --set maintenance.enabled=true \
+  --set backup.enabled=true \
+  --set backup.requestId=local-repository \
+  --set recovery.repository.existingClaim=restic-repository \
+  --set-json 'networkPolicy.egress.recovery.repository.peers=[]' >/dev/null
 
 if helm template test "${chart}" \
   --set backup.enabled=true \

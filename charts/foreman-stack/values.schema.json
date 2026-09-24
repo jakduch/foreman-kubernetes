@@ -486,7 +486,7 @@
         },
         "egress": {
           "type": "object",
-          "required": ["enabled", "dns", "database", "valkey", "external"],
+          "required": ["enabled", "dns", "database", "valkey", "recovery", "external"],
           "properties": {
             "enabled": { "type": "boolean" },
             "dns": { "$ref": "#/definitions/networkPolicyPeer" },
@@ -504,6 +504,15 @@
               "properties": {
                 "peers": { "$ref": "#/definitions/networkPolicyPeers" },
                 "ports": { "$ref": "#/definitions/networkPolicyPorts" }
+              }
+            },
+            "recovery": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["apiServer", "repository"],
+              "properties": {
+                "apiServer": { "$ref": "#/definitions/networkPolicyDestination" },
+                "repository": { "$ref": "#/definitions/networkPolicyDestination" }
               }
             },
             "external": {

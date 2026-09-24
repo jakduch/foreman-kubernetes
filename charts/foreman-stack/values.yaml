@@ -392,6 +392,18 @@ networkPolicy:
       peers: []
       ports:
         - 6379
+    recovery:
+      # The recovery Job talks directly to the Kubernetes API and, unless a
+      # repository PVC is used, to the external Restic backend.
+      apiServer:
+        peers: []
+        ports:
+          - 443
+      repository:
+        peers: []
+        ports:
+          - 22
+          - 443
     external:
       foreman:
         peers: []

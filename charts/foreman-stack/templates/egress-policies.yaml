@@ -9,6 +9,7 @@
 {{- $database := .Values.networkPolicy.egress.database }}
 {{- $valkey := .Values.networkPolicy.egress.valkey }}
 {{- $dns := .Values.networkPolicy.egress.dns }}
+{{- $recovery := .Values.networkPolicy.egress.recovery }}
 {{- $foremanExternal := .Values.networkPolicy.egress.external.foreman }}
 {{- $pulpExternal := .Values.networkPolicy.egress.external.pulp }}
 {{- $candlepinExternal := .Values.networkPolicy.egress.external.candlepin }}
@@ -17,6 +18,12 @@
 {{- end }}
 {{- if and (eq .Values.pulp.storage.backend "s3") (eq (len $pulpExternal.peers) 0) }}
 {{- fail "networkPolicy.egress.external.pulp.peers must identify the S3 endpoint when Pulp object storage is enabled" }}
+{{- end }}
+{{- if and (or .Values.backup.enabled .Values.restore.enabled) (eq (len $recovery.apiServer.peers) 0) }}
+{{- fail "networkPolicy.egress.recovery.apiServer.peers must identify the Kubernetes API endpoint during backup or restore" }}
+{{- end }}
+{{- if and (or .Values.backup.enabled .Values.restore.enabled) (not .Values.recovery.repository.existingClaim) (eq (len $recovery.repository.peers) 0) }}
+{{- fail "networkPolicy.egress.recovery.repository.peers must identify the remote Restic endpoint during backup or restore" }}
 {{- end }}
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -217,4 +224,57 @@ spec:
       ports:
         - protocol: TCP
           port: {{ .Values.pulp.api.port }}
+{{- if or .Values.backup.enabled .Values.restore.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "foreman-stack.fullname" . }}-recovery-egress
+  labels:
+    {{- include "foreman-stack.componentLabels" (dict "root" . "component" "recovery-egress") | nindent 4 }}
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/instance
+        operator: In
+        values: [{{ .Release.Name | quote }}]
+      - key: app.kubernetes.io/component
+        operator: In
+        values:
+          - recovery-backup
+          - recovery-restore
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - {{- toYaml $dns | nindent 10 }}
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to:
+        {{- toYaml $database.peers | nindent 8 }}
+      ports:
+        {{- range $database.ports }}
+        - protocol: TCP
+          port: {{ . }}
+        {{- end }}
+    - to:
+        {{- toYaml $recovery.apiServer.peers | nindent 8 }}
+      ports:
+        {{- range $recovery.apiServer.ports }}
+        - protocol: TCP
+          port: {{ . }}
+        {{- end }}
+    {{- if not .Values.recovery.repository.existingClaim }}
+    - to:
+        {{- toYaml $recovery.repository.peers | nindent 8 }}
+      ports:
+        {{- range $recovery.repository.ports }}
+        - protocol: TCP
+          port: {{ . }}
+        {{- end }}
+    {{- end }}
+{{- end }}
 {{- end }}

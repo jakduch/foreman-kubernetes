@@ -11,6 +11,20 @@ networkPolicy:
             cidr: 192.0.2.11/32
       ports:
         - 6379
+    recovery:
+      apiServer:
+        peers:
+          - ipBlock:
+              cidr: 192.0.2.20/32
+        ports:
+          - 6443
+      repository:
+        peers:
+          - ipBlock:
+              cidr: 192.0.2.21/32
+        ports:
+          - 22
+          - 443
     external:
       foreman:
         peers:
