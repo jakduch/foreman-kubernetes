@@ -48,6 +48,28 @@ case "$*" in
     printf '%s\n' 'kind: Job' '---' 'kind: Job' '---' 'kind: Job'
     ;;
 esac
+if [[ "$1" == template && "$2" == foreman && "$*" != *'--show-only'* ]]; then
+  printf '%s\n' \
+    'apiVersion: apps/v1' \
+    'kind: Deployment' \
+    'metadata:' \
+    '  labels:' \
+    '    app.kubernetes.io/component: foreman'
+  if [[ "${FAKE_RENDER_SECRET:-0}" == 1 ]]; then
+    printf '%s\n' \
+      'spec:' \
+      '  template:' \
+      '    spec:' \
+      '      containers:' \
+      '        - name: foreman' \
+      '          env:' \
+      '            - name: PASSWORD' \
+      '              valueFrom:' \
+      '                secretKeyRef:' \
+      '                  name: required-runtime' \
+      '                  key: password'
+  fi
+fi
 SCRIPT
 
 cat > "${fake_bin}/kubectl" <<'SCRIPT'
@@ -59,6 +81,12 @@ if [[ -n "${FAKE_KUBECTL_FAIL_MATCH:-}" && "$*" == *"${FAKE_KUBECTL_FAIL_MATCH}"
 fi
 if [[ "$*" == *'get configmap foreman-kubernetes-upgrade-lock'* ]]; then
   printf '%s' "${FAKE_EXISTING_LOCK_HOLDER:-${UPGRADE_HOLDER_ID:-test-holder}}"
+fi
+if [[ "$*" == *'get secret required-runtime'* ]]; then
+  if [[ -z "${FAKE_SECRET_JSON:-}" ]]; then
+    exit 1
+  fi
+  printf '%s\n' "${FAKE_SECRET_JSON}"
 fi
 SCRIPT
 
@@ -173,6 +201,39 @@ if PATH="${fake_bin}:${PATH}" \
 fi
 if grep -Fq 'helm upgrade ' "${tool_log}"; then
   echo 'an upgrade started after preflight detected maintenance mode' >&2
+  exit 1
+fi
+
+: > "${tool_log}"
+if PATH="${fake_bin}:${PATH}" \
+  FAKE_TOOL_LOG="${tool_log}" \
+  FAKE_RENDER_SECRET=1 \
+  ALLOW_CANDIDATE=1 \
+  UPGRADE_HOLDER_ID=test-holder \
+  "${repo_root}/scripts/upgrade-release.sh" \
+    "${application_values}" "${execution_values}" >/dev/null 2>&1; then
+  echo 'upgrade accepted a missing externally managed Secret' >&2
+  exit 1
+fi
+if grep -Fq 'helm upgrade ' "${tool_log}"; then
+  echo 'an upgrade started after Secret preflight failed' >&2
+  exit 1
+fi
+
+: > "${tool_log}"
+if PATH="${fake_bin}:${PATH}" \
+  FAKE_TOOL_LOG="${tool_log}" \
+  FAKE_RENDER_SECRET=1 \
+  FAKE_SECRET_JSON='{"data":{"username":"dXNlcg=="}}' \
+  ALLOW_CANDIDATE=1 \
+  UPGRADE_HOLDER_ID=test-holder \
+  "${repo_root}/scripts/upgrade-release.sh" \
+    "${application_values}" "${execution_values}" >/dev/null 2>&1; then
+  echo 'upgrade accepted an externally managed Secret without its required key' >&2
+  exit 1
+fi
+if grep -Fq 'helm upgrade ' "${tool_log}"; then
+  echo 'an upgrade started after Secret key preflight failed' >&2
   exit 1
 fi
 

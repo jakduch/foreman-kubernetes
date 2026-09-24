@@ -47,8 +47,8 @@ The installer performs these gates before changing the cluster:
    authoritative digest-pinned image profiles;
 4. it verifies every referenced IngressClass, named or default StorageClass,
    external PVC, and external ServiceAccount;
-5. it discovers every non-optional Secret used by a Pod template and verifies
-   both the Secret and each explicitly referenced key;
+5. it discovers every non-optional, externally managed Secret used by a Pod
+   template and verifies both the Secret and each explicitly referenced key;
 6. it rejects maintenance-only renders that omit normal migration workloads.
 
 It then waits for application migrations and Pulp registration, runs the

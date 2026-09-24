@@ -5,6 +5,13 @@ require 'open3'
 
 repo_root = File.expand_path('..', __dir__)
 manifest = <<~YAML
+  apiVersion: v1
+  kind: Secret
+  metadata:
+    name: chart-owned
+  data:
+    password: Y2hhcnQ=
+  ---
   apiVersion: apps/v1
   kind: Deployment
   spec:
@@ -37,6 +44,11 @@ manifest = <<~YAML
                   secretKeyRef:
                     name: database
                     key: username
+              - name: CHART_OWNED
+                valueFrom:
+                  secretKeyRef:
+                    name: chart-owned
+                    key: password
         volumes:
           - name: certificate
             secret:

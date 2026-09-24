@@ -7,6 +7,8 @@ if [[ $# -ne 2 ]]; then
 fi
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=release-preflight.sh
+. "${repo_root}/scripts/release-preflight.sh"
 application_values="$1"
 execution_values="$2"
 namespace="${NAMESPACE:-foreman}"
@@ -49,7 +51,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-for command_name in helm jq kubectl grep; do
+for command_name in helm jq kubectl grep ruby; do
   command -v "${command_name}" >/dev/null 2>&1 || fail "${command_name} is required"
 done
 
@@ -115,10 +117,10 @@ echo "Preflight: rendering compatibility set ${compatibility_set}"
 helm lint "${repo_root}/charts/foreman-stack" \
   --values "${application_values}" \
   --values "${application_profile}"
-helm template "${application_release}" "${repo_root}/charts/foreman-stack" \
+application_resources="$(helm template "${application_release}" "${repo_root}/charts/foreman-stack" \
   --namespace "${namespace}" \
   --values "${application_values}" \
-  --values "${application_profile}" >/dev/null
+  --values "${application_profile}")"
 foreman_resources="$(helm template "${application_release}" "${repo_root}/charts/foreman-stack" \
   --namespace "${namespace}" \
   --values "${application_values}" \
@@ -143,10 +145,14 @@ migration_resources="$(helm template "${application_release}" "${repo_root}/char
 helm lint "${repo_root}/charts/foreman-execution-proxy" \
   --values "${execution_values}" \
   --values "${execution_profile}"
-helm template "${execution_release}" "${repo_root}/charts/foreman-execution-proxy" \
+execution_resources="$(helm template "${execution_release}" "${repo_root}/charts/foreman-execution-proxy" \
   --namespace "${namespace}" \
   --values "${execution_values}" \
-  --values "${execution_profile}" >/dev/null
+  --values "${execution_profile}")"
+
+combined_resources="$(printf '%s\n---\n%s\n' "${application_resources}" "${execution_resources}")"
+check_required_cluster_resources "${combined_resources}" "${namespace}" "${repo_root}"
+check_required_secrets "${combined_resources}" "${namespace}" "${repo_root}"
 
 echo "Upgrade: applying the application release and migration gates"
 if ! helm upgrade "${application_release}" "${repo_root}/charts/foreman-stack" \

@@ -7,6 +7,8 @@ if [[ $# -ne 2 ]]; then
 fi
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=release-preflight.sh
+. "${repo_root}/scripts/release-preflight.sh"
 application_values="$1"
 execution_values="$2"
 namespace="${NAMESPACE:-foreman}"
@@ -98,44 +100,8 @@ execution_resources="$(helm template "${execution_release}" "${repo_root}/charts
 
 combined_resources="$(printf '%s\n---\n%s\n' "${application_resources}" "${execution_resources}")"
 
-echo 'Preflight: checking cluster storage, ingress, and external workload resources'
-required_resources="$(ruby "${repo_root}/scripts/required-cluster-resources.rb" <<<"${combined_resources}")"
-while IFS=$'\t' read -r resource_kind resource_name; do
-  [[ -n "${resource_kind}" ]] || continue
-  case "${resource_kind}" in
-    DefaultStorageClass)
-      storage_classes="$(kubectl get storageclass --output=json)" || \
-        fail 'unable to inspect StorageClasses'
-      jq --exit-status 'any(.items[]; .metadata.annotations["storageclass.kubernetes.io/is-default-class"] == "true")' \
-        <<<"${storage_classes}" >/dev/null || \
-        fail 'a rendered PVC relies on a default StorageClass, but none is configured'
-      ;;
-    StorageClass | IngressClass)
-      kubectl get "${resource_kind}" "${resource_name}" >/dev/null || \
-        fail "required ${resource_kind} ${resource_name} does not exist"
-      ;;
-    PersistentVolumeClaim | ServiceAccount)
-      kubectl --namespace "${namespace}" get "${resource_kind}" "${resource_name}" >/dev/null || \
-        fail "required ${resource_kind} ${namespace}/${resource_name} does not exist"
-      ;;
-    *) fail "unsupported preflight resource kind: ${resource_kind}" ;;
-  esac
-done <<<"${required_resources}"
-
-echo 'Preflight: checking externally managed Secrets and referenced keys'
-required_secrets="$(ruby "${repo_root}/scripts/required-secrets.rb" <<<"${combined_resources}")"
-while IFS=$'\t' read -r secret_name secret_keys; do
-  [[ -n "${secret_name}" ]] || continue
-  secret_json="$(kubectl --namespace "${namespace}" get secret "${secret_name}" --output=json)" || \
-    fail "required Secret ${namespace}/${secret_name} does not exist"
-  [[ -n "${secret_keys}" ]] || continue
-  IFS=',' read -r -a keys <<<"${secret_keys}"
-  for secret_key in "${keys[@]}"; do
-    jq --exit-status --arg key "${secret_key}" '.data[$key] != null' \
-      <<<"${secret_json}" >/dev/null || \
-      fail "required key ${secret_key} does not exist in Secret ${namespace}/${secret_name}"
-  done
-done <<<"${required_secrets}"
+check_required_cluster_resources "${combined_resources}" "${namespace}" "${repo_root}"
+check_required_secrets "${combined_resources}" "${namespace}" "${repo_root}"
 
 echo 'Install: applying application workloads and migration gates'
 if ! helm upgrade --install "${application_release}" "${repo_root}/charts/foreman-stack" \

@@ -38,6 +38,9 @@ current smoke test + proxy readiness
 render both releases from one compatibility set
                 |
                 v
+verify StorageClass, IngressClass, external PVC/ServiceAccount, and Secret contracts
+                |
+                v
 application upgrade -> migration Jobs -> application smoke test
                 |
                 v
@@ -64,6 +67,13 @@ ALLOW_CANDIDATE=1 scripts/upgrade-release.sh \
 
 `APPLICATION_RELEASE`, `EXECUTION_RELEASE`, `UPGRADE_TIMEOUT`,
 `PREFLIGHT_TIMEOUT`, and `UPGRADE_LOCK_NAME` may override their defaults.
+
+Before the first Helm upgrade, the helper inspects the complete render of both
+releases. It verifies every referenced named or default StorageClass,
+IngressClass, external PVC, external ServiceAccount, and non-optional external
+Secret, including explicitly referenced Secret keys. This is the same
+read-only cluster preflight used for a first installation. A missing dependency
+therefore fails before any migration Job can advance a database schema.
 
 ## Failure and rollback boundary
 

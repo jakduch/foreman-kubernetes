@@ -253,7 +253,9 @@ shellcheck -x \
   "${chart}/files/backup.sh" \
   "${chart}/files/restore.sh" \
   "${chart}/files/candlepin-migrate.sh"
-shellcheck \
+shellcheck -x \
+  -P "${repo_root}/scripts" \
+  "${repo_root}/scripts/release-preflight.sh" \
   "${repo_root}/scripts/install-release.sh" \
   "${repo_root}/scripts/upgrade-release.sh" \
   "${repo_root}/tests/install-release.sh" \

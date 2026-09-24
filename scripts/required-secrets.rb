@@ -4,6 +4,11 @@
 require 'set'
 require 'yaml'
 
+documents = YAML.load_stream($stdin.read).compact.select { |document| document.is_a?(Hash) }
+rendered_secrets = documents.each_with_object(Set.new) do |document, names|
+  name = document.dig('metadata', 'name')
+  names << name if document['kind'] == 'Secret' && name
+end
 references = Hash.new { |secrets, name| secrets[name] = Set.new }
 
 add_reference = lambda do |reference, name_key:, key_key: nil|
@@ -29,9 +34,7 @@ pod_spec_for = lambda do |document|
   end
 end
 
-YAML.load_stream($stdin.read).compact.each do |document|
-  next unless document.is_a?(Hash)
-
+documents.each do |document|
   pod_spec = pod_spec_for.call(document)
   next unless pod_spec.is_a?(Hash)
 
@@ -71,6 +74,7 @@ YAML.load_stream($stdin.read).compact.each do |document|
   end
 end
 
+rendered_secrets.each { |name| references.delete(name) }
 references.sort.each do |name, keys|
   puts "#{name}\t#{keys.to_a.sort.join(',')}"
 end
