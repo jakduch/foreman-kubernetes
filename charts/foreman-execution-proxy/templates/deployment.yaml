@@ -1,3 +1,6 @@
+{{- if le (int .Values.terminationGracePeriodSeconds) (int .Values.proxy.requestDrainSeconds) }}
+{{- fail "terminationGracePeriodSeconds must exceed proxy.requestDrainSeconds" }}
+{{- end }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -75,8 +78,16 @@ spec:
         - name: foreman-proxy
           image: {{ printf "%s:%s" .Values.image.repository .Values.image.tag }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - /usr/share/foreman-proxy/bin/smart-proxy
           securityContext:
             {{- include "foreman-execution-proxy.containerSecurityContext" . | nindent 12 }}
+          lifecycle:
+            preStop:
+              exec:
+                command:
+                  - /usr/bin/sleep
+                  - {{ .Values.proxy.requestDrainSeconds | quote }}
           env:
             # The image also contains container_gateway. Keeping it out of this
             # list prevents Bundler from loading that plugin at all.

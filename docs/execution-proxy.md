@@ -44,6 +44,11 @@ restart can retain the Dynflow plan and runner files, but site-loss recovery of
 an in-flight command is not yet claimed. Treat Foreman as the job source of
 truth and retry interrupted jobs after validating their target-side effects.
 
+The chart overrides the image's shell-form command so Smart Proxy runs directly
+as PID 1 and receives Kubernetes termination signals. A short `preStop` drain
+removes the Pod from its Service before shutdown; the remaining termination
+window is available to active Dynflow, SSH, and Ansible work.
+
 Ansible roles, collections, and `ansible.cfg` live on a separate claim mounted
 read-only at `/etc/ansible`. Prefer a reviewed Git/Ansible Galaxy pipeline that
 publishes immutable content to that claim. Every selectable execution proxy

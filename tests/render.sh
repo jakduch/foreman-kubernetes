@@ -43,6 +43,12 @@ if helm lint "${execution_chart}" --set 'proxy.trsutedHosts[0]=foreman.example.t
   echo 'execution values schema accepted an unknown proxy key' >&2
   exit 1
 fi
+if helm template execution "${execution_chart}" \
+  --set terminationGracePeriodSeconds=30 \
+  --set proxy.requestDrainSeconds=30 >/dev/null 2>&1; then
+  echo 'execution proxy accepted a drain consuming its entire termination window' >&2
+  exit 1
+fi
 helm template execution "${execution_chart}" > "${rendered_execution}"
 helm template execution "${execution_chart}" \
   --set secretRolloutToken=rotated-credentials > "${rendered_execution_secret_rotation}"
@@ -194,6 +200,9 @@ ruby "${repo_root}/tests/secret-rollout-contract.rb" \
 ruby -c "${execution_chart}/files/check-features.rb"
 
 grep -q 'name: FOREMAN_PROXY_ENABLED_PLUGINS' "${rendered_execution}"
+grep -A1 'command:' "${rendered_execution}" | grep -q '/usr/share/foreman-proxy/bin/smart-proxy'
+grep -A5 'preStop:' "${rendered_execution}" | grep -q '/usr/bin/sleep'
+grep -A5 'preStop:' "${rendered_execution}" | grep -Eq -- '- "?10"?'
 grep -A1 'name: FOREMAN_PROXY_ENABLED_PLUGINS' "${rendered_execution}" | \
   grep -q 'value: remote_execution_ssh ansible'
 grep -q 'expected = %w\[ansible dynflow script\]' "${rendered_execution}"

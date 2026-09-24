@@ -18,6 +18,7 @@ replicas: 1
 
 proxy:
   foremanUrl: https://foreman.example.test
+  requestDrainSeconds: 10
   # Certificate common names that may call the Smart Proxy API.
   trustedHosts:
     - foreman.example.test
