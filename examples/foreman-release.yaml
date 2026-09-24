@@ -14,6 +14,7 @@ spec:
     proxyRolloutSeconds: 900
   paused: false
   retryToken: initial
+  reconcileToken: initial
   failurePolicy:
     afterMigration: Halt
   application:

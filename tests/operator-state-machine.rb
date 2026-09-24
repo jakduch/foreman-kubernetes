@@ -16,12 +16,16 @@ decision = machine.transition(
   generation: 1,
   desired_set: 'candidate-1',
   retry_token: '',
+  reconcile_token: 'configuration-1',
   operation_id: 'uid-1-1',
   now: now
 )
 raise 'pending release did not enter preflight' unless decision.status['phase'] == 'Preflight'
 raise 'preflight did not start a durable operation' unless decision.status.dig('operation', 'id') == 'uid-1-1'
 raise 'preflight did not record the retry token' unless decision.status['observedRetryToken'] == ''
+unless decision.status['observedReconcileToken'] == 'configuration-1'
+  raise 'preflight did not record the reconcile token'
+end
 raise 'preflight did not record its phase start' unless decision.status['phaseStartedAt'] == now
 raise 'unexpected first action' unless decision.action == 'ValidateReleaseSet'
 status = decision.status
@@ -75,6 +79,27 @@ resumed = machine.resume(status: paused, generation: 3, now: now)
 raise 'resume changed the completed phase' unless resumed['phase'] == 'Ready'
 raise 'resume did not clear its condition' unless resumed['conditions'].find { |c| c['type'] == 'Paused' }['status'] == 'False'
 raise 'resume did not restart the current phase timeout' unless resumed['phaseStartedAt'] == now
+observed = machine.observe(status: resumed, generation: 4)
+raise 'idle generation was not acknowledged' unless observed['observedGeneration'] == 4
+unless observed['conditions'].all? { |condition| condition['observedGeneration'] == 4 }
+  raise 'idle condition generations were not acknowledged'
+end
+
+reconciled = machine.transition(
+  status: status,
+  event: 'ReconcileTokenChanged',
+  generation: 5,
+  desired_set: 'candidate-1',
+  retry_token: '',
+  reconcile_token: 'configuration-2',
+  operation_id: 'uid-1-5',
+  now: now
+).status
+raise 'reconcile token did not start preflight' unless reconciled['phase'] == 'Preflight'
+unless reconciled['observedReconcileToken'] == 'configuration-2'
+  raise 'new release did not retain its reconcile token'
+end
+raise 'reconcile token reused the completed operation' unless reconciled.dig('operation', 'id') == 'uid-1-5'
 
 blocked = machine.transition(
   status: {

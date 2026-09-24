@@ -57,6 +57,7 @@ module ForemanRelease
       if phase == 'Ready' || phase == 'Blocked'
         return persist_pause(resource, status) if spec.fetch('paused', false)
         return persist_resume(resource, status) if paused?(status)
+        return persist_observation(resource, status) if status['observedGeneration'] != resource.dig('metadata', 'generation')
 
         return :idle
       end
@@ -151,7 +152,8 @@ module ForemanRelease
       when 'Pending'
         true
       when 'Ready'
-        status['currentSet'] != spec.fetch('compatibilitySet')
+        status['currentSet'] != spec.fetch('compatibilitySet') ||
+          status.fetch('observedReconcileToken', '') != spec.fetch('reconcileToken', '').to_s
       when 'Blocked'
         @state_machine.retry_allowed?(status, spec.fetch('retryToken', ''))
       else
@@ -164,7 +166,12 @@ module ForemanRelease
       phase = status.fetch('phase', 'Pending')
       event = case phase
               when 'Pending' then 'Reconcile'
-              when 'Ready' then 'DesiredSetChanged'
+              when 'Ready'
+                if status['currentSet'] != resource.dig('spec', 'compatibilitySet')
+                  'DesiredSetChanged'
+                else
+                  'ReconcileTokenChanged'
+                end
               when 'Blocked' then 'RetryTokenChanged'
               end
       operation_id = "#{resource.dig('metadata', 'uid')}-g#{resource.dig('metadata', 'generation')}"
@@ -174,6 +181,7 @@ module ForemanRelease
         generation: resource.dig('metadata', 'generation'),
         desired_set: resource.dig('spec', 'compatibilitySet'),
         retry_token: resource.dig('spec', 'retryToken').to_s,
+        reconcile_token: resource.dig('spec', 'reconcileToken').to_s,
         operation_id: operation_id,
         now: @clock.call
       )
@@ -198,6 +206,15 @@ module ForemanRelease
         now: @clock.call
       )
       @status_writer.call(resource, resumed_status)
+      :idle
+    end
+
+    def persist_observation(resource, status)
+      observed_status = @state_machine.observe(
+        status: status,
+        generation: resource.dig('metadata', 'generation')
+      )
+      @status_writer.call(resource, observed_status)
       :idle
     end
 
@@ -241,6 +258,7 @@ module ForemanRelease
         generation: resource.dig('metadata', 'generation'),
         desired_set: resource.dig('spec', 'compatibilitySet'),
         retry_token: resource.dig('spec', 'retryToken').to_s,
+        reconcile_token: resource.dig('spec', 'reconcileToken').to_s,
         now: @clock.call,
         message: observation.message,
         details: observation.details || {}

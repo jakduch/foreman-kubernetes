@@ -61,6 +61,10 @@ spec:
                   type: string
                   maxLength: 128
                   description: Change this value to explicitly retry a Blocked release after correcting its cause.
+                reconcileToken:
+                  type: string
+                  maxLength: 128
+                  description: Change this value to run a new validated release with the current compatibility set and values Secrets.
                 failurePolicy:
                   type: object
                   default:
@@ -197,6 +201,8 @@ spec:
                 lastSuccessfulSet:
                   type: string
                 observedRetryToken:
+                  type: string
+                observedReconcileToken:
                   type: string
                 operation:
                   type: object

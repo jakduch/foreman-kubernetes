@@ -22,8 +22,8 @@ module ForemanRelease
       end
     end
 
-    def transition(status:, event:, generation:, desired_set:, retry_token:, now:, operation_id: nil, message: nil,
-                   details: {})
+    def transition(status:, event:, generation:, desired_set:, retry_token:, now:, reconcile_token: '', operation_id: nil,
+                   message: nil, details: {})
       current_status = deep_copy(status || {})
       phase = current_status.fetch('phase', @initial_phase)
       transition = @transitions[[phase, event]]
@@ -45,6 +45,7 @@ module ForemanRelease
         raise ArgumentError, 'operation_id is required when starting an operation' if operation_id.to_s.empty?
 
         next_status['observedRetryToken'] = retry_token.to_s
+        next_status['observedReconcileToken'] = reconcile_token.to_s
         next_status['operation'] = {
           'id' => operation_id,
           'startedAt' => now,
@@ -96,6 +97,14 @@ module ForemanRelease
       current_status = status || {}
       current_status.fetch('phase', @initial_phase) == 'Blocked' &&
         current_status.fetch('observedRetryToken', '') != retry_token.to_s
+    end
+
+    def observe(status:, generation:)
+      next_status = deep_copy(status || {})
+      next_status['phase'] ||= @initial_phase
+      next_status['observedGeneration'] = generation
+      Array(next_status['conditions']).each { |condition| condition['observedGeneration'] = generation }
+      next_status
     end
 
     def quiescent?(status)

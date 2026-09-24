@@ -37,6 +37,10 @@ end
 after_migration = spec_schema.dig('properties', 'failurePolicy', 'properties', 'afterMigration')
 raise 'post-migration failure policy must only permit Halt' unless after_migration.fetch('enum') == ['Halt']
 raise 'operator spec must expose an explicit retry token' unless spec_schema.dig('properties', 'retryToken', 'type') == 'string'
+raise 'operator spec must expose an explicit reconcile token' unless spec_schema.dig('properties', 'reconcileToken', 'type') == 'string'
+unless status_schema.dig('properties', 'observedReconcileToken', 'type') == 'string'
+  raise 'operator status does not retain the applied reconcile token'
+end
 timeouts = spec_schema.dig('properties', 'timeouts')
 expected_timeouts = %w[preflightSeconds leaseSeconds migrationSeconds applicationRolloutSeconds verificationSeconds proxyRolloutSeconds]
 raise 'operator spec does not define every phase timeout' unless timeouts.fetch('default').keys.sort == expected_timeouts.sort
@@ -91,6 +95,10 @@ happy_path = [
 happy_path.each do |from, event, expected_destination|
   transition = transition_by_key.fetch([from, event])
   raise "#{from}/#{event} bypasses #{expected_destination}" unless transition.fetch('to') == expected_destination
+end
+reconcile_transition = transition_by_key.fetch(['Ready', 'ReconcileTokenChanged'])
+unless reconcile_transition.fetch('to') == 'Preflight' && reconcile_transition.fetch('action') == 'ValidateReleaseSet'
+  raise 'a reconcile token change must start a fully validated release'
 end
 
 lease_wait = transition_by_key.fetch(['AcquiringLock', 'LeaseBusy'])

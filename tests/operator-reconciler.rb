@@ -39,7 +39,8 @@ class FakeAdapter
   end
 end
 
-def resource(generation: 1, compatibility_set: 'candidate-1', retry_token: '', paused: false, status: nil)
+def resource(generation: 1, compatibility_set: 'candidate-1', retry_token: '', reconcile_token: '', paused: false,
+             status: nil)
   value = {
     'metadata' => {
       'name' => 'foreman',
@@ -51,6 +52,7 @@ def resource(generation: 1, compatibility_set: 'candidate-1', retry_token: '', p
     'spec' => {
       'compatibilitySet' => compatibility_set,
       'retryToken' => retry_token,
+      'reconcileToken' => reconcile_token,
       'paused' => paused
     }
   }
@@ -87,13 +89,31 @@ raise 'successful migrations were not recorded' unless release.dig('status', 'op
 raise 'ready reconciliation did not release the Lease' unless adapter.calls.include?([:release_lease, operation_id])
 raise 'ready reconciliation did not record the set' unless release.dig('status', 'currentSet') == 'candidate-1'
 
-release['spec']['paused'] = true
+release['spec']['reconcileToken'] = 'rotate-certificates'
 release['metadata']['generation'] = 2
+reconciler.reconcile(release)
+raise 'reconcile token did not restart validation' unless release.dig('status', 'phase') == 'Preflight'
+raise 'reconcile token did not create a new operation' unless release.dig('status', 'operation', 'id').end_with?('-g2')
+unless release.dig('status', 'observedReconcileToken') == 'rotate-certificates'
+  raise 'reconcile token was not recorded durably'
+end
+
+# Finish the second operation before testing terminal pause behavior.
+7.times { reconciler.reconcile(release) }
+raise 'reconciled release did not return to Ready' unless release.dig('status', 'phase') == 'Ready'
+
+release['spec']['paused'] = true
+release['metadata']['generation'] = 3
 raise 'ready release did not publish its paused state' unless reconciler.reconcile(release) == :paused
 release['spec']['paused'] = false
-release['metadata']['generation'] = 3
+release['metadata']['generation'] = 4
 raise 'ready release did not accept resume' unless reconciler.reconcile(release) == :idle
 raise 'ready release retained Paused=True after resume' unless release['status']['conditions'].find { |c| c['type'] == 'Paused' }['status'] == 'False'
+
+release['spec']['timeouts'] = {'preflightSeconds' => 600}
+release['metadata']['generation'] = 5
+raise 'idle spec update did not remain idle' unless reconciler.reconcile(release) == :idle
+raise 'idle spec generation was not acknowledged' unless release.dig('status', 'observedGeneration') == 5
 
 conflicting_writer = ForemanRelease::Reconciler.new(
   state_machine: machine,

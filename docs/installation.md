@@ -108,6 +108,14 @@ Job names, and Helm revisions are durable. Change
 `spec.paused=true` to stop at the next safe phase boundary; it never terminates
 an active migration or rollout.
 
+The values Secrets are deliberately not watched as implicit rollout triggers.
+After changing their content, including a `secretRolloutToken` used for
+credential rotation, change `spec.reconcileToken`. The controller then creates
+a new operation, fingerprints and validates both current Secret payloads, and
+runs the complete application-plus-execution release even when
+`spec.compatibilitySet` is unchanged. `retryToken` has a separate purpose and
+remains required to leave `Blocked`.
+
 Deleting a `ForemanRelease` is a detach operation, not an uninstall. Its
 finalizer waits for the current migration or rollout to reach a safe pause,
 releases the operation Lease, and then lets Kubernetes remove the CR while the

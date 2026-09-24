@@ -109,6 +109,12 @@
       "to": "Preflight"
     },
     {
+      "from": "Ready",
+      "event": "ReconcileTokenChanged",
+      "action": "ValidateReleaseSet",
+      "to": "Preflight"
+    },
+    {
       "from": "Blocked",
       "event": "RetryTokenChanged",
       "action": "ValidateReleaseSet",

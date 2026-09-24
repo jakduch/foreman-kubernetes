@@ -35,7 +35,9 @@ an idempotent reconciliation loop behind a side-effect adapter. It persists a
 phase before the following reconciliation performs work, observes active
 migrations and rollouts to a safe pause boundary, reuses the persisted
 operation ID after restart, and accepts a blocked retry only after
-`spec.retryToken` changes. The Helm chart carries that ID plus the owning
+`spec.retryToken` changes. A changed `spec.reconcileToken` starts the same full
+validation and rollout for updated values or rotated Secrets without inventing
+a new compatibility set. The Helm chart carries that ID plus the owning
 ForemanRelease UID on deterministic migration and Pulp registration Jobs, so a
 restarted controller adopts them rather than launching duplicate schema
 changes.
