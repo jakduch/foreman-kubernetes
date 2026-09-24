@@ -68,6 +68,76 @@ prepare_work_directory() {
   mkdir -p /work/databases /work/metadata /work/secrets
 }
 
+recovery_integrity_paths() {
+  work_root="${RECOVERY_WORK_ROOT:-/work}"
+  manifest_file="${work_root}/metadata/manifest.json"
+
+  printf '%s\n' \
+    "${work_root}/databases/foreman.dump" \
+    "${work_root}/databases/candlepin.dump" \
+    "${work_root}/databases/pulp.dump" \
+    "${manifest_file}"
+  jq -r '.secret_names[]' "${manifest_file}" |
+    while IFS= read -r secret_name; do
+      printf '%s/secrets/%s.json\n' "${work_root}" "${secret_name}"
+    done
+}
+
+write_recovery_integrity() {
+  work_root="${RECOVERY_WORK_ROOT:-/work}"
+  integrity_file="${work_root}/metadata/checksums.sha256"
+  integrity_tmp="${integrity_file}.tmp"
+
+  : > "${integrity_tmp}"
+  recovery_integrity_paths |
+    while IFS= read -r recovery_file; do
+      if [ ! -s "${recovery_file}" ]; then
+        log "Recovery set file is missing or empty: ${recovery_file}" >&2
+        exit 1
+      fi
+      sha256sum "${recovery_file}"
+    done > "${integrity_tmp}"
+  mv "${integrity_tmp}" "${integrity_file}"
+}
+
+verify_recovery_integrity() {
+  work_root="${RECOVERY_WORK_ROOT:-/work}"
+  integrity_file="${work_root}/metadata/checksums.sha256"
+  expected_paths="/tmp/recovery-integrity-expected.$$"
+  recorded_paths="/tmp/recovery-integrity-recorded.$$"
+  recorded_paths_unsorted="${recorded_paths}.unsorted"
+
+  if [ ! -s "${integrity_file}" ]; then
+    log "Recovery integrity manifest is missing or empty" >&2
+    return 1
+  fi
+
+  recovery_integrity_paths > "${expected_paths}"
+  LC_ALL=C sort "${expected_paths}" -o "${expected_paths}"
+  if ! awk '
+      NF != 2 || length($1) != 64 || $1 ~ /[^0-9a-f]/ { exit 1 }
+      { print $2 }
+    ' "${integrity_file}" > "${recorded_paths_unsorted}"; then
+    rm -f "${expected_paths}" "${recorded_paths}" "${recorded_paths_unsorted}"
+    log "Recovery integrity manifest has an invalid entry" >&2
+    return 1
+  fi
+  LC_ALL=C sort "${recorded_paths_unsorted}" > "${recorded_paths}"
+
+  if ! cmp -s "${expected_paths}" "${recorded_paths}"; then
+    rm -f "${expected_paths}" "${recorded_paths}" "${recorded_paths_unsorted}"
+    log "Recovery integrity manifest does not describe the exact recovery set" >&2
+    return 1
+  fi
+  rm -f "${expected_paths}" "${recorded_paths}" "${recorded_paths_unsorted}"
+
+  if ! sha256sum -c "${integrity_file}"; then
+    log "Recovery set integrity verification failed" >&2
+    return 1
+  fi
+  log "Verified recovery set integrity"
+}
+
 dump_databases() {
   log "Dumping Foreman database"
   pg_dump \

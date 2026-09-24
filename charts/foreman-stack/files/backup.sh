@@ -4,7 +4,7 @@ set -eu
 # shellcheck source=recovery-common.sh
 . /opt/foreman-recovery/recovery-common.sh
 
-for command in jq kubectl pg_dump restic; do
+for command in cmp jq kubectl pg_dump restic sha256sum; do
   require_command "${command}"
 done
 
@@ -35,8 +35,9 @@ if [ "${PULP_STORAGE_BACKEND}" = filesystem ]; then
 fi
 
 jq -n \
-  --arg schema_version "3" \
+  --arg schema_version "4" \
   --arg created_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+  --arg request_id "${BACKUP_REQUEST_ID}" \
   --arg chart_version "${CHART_VERSION}" \
   --arg compatibility_set "${COMPATIBILITY_SET}" \
   --arg release "${HELM_RELEASE}" \
@@ -47,6 +48,7 @@ jq -n \
   '{
     schema_version: $schema_version,
     created_at: $created_at,
+    request_id: $request_id,
     chart_version: $chart_version,
     compatibility_set: $compatibility_set,
     helm_release: $release,
@@ -55,8 +57,15 @@ jq -n \
     includes_foreman_avatars: true,
     pulp_storage_backend: $pulp_storage_backend,
     includes_pulp_filesystem: $includes_pulp_filesystem,
-    secret_names: ($secret_names | split(" ") | map(select(length > 0)))
+    secret_names: ($secret_names | split(" ") | map(select(length > 0))),
+    integrity: {
+      algorithm: "sha256",
+      manifest: "/work/metadata/checksums.sha256"
+    }
   }' > /work/metadata/manifest.json
+
+write_recovery_integrity
+verify_recovery_integrity
 
 if ! restic cat config >/dev/null 2>&1; then
   if [ "${INITIALIZE_REPOSITORY}" != true ]; then
@@ -127,6 +136,7 @@ require_created_snapshot_path() {
 
 for required_file in \
   /work/metadata/manifest.json \
+  /work/metadata/checksums.sha256 \
   /work/databases/foreman.dump \
   /work/databases/candlepin.dump \
   /work/databases/pulp.dump; do

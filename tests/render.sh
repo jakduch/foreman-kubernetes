@@ -476,7 +476,9 @@ shellcheck -x \
   "${repo_root}/tests/kind/publish-ansible-content.sh" \
   "${repo_root}/tests/kind/run.sh"
 shellcheck "${repo_root}/tests/recovery-quiescence.sh"
+shellcheck "${repo_root}/tests/recovery-integrity.sh"
 shellcheck "${repo_root}/tests/collect-diagnostics.sh"
+"${repo_root}/tests/recovery-integrity.sh"
 
 ruby "${repo_root}/tests/plugin-compatibility.rb"
 ruby "${repo_root}/tests/release-sets.rb"

@@ -17,7 +17,9 @@ The recovery set contains:
 - an encrypted escrow copy of the application, certificate, ingress, and image
   pull Secrets known to the chart;
 - a versioned manifest identifying the Helm release, namespace, chart, and
-  exact digest-pinned compatibility set.
+  exact digest-pinned compatibility set;
+- an exact SHA-256 inventory of the three dumps, recovery manifest, and every
+  Secret escrow file.
 
 Valkey is deliberately excluded. It contains cache and task transport state,
 not the authoritative application records. Any work that was in flight when a
@@ -142,6 +144,12 @@ Pulp tree when filesystem storage is used. The full snapshot ID is emitted in
 the Job log only after this validation succeeds; retain it with the change or
 recovery record instead of relying only on `latest`.
 
+The request ID is stored inside the recovery manifest and must match the
+request-specific Restic tag. The Job also records and verifies an exact SHA-256
+inventory before uploading the set. Restic content addressing protects the
+avatar and Pulp trees; the inventory provides an additional explicit boundary
+for the independently restored logical dumps and Secret escrow.
+
 ## Restore a recovery point
 
 The target PostgreSQL databases and roles must already exist. Current runtime
@@ -160,11 +168,13 @@ The Job validates the snapshot owner, tag, compatibility set, storage backend, m
 dumps, the avatar tree, the Pulp tree in filesystem mode, and every requested
 Secret escrow file before modifying state. It also verifies the paths against
 Restic's snapshot inventory, so stale files on a reused work volume cannot make
-an incomplete snapshot appear valid. Only after that preflight boundary does it
-delete or replace current data. In S3 mode it leaves objects untouched and
-requires the operator to restore the bucket to the coordinated point before
-leaving maintenance mode. It replaces objects inside the existing databases
-but never drops or creates the databases or their roles.
+an incomplete snapshot appear valid. The exact checksum inventory is checked
+again after restoring `/work`; a missing, extra, or modified dump, manifest, or
+Secret export therefore fails before the destructive boundary. Only after that
+preflight boundary does it delete or replace current data. In S3 mode it leaves
+objects untouched and requires the operator to restore the bucket to the
+coordinated point before leaving maintenance mode. It replaces objects inside
+the existing databases but never drops or creates the databases or their roles.
 
 A snapshot must first be restored with the same compatibility set that created
 it. Run a normal guarded upgrade only after the restored release is healthy;

@@ -4,7 +4,7 @@ set -eu
 # shellcheck source=recovery-common.sh
 . /opt/foreman-recovery/recovery-common.sh
 
-for command in jq kubectl pg_restore restic; do
+for command in cmp jq kubectl pg_restore restic sha256sum; do
   require_command "${command}"
 done
 
@@ -50,6 +50,7 @@ restic restore "${snapshot_id}" \
 
 for required_file in \
   /work/metadata/manifest.json \
+  /work/metadata/checksums.sha256 \
   /work/databases/foreman.dump \
   /work/databases/candlepin.dump \
   /work/databases/pulp.dump; do
@@ -65,15 +66,28 @@ jq -e \
   --arg namespace "${POD_NAMESPACE}" \
   --arg compatibility_set "${COMPATIBILITY_SET}" \
   --arg pulp_storage_backend "${PULP_STORAGE_BACKEND}" \
-  '.schema_version == "3" and
+  '.schema_version == "4" and
+   (.request_id |
+     type == "string" and
+     length > 0 and length <= 16 and
+     test("^[a-z0-9]([a-z0-9-]*[a-z0-9])?$")) and
    .helm_release == $release and
    .namespace == $namespace and
    .compatibility_set == $compatibility_set and
    (.databases | sort) == ["candlepin", "foreman", "pulp"] and
+   (.secret_names | type == "array" and length > 0 and length == (unique | length)) and
+   all(.secret_names[]; test("^[a-z0-9]([-a-z0-9]*[a-z0-9])?$")) and
+   .integrity == {algorithm: "sha256", manifest: "/work/metadata/checksums.sha256"} and
    .includes_foreman_avatars == true and
    (.pulp_storage_backend // (if .includes_pulp_filesystem then "filesystem" else "unknown" end)) == $pulp_storage_backend and
    (if $pulp_storage_backend == "filesystem" then .includes_pulp_filesystem == true else true end)' \
   /work/metadata/manifest.json >/dev/null
+
+manifest_request_id="$(jq -er '.request_id' /work/metadata/manifest.json)"
+restic snapshots --json "${snapshot_id}" |
+  jq -e --arg request_tag "request-${manifest_request_id}" '
+    length == 1 and (.[0].tags | index($request_tag)) != null
+  ' >/dev/null
 
 require_snapshot_path /var/lib/foreman/avatars
 if [ "${PULP_STORAGE_BACKEND}" = filesystem ]; then
@@ -96,6 +110,8 @@ if [ "${RESTORE_SECRETS}" = true ]; then
     require_snapshot_path "${secret_file}"
   done
 fi
+
+verify_recovery_integrity
 
 log "Snapshot validation completed; starting destructive restore"
 

@@ -39,6 +39,10 @@ common = scripts&.dig('data', 'recovery-common.sh').to_s
 abort 'backup manifest does not record Foreman avatars' unless backup.include?('includes_foreman_avatars: true')
 abort 'backup does not include Foreman avatars' unless backup.include?('set -- /work /var/lib/foreman/avatars')
 abort 'backup manifest does not record the compatibility set' unless backup.include?('compatibility_set: $compatibility_set')
+abort 'backup manifest does not record its request ID' unless backup.include?('request_id: $request_id')
+abort 'backup does not create an integrity manifest' unless backup.include?('write_recovery_integrity')
+abort 'backup does not verify its recovery set before upload' unless backup.index('verify_recovery_integrity') <
+                                                                  backup.index('restic backup --json')
 abort 'backup does not capture Restic JSON output' unless backup.include?('restic backup --json')
 abort 'backup does not extract the created snapshot ID' unless backup.include?('.snapshot_id')
 abort 'backup does not verify the request-specific snapshot tag' unless backup.include?('(.[0].tags | index($request_tag)) != null')
@@ -48,8 +52,9 @@ abort 'backup does not verify all three database dumps' unless backup.include?('
                                                          backup.include?('/work/databases/pulp.dump')
 abort 'backup reports completion before validation' unless backup.index('Validated encrypted recovery snapshot') <
                                                            backup.index('Recovery snapshot completed:')
-abort 'restore does not require the release-aware schema' unless restore.include?('.schema_version == "3"')
+abort 'restore does not require the release-aware schema' unless restore.include?('.schema_version == "4"')
 abort 'restore accepts a snapshot from another release set' unless restore.include?('.compatibility_set == $compatibility_set')
+abort 'restore does not bind the manifest request ID to the Restic tag' unless restore.include?('request-${manifest_request_id}')
 abort 'restore does not replace Foreman avatars' unless restore.include?("--include '/var/lib/foreman/avatars/**'")
 abort 'restore does not inspect snapshot contents' unless restore.include?('restic ls --json')
 validation_boundary = restore.index('Snapshot validation completed; starting destructive restore')
@@ -60,6 +65,11 @@ abort 'restore validates the snapshot after deleting avatars' unless avatar_dele
 abort 'restore validates the snapshot after deleting Pulp data' unless pulp_deletion && validation_boundary < pulp_deletion
 secret_validation = restore.index('Secret escrow manifest is incomplete')
 abort 'restore validates Secret escrow after destructive changes' unless secret_validation && secret_validation < validation_boundary
+integrity_validation = restore.index('verify_recovery_integrity')
+abort 'restore verifies recovery integrity after destructive changes' unless integrity_validation && integrity_validation < validation_boundary
+abort 'restore integrity verification precedes Secret validation' unless secret_validation < integrity_validation
+abort 'recovery helper does not define exact integrity paths' unless common.include?('recovery_integrity_paths()')
+abort 'recovery helper accepts unlisted files in the integrity manifest' unless common.include?('does not describe the exact recovery set')
 abort 'recovery quiescence omits the Katello event daemon' unless common.include?('$component == "katello-event-daemon"')
 abort 'recovery ignores terminating writers' if common.include?('.metadata.deletionTimestamp == null')
 abort 'recovery does not ignore successful Jobs' unless common.include?('(.status.phase // "") != "Succeeded"')

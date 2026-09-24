@@ -36,6 +36,8 @@ jobs:
             pg_dump --version
             pg_restore --version
             restic version
+            sha256sum --help >/dev/null
+            cmp --help >/dev/null
           '
       - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:

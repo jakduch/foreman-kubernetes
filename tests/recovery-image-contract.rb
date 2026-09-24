@@ -21,7 +21,7 @@ abort 'recovery image workflow does not emit provenance' unless workflow.include
 abort 'recovery image workflow does not emit an SBOM' unless workflow.include?('sbom: true')
 abort 'recovery image workflow does not report the immutable digest' unless workflow.include?('steps.publish.outputs.digest')
 
-%w[jq kubectl pg_dump pg_restore restic].each do |command|
+%w[cmp jq kubectl pg_dump pg_restore restic sha256sum].each do |command|
   abort "recovery image workflow does not verify #{command}" unless workflow.include?(command)
 end
 
