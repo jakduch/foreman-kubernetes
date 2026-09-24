@@ -98,6 +98,10 @@ Static render checks are available as `tests/render.sh` and run in the lightweig
 Application and execution-proxy image profiles are paired in
 `compatibility/release-sets.json`. Declared sets are digest-pinned and remain
 `candidate` until the complete runtime drill passes for that exact combination.
+The guarded two-release upgrade sequence is implemented in
+[`scripts/upgrade-release.sh`](scripts/upgrade-release.sh) and documented in
+[`docs/upgrades.md`](docs/upgrades.md); it intentionally never rolls back an
+already migrated database automatically.
 
 The recovery Jobs are intentionally one-shot rather than scheduled online
 backups. They enter through an explicit maintenance revision, verify that all
@@ -110,6 +114,7 @@ credential, and recovery-drill contracts.
 - [`docs/architecture.md`](docs/architecture.md) describes ownership and topology.
 - [`docs/runtime-contracts.md`](docs/runtime-contracts.md) records the verified upstream runtime contracts and current scaling limits.
 - [`docs/compatibility.md`](docs/compatibility.md) records digest-pinned image candidates and their test status.
+- [`docs/upgrades.md`](docs/upgrades.md) defines preflight, two-release sequencing, failure states, and the schema rollback boundary.
 - [`docs/plugin-compatibility.md`](docs/plugin-compatibility.md) records the packaged plugin inventory, proof level, and Smart Proxy placement policy.
 - [`docs/execution-proxy.md`](docs/execution-proxy.md) defines the restricted Kubernetes Remote Execution and Ansible proxy profile.
 - [`docs/disaster-recovery.md`](docs/disaster-recovery.md) defines portable recovery sets and the destructive restore gate.

@@ -182,12 +182,15 @@ shellcheck -x \
   "${chart}/files/restore.sh" \
   "${chart}/files/candlepin-migrate.sh"
 shellcheck \
+  "${repo_root}/scripts/upgrade-release.sh" \
+  "${repo_root}/tests/upgrade-release.sh" \
   "${repo_root}/tests/kind/execution-plane.sh" \
   "${repo_root}/tests/kind/publish-ansible-content.sh" \
   "${repo_root}/tests/kind/run.sh"
 
 ruby "${repo_root}/tests/plugin-compatibility.rb"
 ruby "${repo_root}/tests/release-sets.rb"
+"${repo_root}/tests/upgrade-release.sh"
 
 grep -Fq \
   'apache/artemis:2.57.0-alpine@sha256:ca99ce1b72c5765a15dd507db4215591c43da623cd9f42db1bcd4319e5f4b579' \

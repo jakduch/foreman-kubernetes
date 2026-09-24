@@ -23,6 +23,11 @@
 
 ## Implemented, pending integration proof
 
+- A guarded upgrade helper checks the currently installed application and
+  execution proxy, renders both halves of one digest-pinned compatibility set,
+  applies application migrations before upgrading the proxy, and reruns health
+  checks. It stops on the first failed phase and never performs an unsafe
+  manifest-only rollback after database migrations.
 - One-shot, maintenance-gated recovery Jobs produce encrypted Restic snapshots
   of all three databases, Pulp filesystem storage, and application Secrets.
 - Restore requires an explicit confirmation value, validates snapshot identity
