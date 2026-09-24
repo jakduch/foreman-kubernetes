@@ -190,6 +190,10 @@ shellcheck \
 
 ruby "${repo_root}/tests/plugin-compatibility.rb"
 ruby "${repo_root}/tests/release-sets.rb"
+ruby -c "${repo_root}/scripts/write-integration-evidence.rb"
+ruby -c "${repo_root}/scripts/promote-release-set.rb"
+ruby -c "${repo_root}/tests/integration-evidence.rb"
+ruby "${repo_root}/tests/integration-evidence.rb"
 "${repo_root}/tests/upgrade-release.sh"
 
 grep -Fq \
@@ -255,6 +259,7 @@ grep -Fq 'assert_failed_migration_gate' "${repo_root}/tests/kind/run.sh"
 grep -Fq 'assert_rollout_held' "${repo_root}/tests/kind/run.sh"
 grep -Fq 'wrong-password@postgresql' "${repo_root}/tests/kind/run.sh"
 grep -Fq 'restore_foreman_database_url' "${repo_root}/tests/kind/run.sh"
+grep -Fq 'write_integration_evidence' "${repo_root}/tests/kind/run.sh"
 grep -Fq 'compatibility/release-sets.json' "${repo_root}/tests/kind/run.sh"
 grep -Fq -- '-purpose sslserver' "${repo_root}/tests/kind/run.sh"
 grep -Fq -- '-purpose sslclient' "${repo_root}/tests/kind/run.sh"

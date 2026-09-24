@@ -98,6 +98,8 @@ Static render checks are available as `tests/render.sh` and run in the lightweig
 Application and execution-proxy image profiles are paired in
 `compatibility/release-sets.json`. Declared sets are digest-pinned and remain
 `candidate` until the complete runtime drill passes for that exact combination.
+Successful full runs emit retained, input-hashed evidence; promotion remains an
+explicit reviewed change and rejects local, partial, or stale results.
 The guarded two-release upgrade sequence is implemented in
 [`scripts/upgrade-release.sh`](scripts/upgrade-release.sh) and documented in
 [`docs/upgrades.md`](docs/upgrades.md); it intentionally never rolls back an

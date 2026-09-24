@@ -21,6 +21,42 @@ Set states have deliberately narrow meanings:
 No set is promoted automatically from a successful render. Runtime evidence is
 still required.
 
+## Runtime evidence and promotion
+
+The complete integration contract is versioned in
+`compatibility/required-integration-checks.json`. A successful manual `Full
+integration` workflow writes `integration-result.json` only after every test
+has completed, then retains it as the `foreman-stack-integration-evidence`
+artifact. The record binds the run to:
+
+- the tested Git commit and compatibility-set name;
+- the target and native runner platforms;
+- SHA-256 hashes of the candidate manifest, both image profiles, and the test
+  contract;
+- the GitHub Actions run and attempt;
+- every completed runtime check.
+
+A local run or a run with `SKIP_RECOVERY_TEST=1` may still write diagnostic
+evidence, but it is marked ineligible for promotion. Low-level profile
+overrides cannot produce evidence for a declared set unless both resolved files
+are exactly the profiles named by that set.
+
+After downloading the artifact, check out the exact recorded commit and run:
+
+```sh
+ruby scripts/promote-release-set.rb \
+  nightly-candidate-2026-09-24 \
+  /path/to/integration-result.json
+ruby tests/release-sets.rb
+```
+
+Promotion rejects missing checks, a non-amd64 runner, stale inputs, another
+commit, or non-GitHub provenance. It copies the evidence into
+`compatibility/evidence/`, records its digest and workflow URL in the set, and
+changes only that set from `candidate` to `supported`. The resulting manifest
+and retained evidence are reviewed and committed together; CI never promotes a
+set by itself.
+
 ## Nightly candidate from 2026-09-23
 
 | Component | Published tag | OCI digest | Platform | Status |

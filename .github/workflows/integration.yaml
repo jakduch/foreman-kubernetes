@@ -13,6 +13,7 @@ jobs:
     timeout-minutes: 180
     env:
       KEEP_CLUSTER: "1"
+      INTEGRATION_EVIDENCE_FILE: artifacts/integration-result.json
     steps:
       - uses: actions/checkout@v4
       - uses: azure/setup-helm@v4
@@ -28,6 +29,13 @@ jobs:
           echo "$(go env GOPATH)/bin" >> "${GITHUB_PATH}"
       - name: Run full integration drill
         run: tests/kind/run.sh
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: foreman-stack-integration-evidence
+          path: artifacts/integration-result.json
+          if-no-files-found: error
+          retention-days: 90
       - name: Collect failure diagnostics
         if: failure()
         run: |

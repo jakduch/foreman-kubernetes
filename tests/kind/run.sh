@@ -138,6 +138,22 @@ assert_application_smoke_test() {
     --timeout 10m
 }
 
+write_integration_evidence() {
+  local evidence_file="${INTEGRATION_EVIDENCE_FILE:-}"
+  local result=passed
+
+  [[ -n "${evidence_file}" ]] || return 0
+  if [[ "${skip_recovery_test}" == 1 ]]; then
+    result=partial
+  fi
+  ruby "${repo_root}/scripts/write-integration-evidence.rb" \
+    "${evidence_file}" \
+    "${compatibility_set}" \
+    "${image_profile}" \
+    "${execution_proxy_image_profile}" \
+    "${result}"
+}
+
 candlepin_quartz_instances() {
   kubectl --namespace "${namespace}" exec deployment/postgresql -- \
     env PGPASSWORD=candlepin-test \
@@ -578,7 +594,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-for command_name in kind kubectl helm openssl curl jq docker ssh-keygen cmp; do
+for command_name in kind kubectl helm openssl curl jq docker ssh-keygen cmp ruby; do
   if ! command -v "${command_name}" >/dev/null 2>&1; then
     echo "${command_name} is required" >&2
     exit 1
@@ -591,16 +607,17 @@ if [[ -n "${image_profile}" && -z "${execution_proxy_image_profile}" ]] ||
   exit 1
 fi
 
+if [[ -z "${compatibility_set}" ]]; then
+  compatibility_set="$(jq --exit-status --raw-output '.default' \
+    "${compatibility_sets_file}")"
+fi
+if ! jq --exit-status --arg set "${compatibility_set}" \
+  '.sets[$set]' "${compatibility_sets_file}" >/dev/null; then
+  echo "unknown compatibility set: ${compatibility_set}" >&2
+  exit 1
+fi
+
 if [[ -z "${image_profile}" ]]; then
-  if [[ -z "${compatibility_set}" ]]; then
-    compatibility_set="$(jq --exit-status --raw-output '.default' \
-      "${compatibility_sets_file}")"
-  fi
-  if ! jq --exit-status --arg set "${compatibility_set}" \
-    '.sets[$set]' "${compatibility_sets_file}" >/dev/null; then
-    echo "unknown compatibility set: ${compatibility_set}" >&2
-    exit 1
-  fi
   image_profile="${repo_root}/$(jq --exit-status --raw-output \
     --arg set "${compatibility_set}" '.sets[$set].applicationProfile' \
     "${compatibility_sets_file}")"
@@ -790,6 +807,7 @@ rotate_execution_identity
 assert_execution_plane
 "${repo_root}/tests/kind/publish-ansible-content.sh" v2
 assert_execution_plane v2
+write_integration_evidence
 
 if [[ "${skip_recovery_test}" == 1 ]]; then
   echo "Kind install, Candlepin HA, mTLS, content replacement, execution, proxy restart, scale, and upgrade checks passed; recovery drill skipped."

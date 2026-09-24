@@ -23,6 +23,11 @@
 
 ## Implemented, pending integration proof
 
+- The manual full-integration workflow now emits a retained evidence record
+  bound to the exact commit, compatibility set, profile hashes, native runner,
+  and versioned runtime-check contract. Candidate promotion is explicit and
+  rejects local, partial, stale, or incomplete evidence before storing the
+  accepted record with the supported set.
 - A guarded upgrade helper checks the currently installed application and
   execution proxy, renders both halves of one digest-pinned compatibility set,
   applies application migrations before upgrading the proxy, and reruns health

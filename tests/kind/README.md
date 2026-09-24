@@ -66,8 +66,10 @@ an in-namespace disposable dependency, not a production recommendation. Its
 Apache Artemis 2.57.0 amd64 image is pinned to the verified platform digest in
 `dependencies.yaml`. The
 `Full integration` GitHub Actions workflow exposes the same drill through a
-manual dispatch on an amd64 runner. Failed runs retain a short-lived diagnostic
-artifact and always remove the disposable cluster.
+manual dispatch on an amd64 runner. Successful complete runs retain a
+promotion-eligible evidence artifact bound to the exact commit, profiles, and
+test contract. Failed runs retain a short-lived diagnostic artifact and always
+remove the disposable cluster.
 
 The temporary cluster and generated PKI are removed on success or failure. Set `KEEP_CLUSTER=1` only while diagnosing a failure. An existing cluster with the same name is never modified unless `REUSE_CLUSTER=1` is explicit.
 
@@ -88,3 +90,13 @@ emulation path. For candidate development, `IMAGE_PROFILE` and
 `EXECUTION_PROXY_IMAGE_PROFILE` may override both halves of the pair together;
 a one-sided override is rejected. `KIND_NODE_IMAGE=...` selects another
 Kubernetes test image.
+
+Set `INTEGRATION_EVIDENCE_FILE` to write a result record after all assertions:
+
+```sh
+INTEGRATION_EVIDENCE_FILE=artifacts/integration-result.json tests/kind/run.sh
+```
+
+Only a complete native `linux/amd64` GitHub Actions run of the profiles declared
+by the selected set is eligible for promotion. Other records remain useful for
+diagnosis but cannot change a set to `supported`.
