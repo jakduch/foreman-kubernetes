@@ -16,6 +16,13 @@ The helper upgrades existing releases; it is not an installer. It requires:
   the environment-specific configuration and Secret references;
 - a `supported` entry in `compatibility/release-sets.json`.
 
+Before reading release health, the helper atomically creates the
+`foreman-kubernetes-upgrade-lock` ConfigMap in the target namespace. Another
+invocation stops and reports its holder instead of racing Helm. The process
+removes only a lock that still carries its own holder identity. A normal failure
+or interrupt releases it; an untrappable process or host failure deliberately
+leaves a stale lock for an administrator to inspect before deleting it.
+
 Candidate sets are accepted only with `ALLOW_CANDIDATE=1`. This is intended for
 qualification environments and does not promote the set. Retired sets are
 always rejected. The selected image profiles are applied after the
@@ -55,8 +62,8 @@ ALLOW_CANDIDATE=1 scripts/upgrade-release.sh \
   /secure/path/execution-proxy-values.yaml
 ```
 
-`APPLICATION_RELEASE`, `EXECUTION_RELEASE`, `UPGRADE_TIMEOUT`, and
-`PREFLIGHT_TIMEOUT` may override their defaults.
+`APPLICATION_RELEASE`, `EXECUTION_RELEASE`, `UPGRADE_TIMEOUT`,
+`PREFLIGHT_TIMEOUT`, and `UPGRADE_LOCK_NAME` may override their defaults.
 
 ## Failure and rollback boundary
 
@@ -82,10 +89,10 @@ complete pinned amd64 drill runs.
 
 ## Future operator boundary
 
-The script serializes one operator-driven invocation, but it cannot prevent a
-second administrator from starting another Helm upgrade, publish component
+The ConfigMap lock serializes invocations of this helper, but it cannot prevent
+a second administrator from bypassing it with raw Helm, publish component
 health as durable status, or decide whether a failed schema migration is safe
-to retry. A future controller should add a cluster-side upgrade lock, explicit
-phase/status conditions, migration Job ownership, and roll-forward recovery.
-It must retain the rule that database rollback is a separate recovery action,
-not a side effect of reverting Deployments.
+to retry. A future controller should replace it with a renewable Lease plus
+explicit phase/status conditions, migration Job ownership, and roll-forward
+recovery. It must retain the rule that database rollback is a separate recovery
+action, not a side effect of reverting Deployments.

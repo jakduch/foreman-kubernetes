@@ -17,11 +17,37 @@ compatibility_set="${COMPATIBILITY_SET:-}"
 allow_candidate="${ALLOW_CANDIDATE:-0}"
 wait_timeout="${UPGRADE_TIMEOUT:-30m}"
 preflight_timeout="${PREFLIGHT_TIMEOUT:-10m}"
+upgrade_lock_name="${UPGRADE_LOCK_NAME:-foreman-kubernetes-upgrade-lock}"
+upgrade_holder_id="${UPGRADE_HOLDER_ID:-${HOSTNAME:-upgrade-host}-$$}"
+upgrade_lock_acquired=false
 
 fail() {
   echo "$1" >&2
   exit 1
 }
+
+release_upgrade_lock() {
+  local current_holder
+
+  [[ "${upgrade_lock_acquired}" == true ]] || return 0
+  current_holder="$(kubectl --namespace "${namespace}" get configmap \
+    "${upgrade_lock_name}" --output=jsonpath='{.data.holder}' 2>/dev/null || true)"
+  if [[ "${current_holder}" == "${upgrade_holder_id}" ]]; then
+    kubectl --namespace "${namespace}" delete configmap \
+      "${upgrade_lock_name}" --wait=true >/dev/null
+  else
+    echo "upgrade lock holder changed to ${current_holder:-unknown}; leaving the lock untouched" >&2
+  fi
+}
+
+cleanup() {
+  local exit_status=$?
+
+  set +e
+  release_upgrade_lock
+  return "${exit_status}"
+}
+trap cleanup EXIT
 
 for command_name in helm jq kubectl grep; do
   command -v "${command_name}" >/dev/null 2>&1 || fail "${command_name} is required"
@@ -63,6 +89,15 @@ execution_profile="${repo_root}/$(jq --exit-status --raw-output \
   '.executionProxyProfile' <<<"${release_set}")"
 [[ -f "${application_profile}" ]] || fail "application profile does not exist: ${application_profile}"
 [[ -f "${execution_profile}" ]] || fail "execution profile does not exist: ${execution_profile}"
+
+if ! kubectl --namespace "${namespace}" create configmap "${upgrade_lock_name}" \
+  --from-literal="holder=${upgrade_holder_id}" \
+  --from-literal="compatibility-set=${compatibility_set}" >/dev/null; then
+  existing_holder="$(kubectl --namespace "${namespace}" get configmap \
+    "${upgrade_lock_name}" --output=jsonpath='{.data.holder}' 2>/dev/null || true)"
+  fail "upgrade lock ${upgrade_lock_name} is already held by ${existing_holder:-unknown}"
+fi
+upgrade_lock_acquired=true
 
 echo "Preflight: checking current ${application_release} and ${execution_release} releases"
 helm status "${application_release}" --namespace "${namespace}" >/dev/null
