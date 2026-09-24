@@ -50,17 +50,27 @@ Foreman, Katello, Candlepin, Pulp, and Smart Proxy remain separate images and
 Helm releases.
 
 Publish `images/release-operator/Dockerfile` through the operator image workflow
-and retain the digest it reports. Then install the CRD and controller pair
+and retain the digest it reports. Then install the chart; Helm creates the CRD
+before the controller pair during the first installation:
 in the application namespace:
 
 ```sh
 kubectl create namespace foreman
-kubectl apply --filename operator/crd/platform.theforeman.org_foremanreleases.yaml
 helm upgrade --install foreman-release-operator \
   charts/foreman-release-operator \
   --namespace foreman \
   --set-string image.repository=ghcr.io/OWNER/REPOSITORY/release-operator \
   --set-string image.tag=VERSION@sha256:REVIEWED_DIGEST
+```
+
+Helm intentionally does not upgrade CRDs. Before upgrading an existing
+operator release to a repository revision whose CRD changed, apply the reviewed
+CRD explicitly and only then upgrade the chart:
+
+```sh
+kubectl apply --server-side \
+  --field-manager=foreman-release-operator \
+  --filename operator/crd/platform.theforeman.org_foremanreleases.yaml
 ```
 
 Store the two environment value documents in one same-namespace Secret. They

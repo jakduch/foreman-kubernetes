@@ -6,6 +6,8 @@ executable, side-effect-free transition core used to build durable status,
 conditions, operation identity, explicit retries, and pause observations.
 `operator/bin/foreman-release-controller` runs that core as a namespaced
 polling controller and isolates failures between custom resources. The chart
+installs the exact CRD from `operator/crd/` through its Helm `crds/` directory and
+tests both copies byte-for-byte to prevent API drift. The chart
 runs two candidates behind a PodDisruptionBudget. Each polling cycle renews a
 separate leader Lease keyed by the Pod UID; a live foreign holder remains a
 standby and an expired holder is replaced with a resource-version-guarded

@@ -42,6 +42,7 @@ trap 'rm -f "${rendered}" "${rendered_ingress}" "${rendered_execution_registrati
 ruby "${repo_root}/tests/yaml-duplicates.rb"
 ruby "${repo_root}/tests/workflow-action-pins.rb" "${repo_root}/.github/workflows"
 ruby "${repo_root}/tests/operator-contract.rb"
+ruby "${repo_root}/tests/operator-crd-packaging.rb"
 ruby "${repo_root}/tests/operator-state-machine.rb"
 ruby "${repo_root}/tests/operator-reconciler.rb"
 ruby "${repo_root}/tests/operator-controller.rb"
@@ -84,7 +85,7 @@ if helm template execution "${execution_chart}" \
 fi
 helm template execution "${execution_chart}" > "${rendered_execution}"
 helm lint "${operator_chart}"
-helm template release-controller "${operator_chart}" --namespace foreman > "${rendered_operator}"
+helm template release-controller "${operator_chart}" --namespace foreman --include-crds > "${rendered_operator}"
 if helm template release-controller "${operator_chart}" \
   --set controller.releaseLeaseDurationSeconds=240 >/dev/null 2>&1; then
   echo 'operator accepted a release Lease that can expire during bounded commands' >&2

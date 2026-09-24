@@ -6,6 +6,8 @@ require 'yaml'
 abort "usage: #{$PROGRAM_NAME} RENDERED_MANIFEST" unless ARGV.length == 1
 
 documents = YAML.load_stream(File.read(ARGV.fetch(0))).compact
+crd = documents.find { |item| item['kind'] == 'CustomResourceDefinition' }
+abort 'operator chart did not install the ForemanRelease CRD' unless crd&.dig('metadata', 'name') == 'foremanreleases.platform.theforeman.org'
 deployment = documents.find { |item| item['kind'] == 'Deployment' }
 abort 'operator Deployment is missing' unless deployment
 abort 'operator does not publish a warm standby' unless deployment.dig('spec', 'replicas') == 2
