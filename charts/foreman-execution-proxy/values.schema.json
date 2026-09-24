@@ -1,8 +1,20 @@
 {
   "$schema": "https://json-schema.org/draft-07/schema#",
   "type": "object",
-  "required": ["secretRolloutToken", "image", "replicas", "proxy", "ssh", "ansible", "state", "serviceAccount", "networkPolicy", "resources", "initResources"],
+  "additionalProperties": false,
+  "required": ["nameOverride", "fullnameOverride", "imagePullSecrets", "secretRolloutToken", "image", "replicas", "proxy", "ssh", "ansible", "state", "serviceAccount", "networkPolicy", "resources", "initResources", "terminationGracePeriodSeconds"],
   "properties": {
+    "nameOverride": { "type": "string" },
+    "fullnameOverride": { "type": "string" },
+    "imagePullSecrets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name"],
+        "additionalProperties": false,
+        "properties": { "name": { "type": "string", "minLength": 1 } }
+      }
+    },
     "secretRolloutToken": { "type": "string", "minLength": 1, "maxLength": 128 },
     "image": {
       "type": "object",

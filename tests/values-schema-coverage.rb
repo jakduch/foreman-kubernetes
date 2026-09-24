@@ -5,8 +5,6 @@ require 'json'
 require 'yaml'
 
 root = File.expand_path('..', __dir__)
-values = YAML.safe_load(File.read(File.join(root, 'charts/foreman-stack/values.yaml')))
-schema = JSON.parse(File.read(File.join(root, 'charts/foreman-stack/values.schema.json')))
 
 def resolve(reference, root)
   return reference unless reference.is_a?(Hash) && reference['$ref']&.start_with?('#/')
@@ -39,7 +37,15 @@ def uncovered_paths(value, reference, root, path = [])
   end
 end
 
-missing = uncovered_paths(values, schema, schema)
-abort "values.schema.json does not cover defaults:\n#{missing.join("\n")}" unless missing.empty?
+charts = %w[foreman-stack foreman-execution-proxy]
+charts.each do |chart|
+  chart_root = File.join(root, 'charts', chart)
+  values = YAML.safe_load(File.read(File.join(chart_root, 'values.yaml')))
+  schema = JSON.parse(File.read(File.join(chart_root, 'values.schema.json')))
+  missing = uncovered_paths(values, schema, schema)
+  next if missing.empty?
 
-puts 'Every default chart value is covered by values.schema.json.'
+  abort "#{chart}/values.schema.json does not cover defaults:\n#{missing.join("\n")}"
+end
+
+puts 'Every default application and execution-proxy chart value is covered by values.schema.json.'

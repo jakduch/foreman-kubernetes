@@ -36,6 +36,10 @@ if helm lint "${chart}" --set pulp.workres.replicas=2 >/dev/null 2>&1; then
 fi
 helm template test "${chart}" > "${rendered}"
 helm lint "${execution_chart}"
+if helm lint "${execution_chart}" --set 'proxy.trsutedHosts[0]=foreman.example.test' >/dev/null 2>&1; then
+  echo 'execution values schema accepted an unknown proxy key' >&2
+  exit 1
+fi
 helm template execution "${execution_chart}" > "${rendered_execution}"
 helm template execution "${execution_chart}" \
   --set secretRolloutToken=rotated-credentials > "${rendered_execution_secret_rotation}"
