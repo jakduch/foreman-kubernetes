@@ -114,6 +114,12 @@ for manifest in \
   ruby "${repo_root}/tests/kubernetes-invariants.rb" "${manifest}"
 done
 
+if ruby "${repo_root}/tests/kubernetes-invariants.rb" \
+  "${repo_root}/tests/invalid-unbounded-network-policy.yaml" >/dev/null 2>&1; then
+  echo 'Kubernetes invariants accepted an unbounded NetworkPolicy peer' >&2
+  exit 1
+fi
+
 ruby "${repo_root}/tests/candlepin-port.rb" "${rendered_candlepin_port}" 24443
 ruby "${repo_root}/tests/pulp-process-contract.rb" "${rendered}"
 ruby "${repo_root}/tests/katello-event-daemon-contract.rb" "${rendered_egress}"

@@ -107,6 +107,24 @@ services.each do |service|
 end
 
 documents.select { |resource| resource['kind'] == 'NetworkPolicy' }.each do |policy|
+  policy_name = identity(policy).join('/')
+  Array(policy.dig('spec', 'ingress')).each do |rule|
+    Array(rule['from']).each do |peer|
+      unbounded = peer.nil? || peer.empty? ||
+        (peer.keys == ['podSelector'] && (peer['podSelector'].nil? || peer['podSelector'].empty?)) ||
+        (peer.keys == ['namespaceSelector'] && (peer['namespaceSelector'].nil? || peer['namespaceSelector'].empty?))
+      errors << "#{policy_name} contains an unbounded ingress peer" if unbounded
+    end
+  end
+  Array(policy.dig('spec', 'egress')).each do |rule|
+    Array(rule['to']).each do |peer|
+      unbounded = peer.nil? || peer.empty? ||
+        (peer.keys == ['podSelector'] && (peer['podSelector'].nil? || peer['podSelector'].empty?)) ||
+        (peer.keys == ['namespaceSelector'] && (peer['namespaceSelector'].nil? || peer['namespaceSelector'].empty?))
+      errors << "#{policy_name} contains an unbounded egress peer" if unbounded
+    end
+  end
+
   next unless Array(policy.dig('spec', 'policyTypes')).include?('Ingress')
 
   selector = policy.dig('spec', 'podSelector', 'matchLabels') || {}
@@ -125,7 +143,7 @@ documents.select { |resource| resource['kind'] == 'NetworkPolicy' }.each do |pol
     target = port['port']
     next if available_ports.include?(target)
 
-    errors << "#{identity(policy).join('/')} permits missing container port #{target}"
+    errors << "#{policy_name} permits missing container port #{target}"
   end
 end
 
