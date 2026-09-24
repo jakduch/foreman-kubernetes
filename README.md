@@ -83,15 +83,23 @@ Pulp can replace its shared RWX claim with S3-compatible object storage through
 credential, egress, direct-download, and recovery contract is documented in
 [`docs/pulp-object-storage.md`](docs/pulp-object-storage.md).
 
-The example Secrets contain placeholders only. Populate them outside Git before installing:
+The example Secrets contain placeholders only. Populate them outside Git. For
+a paired, digest-pinned installation, create the namespace and Secrets, prepare
+separate application and execution-proxy values files, then use the guarded
+installer (the current default set is still a candidate):
 
 ```sh
+kubectl create namespace foreman
 kubectl apply --namespace foreman --filename /secure/path/foreman-secrets.yaml
-helm upgrade --install foreman charts/foreman-stack \
-  --namespace foreman \
-  --create-namespace \
-  --values examples/cluster-values.yaml
+ALLOW_CANDIDATE=1 scripts/install-release.sh \
+  /secure/path/application-values.yaml \
+  /secure/path/execution-proxy-values.yaml
 ```
+
+The installer rejects existing releases, applies environment values before the
+digest-pinned profiles, waits for schema Jobs, requires the application smoke
+test, and only then installs the paired execution proxy. Existing deployments
+must use the controlled upgrade helper instead.
 
 Static render checks are available as `tests/render.sh` and run in the lightweight pull-request workflow together with ShellCheck. The opt-in disposable integration harness under `tests/kind/` exercises a real install, the chart-owned application smoke test, mTLS Pulp registration, successful, failed, cancelled, and proxy-interrupted Remote Execution jobs, Ansible command execution, role discovery/import/assignment/execution through the egress-restricted central proxy, replacement of already imported role content, an explicit denied-destination probe, clean-namespace disaster recovery, full proxy TLS/client/SSH identity rotation, a failed migration with retained old workloads and roll-forward recovery, scaling, and controlled application and proxy upgrades while jobs are active. It cleans up the generated cluster and PKI by default and is not run for every change. A manual `Full integration` workflow provides the intended amd64 execution environment.
 
@@ -114,6 +122,7 @@ credential, and recovery-drill contracts.
 ## Design documents
 
 - [`docs/architecture.md`](docs/architecture.md) describes ownership and topology.
+- [`docs/installation.md`](docs/installation.md) defines prerequisites, guarded first installation, and failure handling.
 - [`docs/runtime-contracts.md`](docs/runtime-contracts.md) records the verified upstream runtime contracts and current scaling limits.
 - [`docs/compatibility.md`](docs/compatibility.md) records digest-pinned image candidates and their test status.
 - [`docs/upgrades.md`](docs/upgrades.md) defines preflight, two-release sequencing, failure states, and the schema rollback boundary.

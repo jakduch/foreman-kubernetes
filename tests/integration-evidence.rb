@@ -104,6 +104,8 @@ Dir.mktmpdir('foreman-kubernetes-evidence') do |directory|
   FileUtils.mkdir_p(temporary_root)
   FileUtils.cp_r((root / 'compatibility').to_s, temporary_root.to_s)
   FileUtils.cp_r((root / 'profiles').to_s, temporary_root.to_s)
+  FileUtils.mkdir_p(temporary_root / 'docs')
+  FileUtils.cp(root / 'docs/compatibility.md', temporary_root / 'docs/compatibility.md')
 
   evidence['eligibleForPromotion'] = true
   evidence['runnerPlatform'] = 'linux/amd64'

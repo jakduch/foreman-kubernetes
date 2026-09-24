@@ -30,7 +30,9 @@ jobs:
           tests/kind/apply-secrets.sh
           tests/kind/content-lifecycle.sh
           tests/kind/execution-plane.sh
+          tests/install-release.sh
           tests/upgrade-release.sh
+          scripts/install-release.sh
           scripts/upgrade-release.sh
           images/ssh-target/entrypoint.sh
       - name: Lint and render chart profiles

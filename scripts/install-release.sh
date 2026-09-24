@@ -1,0 +1,149 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ $# -ne 2 ]]; then
+  echo "usage: $0 APPLICATION_VALUES EXECUTION_PROXY_VALUES" >&2
+  exit 2
+fi
+
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+application_values="$1"
+execution_values="$2"
+namespace="${NAMESPACE:-foreman}"
+application_release="${APPLICATION_RELEASE:-foreman}"
+execution_release="${EXECUTION_RELEASE:-execution}"
+compatibility_sets_file="${repo_root}/compatibility/release-sets.json"
+compatibility_set="${COMPATIBILITY_SET:-}"
+allow_candidate="${ALLOW_CANDIDATE:-0}"
+wait_timeout="${INSTALL_TIMEOUT:-30m}"
+smoke_timeout="${SMOKE_TIMEOUT:-10m}"
+
+fail() {
+  echo "$1" >&2
+  exit 1
+}
+
+for command_name in helm jq kubectl grep ruby; do
+  command -v "${command_name}" >/dev/null 2>&1 || fail "${command_name} is required"
+done
+
+[[ -f "${application_values}" ]] || fail "application values do not exist: ${application_values}"
+[[ -f "${execution_values}" ]] || fail "execution proxy values do not exist: ${execution_values}"
+
+case "${allow_candidate}" in
+  0 | 1) ;;
+  *) fail 'ALLOW_CANDIDATE must be 0 or 1' ;;
+esac
+
+if [[ -z "${compatibility_set}" ]]; then
+  compatibility_set="$(jq --exit-status --raw-output '.default' \
+    "${compatibility_sets_file}")"
+fi
+
+release_set="$(jq --exit-status --compact-output --arg set "${compatibility_set}" \
+  '.sets[$set]' "${compatibility_sets_file}")" || \
+  fail "unknown compatibility set: ${compatibility_set}"
+release_set_status="$(jq --exit-status --raw-output '.status' <<<"${release_set}")"
+
+case "${release_set_status}" in
+  supported) ;;
+  candidate)
+    [[ "${allow_candidate}" == 1 ]] || \
+      fail "compatibility set ${compatibility_set} is still a candidate; set ALLOW_CANDIDATE=1 only for qualification"
+    ;;
+  retired) fail "compatibility set ${compatibility_set} is retired and cannot be installed" ;;
+  *) fail "unsupported compatibility-set state: ${release_set_status}" ;;
+esac
+
+application_profile="${repo_root}/$(jq --exit-status --raw-output \
+  '.applicationProfile' <<<"${release_set}")"
+execution_profile="${repo_root}/$(jq --exit-status --raw-output \
+  '.executionProxyProfile' <<<"${release_set}")"
+[[ -f "${application_profile}" ]] || fail "application profile does not exist: ${application_profile}"
+[[ -f "${execution_profile}" ]] || fail "execution profile does not exist: ${execution_profile}"
+
+kubectl get namespace "${namespace}" >/dev/null || \
+  fail "namespace ${namespace} does not exist; create it and apply the external Secrets first"
+if helm status "${application_release}" --namespace "${namespace}" >/dev/null 2>&1; then
+  fail "application release ${application_release} already exists; use scripts/upgrade-release.sh"
+fi
+if helm status "${execution_release}" --namespace "${namespace}" >/dev/null 2>&1; then
+  fail "execution release ${execution_release} already exists; use scripts/upgrade-release.sh"
+fi
+
+echo "Preflight: rendering compatibility set ${compatibility_set}"
+helm lint "${repo_root}/charts/foreman-stack" \
+  --values "${application_values}" \
+  --values "${application_profile}"
+application_resources="$(helm template "${application_release}" "${repo_root}/charts/foreman-stack" \
+  --namespace "${namespace}" \
+  --values "${application_values}" \
+  --values "${application_profile}")"
+[[ "$(grep -Fxc 'kind: Job' <<<"${application_resources}")" -ge 4 ]] || \
+  fail 'normal installation requires migration and Pulp registration Jobs'
+grep -Fq 'app.kubernetes.io/component: foreman' <<<"${application_resources}" || \
+  fail 'normal installation requires the Foreman workload'
+
+helm lint "${repo_root}/charts/foreman-execution-proxy" \
+  --values "${execution_values}" \
+  --values "${execution_profile}"
+execution_resources="$(helm template "${execution_release}" "${repo_root}/charts/foreman-execution-proxy" \
+  --namespace "${namespace}" \
+  --values "${execution_values}" \
+  --values "${execution_profile}")"
+
+echo 'Preflight: checking externally managed Secrets and referenced keys'
+required_secrets="$(printf '%s\n---\n%s\n' \
+  "${application_resources}" "${execution_resources}" | \
+  ruby "${repo_root}/scripts/required-secrets.rb")"
+while IFS=$'\t' read -r secret_name secret_keys; do
+  [[ -n "${secret_name}" ]] || continue
+  secret_json="$(kubectl --namespace "${namespace}" get secret "${secret_name}" --output=json)" || \
+    fail "required Secret ${namespace}/${secret_name} does not exist"
+  [[ -n "${secret_keys}" ]] || continue
+  IFS=',' read -r -a keys <<<"${secret_keys}"
+  for secret_key in "${keys[@]}"; do
+    jq --exit-status --arg key "${secret_key}" '.data[$key] != null' \
+      <<<"${secret_json}" >/dev/null || \
+      fail "required key ${secret_key} does not exist in Secret ${namespace}/${secret_name}"
+  done
+done <<<"${required_secrets}"
+
+echo 'Install: applying application workloads and migration gates'
+if ! helm upgrade --install "${application_release}" "${repo_root}/charts/foreman-stack" \
+  --namespace "${namespace}" \
+  --values "${application_values}" \
+  --values "${application_profile}" \
+  --wait \
+  --wait-for-jobs \
+  --timeout "${wait_timeout}"; then
+  fail 'application installation failed; inspect migration and workload Jobs before retrying'
+fi
+
+if ! helm test "${application_release}" \
+  --namespace "${namespace}" \
+  --logs \
+  --timeout "${smoke_timeout}"; then
+  fail 'application was installed but its smoke test failed; inspect it before installing the execution proxy'
+fi
+
+echo 'Install: applying the paired execution proxy'
+if ! helm upgrade --install "${execution_release}" "${repo_root}/charts/foreman-execution-proxy" \
+  --namespace "${namespace}" \
+  --values "${execution_values}" \
+  --values "${execution_profile}" \
+  --wait \
+  --timeout "${wait_timeout}"; then
+  fail 'application installation succeeded but execution-proxy installation failed; repair the proxy without removing migrated application state'
+fi
+
+kubectl --namespace "${namespace}" wait \
+  --for=condition=Ready pod \
+  --selector="app.kubernetes.io/instance=${execution_release},app.kubernetes.io/component=execution-proxy" \
+  --timeout="${smoke_timeout}"
+helm test "${application_release}" \
+  --namespace "${namespace}" \
+  --logs \
+  --timeout "${smoke_timeout}"
+
+echo "Compatibility set ${compatibility_set} is installed. Run deployment-specific content and Remote Execution acceptance workflows."

@@ -236,7 +236,9 @@ shellcheck -x \
   "${chart}/files/restore.sh" \
   "${chart}/files/candlepin-migrate.sh"
 shellcheck \
+  "${repo_root}/scripts/install-release.sh" \
   "${repo_root}/scripts/upgrade-release.sh" \
+  "${repo_root}/tests/install-release.sh" \
   "${repo_root}/tests/upgrade-release.sh" \
   "${repo_root}/tests/kind/execution-plane.sh" \
   "${repo_root}/tests/kind/publish-ansible-content.sh" \
@@ -246,9 +248,12 @@ ruby "${repo_root}/tests/plugin-compatibility.rb"
 ruby "${repo_root}/tests/release-sets.rb"
 ruby -c "${repo_root}/scripts/write-integration-evidence.rb"
 ruby -c "${repo_root}/scripts/promote-release-set.rb"
+ruby -c "${repo_root}/scripts/required-secrets.rb"
 ruby -c "${repo_root}/tests/integration-evidence.rb"
 ruby -c "${repo_root}/tests/operator-contract.rb"
 ruby "${repo_root}/tests/integration-evidence.rb"
+ruby "${repo_root}/tests/required-secrets.rb"
+"${repo_root}/tests/install-release.sh"
 "${repo_root}/tests/upgrade-release.sh"
 
 grep -Fq \
