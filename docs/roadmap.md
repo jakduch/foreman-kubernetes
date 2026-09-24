@@ -39,7 +39,9 @@ Implemented in the chart, pending amd64 integration proof:
 Still required:
 
 1. Prove one-time Artemis job delivery and reconnect behavior.
-2. Prove Quartz trigger failover by terminating the active scheduler pod.
+2. Run the prepared Quartz membership and stale-instance failover assertion on
+   amd64; the harness now terminates one scheduler pod and requires a distinct
+   replacement while retaining exactly two live cluster rows.
 3. Exercise failed and successful migrations against the pinned image set.
 4. Move migration-before-rollout sequencing into the operator, then replace
    `Recreate` with a proven rolling strategy.

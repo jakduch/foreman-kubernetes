@@ -56,6 +56,38 @@ assert_pulp_registration() {
     bin/rails runner 'abort "Pulp proxy missing" unless SmartProxy.pulp_primary&.has_feature?("Pulpcore")'
 }
 
+candlepin_quartz_instances() {
+  kubectl --namespace "${namespace}" exec deployment/postgresql -- \
+    env PGPASSWORD=candlepin-test \
+    psql \
+    --host=127.0.0.1 \
+    --username=candlepin \
+    --dbname=candlepin \
+    --tuples-only \
+    --no-align \
+    --command="SELECT instance_name FROM qrtz_scheduler_state WHERE sched_name = 'ForemanCandlepinKind' ORDER BY instance_name"
+}
+
+wait_for_candlepin_quartz_instances() {
+  local expected_count="$1"
+  local actual_count
+  local instances
+
+  for _ in $(seq 1 120); do
+    instances="$(candlepin_quartz_instances)"
+    actual_count="$(printf '%s\n' "${instances}" | awk 'NF { count++ } END { print count + 0 }')"
+    if [[ "${actual_count}" == "${expected_count}" ]]; then
+      printf '%s\n' "${instances}"
+      return 0
+    fi
+    sleep 2
+  done
+
+  echo "Quartz has ${actual_count} registered instances, expected ${expected_count}" >&2
+  printf '%s\n' "${instances}" >&2
+  return 1
+}
+
 assert_candlepin_ha() {
   local ready_replicas
 
@@ -72,11 +104,16 @@ assert_candlepin_ha() {
     echo "Candlepin has ${ready_replicas:-0} ready replicas, expected 2" >&2
     exit 1
   fi
+
+  wait_for_candlepin_quartz_instances 2 >/dev/null
 }
 
 assert_candlepin_pod_recovery() {
+  local after_instances
+  local before_instances
   local candlepin_pod
 
+  before_instances="$(candlepin_quartz_instances)"
   candlepin_pod="$(
     kubectl --namespace "${namespace}" get pod \
       --selector=app.kubernetes.io/component=candlepin \
@@ -87,6 +124,11 @@ assert_candlepin_pod_recovery() {
     --timeout=5m
 
   assert_candlepin_ha
+  after_instances="$(candlepin_quartz_instances)"
+  if [[ "${before_instances}" == "${after_instances}" ]]; then
+    echo "Quartz did not replace the terminated scheduler instance" >&2
+    exit 1
+  fi
   assert_foreman_ready
 }
 

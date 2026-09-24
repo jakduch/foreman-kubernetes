@@ -5,7 +5,9 @@
 - initial Pulp and Foreman migrations;
 - separate Candlepin migration ownership and two replicas using one external
   Artemis broker plus clustered Quartz;
-- Candlepin request-service recovery after deleting one replica;
+- Candlepin request-service recovery after deleting one replica, including
+  replacement of the terminated Quartz scheduler instance and cleanup of its
+  stale cluster row;
 - Foreman health both with and without the optional client certificate;
 - automatic Pulp Smart Proxy registration through the private mTLS endpoint;
 - absence of a public Pulp administrative API route;
