@@ -170,6 +170,7 @@ ruby "${repo_root}/tests/image-pull-secrets-contract.rb" \
   "${rendered_image_pull_secrets}" registry-auth
 ruby "${repo_root}/tests/katello-event-daemon-contract.rb" "${rendered_egress}"
 ruby "${repo_root}/tests/foreman-readiness-contract.rb" "${rendered}"
+ruby "${repo_root}/tests/dynflow-lifecycle-contract.rb" "${rendered}"
 ruby "${repo_root}/tests/foreman-shared-tmp-contract.rb" "${rendered}" true
 ruby "${repo_root}/tests/foreman-shared-tmp-contract.rb" "${rendered_s3}" false
 ruby "${repo_root}/tests/recovery-storage-contract.rb" "${rendered_backup}" true
@@ -289,6 +290,7 @@ ruby -c "${repo_root}/tests/integration-evidence.rb"
 ruby -c "${repo_root}/tests/operator-contract.rb"
 ruby -c "${chart}/files/foreman-readiness.rb"
 ruby "${repo_root}/tests/foreman-readiness-behavior.rb"
+ruby "${repo_root}/tests/dynflow-lifecycle-behavior.rb"
 ruby "${repo_root}/tests/integration-evidence.rb"
 ruby "${repo_root}/tests/required-cluster-resources.rb"
 ruby "${repo_root}/tests/required-secrets.rb"
@@ -431,8 +433,8 @@ grep -q 'runAsUser: 994' "${rendered}"
 grep -q 'runAsUser: 700' "${rendered}"
 grep -q 'type: RuntimeDefault' "${rendered}"
 grep -q 'name: test-foreman-stack-dynflow-worker' "${rendered}"
-if [[ "$(grep -c 'startupProbe:' "${rendered}")" -ne 6 ]]; then
-  echo 'expected startup probes for Foreman, Katello events, Candlepin, Pulp API/content, and the Pulp control proxy' >&2
+if [[ "$(grep -c 'startupProbe:' "${rendered}")" -ne 9 ]]; then
+  echo 'expected startup probes for Foreman, Dynflow, Katello events, Candlepin, Pulp API/content, and the Pulp control proxy' >&2
   exit 1
 fi
 if [[ "$(grep -A3 'livenessProbe:' "${rendered}" | grep -c 'tcpSocket:')" -ne 5 ]]; then

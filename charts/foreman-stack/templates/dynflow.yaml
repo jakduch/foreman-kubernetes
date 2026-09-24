@@ -17,6 +17,13 @@ metadata:
     {{- include "foreman-stack.componentLabels" (dict "root" $root "component" (printf "dynflow-%s" $worker.name)) | nindent 4 }}
 spec:
   replicas: {{ $worker.replicas }}
+  {{- if eq $worker.name "orchestrator" }}
+  # A second orchestrator blocks during boot on the Redis singleton lock. A
+  # rolling update would wait for that pod to become Ready before removing the
+  # lock owner and would therefore deadlock the rollout.
+  strategy:
+    type: Recreate
+  {{- end }}
   selector:
     matchLabels:
       app.kubernetes.io/instance: {{ $root.Release.Name }}
@@ -31,6 +38,7 @@ spec:
         checksum/config: {{ include (print $root.Template.BasePath "/runtime-config.yaml") $root | sha256sum }}
         checksum/secrets: {{ $root.Values.secretRolloutToken | sha256sum }}
     spec:
+      terminationGracePeriodSeconds: {{ add $root.Values.foreman.dynflow.shutdownTimeoutSeconds 30 }}
       serviceAccountName: {{ include "foreman-stack.serviceAccountName" $root }}
       automountServiceAccountToken: false
       {{- include "foreman-stack.imagePullSecrets" $root | nindent 6 }}
@@ -61,18 +69,51 @@ spec:
             - ./extras/dynflow-sidekiq.rb
             - -C
             - /etc/foreman/dynflow/runtime.yml
+            - -t
+            - {{ $root.Values.foreman.dynflow.shutdownTimeoutSeconds | quote }}
           env:
             {{- include "foreman-stack.foremanEnv" $root | nindent 12 }}
+            - name: RUBYOPT
+              value: -r/opt/foreman-kubernetes/dynflow-lifecycle.rb
+            - name: DYNFLOW_READINESS_FILE
+              value: /run/foreman-kubernetes/dynflow-ready
           volumeMounts:
             {{- include "foreman-stack.foremanVolumeMounts" $root | nindent 12 }}
             - name: foreman-generated-config
               mountPath: /etc/foreman/dynflow/runtime.yml
               subPath: {{ $worker.config }}
               readOnly: true
+            - name: foreman-generated-config
+              mountPath: /opt/foreman-kubernetes/dynflow-lifecycle.rb
+              subPath: dynflow-lifecycle.rb
+              readOnly: true
+            - name: dynflow-runtime
+              mountPath: /run/foreman-kubernetes
+          startupProbe:
+            exec:
+              command:
+                - /bin/bash
+                - -ec
+                - test -f "${DYNFLOW_READINESS_FILE}"
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 60
+          readinessProbe:
+            exec:
+              command:
+                - /bin/bash
+                - -ec
+                - test -f "${DYNFLOW_READINESS_FILE}"
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
           resources:
             {{- toYaml $root.Values.foreman.resources | nindent 12 }}
       volumes:
         {{- include "foreman-stack.foremanVolumes" $root | nindent 8 }}
+        - name: dynflow-runtime
+          emptyDir:
+            sizeLimit: 1Mi
       {{- include "foreman-stack.topologySpread" (dict "Values" $root.Values "Release" $root.Release "component" (printf "dynflow-%s" $worker.name)) | nindent 6 }}
 {{- end }}
 {{- end }}

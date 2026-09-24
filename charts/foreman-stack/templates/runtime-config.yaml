@@ -80,6 +80,8 @@ data:
 {{ .Files.Get "files/katello-event-daemon.rb" | indent 4 }}
   foreman-readiness.rb: |
 {{ .Files.Get "files/foreman-readiness.rb" | indent 4 }}
+  dynflow-lifecycle.rb: |
+{{ .Files.Get "files/dynflow-lifecycle.rb" | indent 4 }}
   dynflow-orchestrator.yml: |
     ---
     :concurrency: 1

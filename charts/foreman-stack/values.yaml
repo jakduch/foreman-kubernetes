@@ -87,6 +87,9 @@ foreman:
     workerConcurrency: 10
     hostsQueueWorkers: 1
     hostsQueueConcurrency: 5
+    # Matches the upstream systemd service's five-minute stop allowance. The
+    # Pod receives another 30 seconds so Sidekiq can finish its own shutdown.
+    shutdownTimeoutSeconds: 300
   katelloEventDaemon:
     heartbeatIntervalSeconds: 5
     heartbeatStaleSeconds: 30

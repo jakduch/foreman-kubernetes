@@ -19,6 +19,11 @@ These contracts were taken from the current upstream source snapshots listed in 
 - Entry point: `/usr/libexec/foreman/sidekiq-selinux -e production -r ./extras/dynflow-sidekiq.rb -C <config>`.
 - `extras/dynflow-sidekiq.rb` allows only one active orchestrator through a Redis lock.
 - General and hosts-queue workers can be scaled separately from the orchestrator.
+- The orchestrator uses a `Recreate` rollout because a replacement blocks on
+  that lock before Sidekiq can announce readiness. Worker and orchestrator Pods
+  become Ready only after Sidekiq's post-initialization `startup` event.
+- Shutdown removes readiness at Sidekiq's `quiet` event and allows five minutes
+  for in-flight work, matching the upstream systemd service stop allowance.
 
 ## Central execution Smart Proxy
 
