@@ -11,6 +11,8 @@ helm lint "${chart}"
 helm template test "${chart}" > "${rendered}"
 helm lint "${chart}" --values "${repo_root}/examples/cluster-values.yaml"
 helm template test "${chart}" --values "${repo_root}/examples/cluster-values.yaml" > "${rendered_ingress}"
+helm lint "${chart}" --values "${repo_root}/tests/kind/values.yaml"
+helm template foreman "${chart}" --values "${repo_root}/tests/kind/values.yaml" >/dev/null
 
 grep -q 'name: test-foreman-stack-foreman' "${rendered}"
 grep -q 'name: test-foreman-stack-candlepin' "${rendered}"
@@ -34,7 +36,7 @@ if grep -q 'https://test-foreman-stack-pulp-control:8443' "${rendered}"; then
   exit 1
 fi
 grep -q 'nginx.ingress.kubernetes.io/auth-tls-verify-client: optional' "${rendered_ingress}"
-grep -q 'X-CLIENT-CERT: \$ssl_client_escaped_cert' "${rendered_ingress}"
+grep -Fq "X-CLIENT-CERT: \$ssl_client_escaped_cert" "${rendered_ingress}"
 grep -q 'path: /pulp/content' "${rendered_ingress}"
 grep -q 'path: /pulp_ansible/galaxy' "${rendered_ingress}"
 grep -q 'name: test-foreman-stack-pulp-api' "${rendered}"

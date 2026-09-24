@@ -1,0 +1,115 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ $# -ne 1 ]]; then
+  echo "usage: $0 TEMPORARY_DIRECTORY" >&2
+  exit 2
+fi
+
+workdir="$1"
+namespace="foreman"
+
+issue_server_certificate() {
+  local name="$1"
+  local common_name="$2"
+  local subject_alt_names="$3"
+
+  openssl req -new -newkey rsa:2048 -nodes \
+    -subj "/CN=${common_name}" \
+    -keyout "${workdir}/${name}.key" \
+    -out "${workdir}/${name}.csr" >/dev/null 2>&1
+  openssl x509 -req -sha256 -days 7 \
+    -in "${workdir}/${name}.csr" \
+    -CA "${workdir}/ca.crt" \
+    -CAkey "${workdir}/ca.key" \
+    -CAcreateserial \
+    -extfile <(printf 'subjectAltName=%s\nextendedKeyUsage=serverAuth\n' "${subject_alt_names}") \
+    -out "${workdir}/${name}.crt" >/dev/null 2>&1
+}
+
+openssl req -x509 -newkey rsa:3072 -nodes -sha256 -days 7 \
+  -subj "/CN=Foreman Kubernetes test CA" \
+  -addext "basicConstraints=critical,CA:TRUE" \
+  -addext "keyUsage=critical,keyCertSign,cRLSign" \
+  -keyout "${workdir}/ca.key" \
+  -out "${workdir}/ca.crt" >/dev/null 2>&1
+
+openssl req -new -newkey rsa:2048 -nodes \
+  -subj "/CN=foreman.test" \
+  -keyout "${workdir}/foreman-client.key" \
+  -out "${workdir}/foreman-client.csr" >/dev/null 2>&1
+openssl x509 -req -sha256 -days 7 \
+  -in "${workdir}/foreman-client.csr" \
+  -CA "${workdir}/ca.crt" \
+  -CAkey "${workdir}/ca.key" \
+  -CAcreateserial \
+  -extfile <(printf 'extendedKeyUsage=clientAuth\n') \
+  -out "${workdir}/foreman-client.crt" >/dev/null 2>&1
+
+issue_server_certificate foreman-ingress foreman.test "DNS:foreman.test"
+issue_server_certificate content-ingress content.test "DNS:content.test"
+issue_server_certificate candlepin foreman-foreman-stack-candlepin \
+  "DNS:foreman-foreman-stack-candlepin,DNS:foreman-foreman-stack-candlepin.foreman,DNS:foreman-foreman-stack-candlepin.foreman.svc"
+issue_server_certificate pulp-control foreman-foreman-stack-pulp-control \
+  "DNS:foreman-foreman-stack-pulp-control,DNS:foreman-foreman-stack-pulp-control.foreman,DNS:foreman-foreman-stack-pulp-control.foreman.svc"
+
+encryption_key="$(openssl rand -hex 16)"
+django_secret="$(openssl rand -hex 32)"
+symmetric_key="$(openssl rand -base64 32 | tr -d '\n')"
+
+kubectl --namespace "${namespace}" create secret generic foreman-runtime \
+  --from-literal=DATABASE_URL='postgresql://foreman:foreman-test@postgresql:5432/foreman' \
+  --from-literal=ENCRYPTION_KEY="${encryption_key}" \
+  --from-literal=SEED_ADMIN_USER=admin \
+  --from-literal=SEED_ADMIN_PASSWORD=foreman-test \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+kubectl --namespace "${namespace}" create secret generic foreman-shared \
+  --from-literal=candlepin-oauth-secret=candlepin-oauth-test \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+kubectl --namespace "${namespace}" create secret generic foreman-certificates \
+  --from-file=ca.crt="${workdir}/ca.crt" \
+  --from-file=client_cert.pem="${workdir}/foreman-client.crt" \
+  --from-file=client_key.pem="${workdir}/foreman-client.key" \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+kubectl --namespace "${namespace}" create secret generic candlepin-runtime \
+  --from-literal=database-password=candlepin-test \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+kubectl --namespace "${namespace}" create secret generic candlepin-certificates \
+  --from-file=candlepin-ca.crt="${workdir}/ca.crt" \
+  --from-file=candlepin-ca.key="${workdir}/ca.key" \
+  --from-file=tomcat.crt="${workdir}/candlepin.crt" \
+  --from-file=tomcat.key="${workdir}/candlepin.key" \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+kubectl --namespace "${namespace}" create secret generic pulp-runtime \
+  --from-literal=database-password=pulp-test \
+  --from-literal=django-secret-key="${django_secret}" \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+kubectl --namespace "${namespace}" create secret generic pulp-config \
+  --from-literal=database_fields.symmetric.key="${symmetric_key}" \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+kubectl --namespace "${namespace}" create secret generic ingress-client-ca \
+  --from-file=ca.crt="${workdir}/ca.crt" \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+kubectl --namespace "${namespace}" create secret tls foreman-ingress-tls \
+  --cert="${workdir}/foreman-ingress.crt" \
+  --key="${workdir}/foreman-ingress.key" \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+kubectl --namespace "${namespace}" create secret tls pulp-content-ingress-tls \
+  --cert="${workdir}/content-ingress.crt" \
+  --key="${workdir}/content-ingress.key" \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+kubectl --namespace "${namespace}" create secret generic pulp-control-proxy-certificates \
+  --from-file=ca.crt="${workdir}/ca.crt" \
+  --from-file=tls.crt="${workdir}/pulp-control.crt" \
+  --from-file=tls.key="${workdir}/pulp-control.key" \
+  --dry-run=client -o yaml | kubectl apply -f -

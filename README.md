@@ -47,6 +47,8 @@ helm upgrade --install foreman charts/foreman-stack \
   --values examples/cluster-values.yaml
 ```
 
+Static render checks are available as `tests/render.sh`. The opt-in disposable integration harness under `tests/kind/` exercises a real install, mTLS Pulp registration, scaling, and a second Helm revision. It cleans up the generated cluster and PKI by default and is not run as part of the lightweight local check.
+
 ## Design documents
 
 - [`docs/architecture.md`](docs/architecture.md) describes ownership and topology.

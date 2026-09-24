@@ -1,0 +1,81 @@
+platform:
+  fqdn: foreman.test
+  domain: test
+  externalUrl: https://foreman.test
+  trustedProxies:
+    - 10.0.0.0/8
+
+ingress:
+  enabled: true
+  className: nginx
+  foreman:
+    host: foreman.test
+    tlsSecret: foreman-ingress-tls
+    clientCaSecret: ingress-client-ca
+  pulpContent:
+    host: content.test
+    tlsSecret: pulp-content-ingress-tls
+    clientCaSecret: ingress-client-ca
+
+valkey:
+  host: valkey
+
+foreman:
+  replicas: 1
+  dynflow:
+    workers: 1
+    workerConcurrency: 2
+    hostsQueueWorkers: 1
+    hostsQueueConcurrency: 2
+  resources:
+    requests:
+      cpu: 100m
+      memory: 1Gi
+    limits:
+      memory: 3Gi
+
+candlepin:
+  replicas: 1
+  database:
+    host: postgresql
+    port: 5432
+    name: candlepin
+    user: candlepin
+    sslMode: disable
+  java:
+    xms: 512m
+    xmx: 2g
+  resources:
+    requests:
+      cpu: 100m
+      memory: 768Mi
+    limits:
+      memory: 2500Mi
+
+pulp:
+  database:
+    host: postgresql
+    port: 5432
+    name: pulp
+    user: pulp
+    sslMode: disable
+  contentOrigin: https://content.test
+  api:
+    replicas: 1
+    gunicornWorkers: 1
+  content:
+    replicas: 1
+    gunicornWorkers: 1
+  workers:
+    replicas: 1
+  storage:
+    existingClaim: pulp-data
+  resources:
+    requests:
+      cpu: 50m
+      memory: 256Mi
+    limits:
+      memory: 1Gi
+
+podDisruptionBudget:
+  enabled: false

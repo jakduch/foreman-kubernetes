@@ -2,7 +2,7 @@
 
 ## Next vertical slice
 
-1. Add upgrade smoke tests using disposable PostgreSQL, Valkey, and RWX-compatible storage in a local Kubernetes cluster.
+1. Run the opt-in kind integration harness against published image sets and record the first known-compatible digests.
 2. Add backup and restore Jobs for all three databases, Pulp content, PKI, and configuration Secrets.
 3. Complete the remaining workload security contexts, disruption budgets, and narrowly scoped egress policies.
 4. Add optional public routes for additional Pulp plugins only when their route and authentication contracts are covered by tests.
