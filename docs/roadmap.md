@@ -7,6 +7,9 @@
 3. Run the clean-namespace recovery drill on amd64 before calling disaster recovery verified.
 4. Prove restricted workload security contexts and opt-in egress policies in the amd64 integration environment before making egress isolation a default.
 5. Add optional public routes for additional Pulp plugins only when their route and authentication contracts are covered by tests.
+6. Exercise the S3-compatible Pulp backend against a real versioned object
+   store, including direct downloads, multipart uploads, credential rotation,
+   and a coordinated database/bucket restore.
 
 ## Implemented, pending integration proof
 
@@ -23,6 +26,9 @@
   PostgreSQL, Valkey, proxy, and repository destinations are supplied.
 - Startup and liveness checks are isolated from dependency-aware readiness,
   and disruption budgets are emitted only for genuinely redundant workloads.
+- Pulp can use S3-compatible object storage with a dedicated workload identity,
+  optional static credentials and private CA, per-pod scratch space, restricted
+  egress validation, and an explicit external bucket recovery boundary.
 
 ## Candlepin HA track
 

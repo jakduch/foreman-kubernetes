@@ -92,8 +92,20 @@
     },
     "pulp": {
       "type": "object",
-      "required": ["existingRuntimeSecret", "existingConfigSecret", "existingDatabaseCaSecret", "database", "contentOrigin", "controlProxy"],
+      "required": ["serviceAccount", "existingRuntimeSecret", "existingConfigSecret", "existingDatabaseCaSecret", "database", "contentOrigin", "controlProxy", "storage"],
       "properties": {
+        "serviceAccount": {
+          "type": "object",
+          "required": ["create", "name", "annotations"],
+          "properties": {
+            "create": { "type": "boolean" },
+            "name": { "type": "string" },
+            "annotations": {
+              "type": "object",
+              "additionalProperties": { "type": "string" }
+            }
+          }
+        },
         "existingRuntimeSecret": { "type": "string", "minLength": 1 },
         "existingConfigSecret": { "type": "string", "minLength": 1 },
         "existingDatabaseCaSecret": { "type": "string" },
@@ -155,9 +167,39 @@
         },
         "storage": {
           "type": "object",
+          "required": ["backend", "existingClaim", "storageClass", "accessMode", "size", "scratch", "s3"],
           "properties": {
+            "backend": { "enum": ["filesystem", "s3"] },
+            "existingClaim": { "type": "string" },
+            "storageClass": { "type": "string" },
             "accessMode": { "const": "ReadWriteMany" },
-            "size": { "type": "string", "pattern": "^[1-9][0-9]*(Ei|Pi|Ti|Gi|Mi|Ki)$" }
+            "size": { "type": "string", "pattern": "^[1-9][0-9]*(Ei|Pi|Ti|Gi|Mi|Ki)$" },
+            "scratch": {
+              "type": "object",
+              "required": ["sizeLimit"],
+              "properties": {
+                "sizeLimit": { "type": "string", "pattern": "^[1-9][0-9]*(Ei|Pi|Ti|Gi|Mi|Ki)$" }
+              }
+            },
+            "s3": {
+              "type": "object",
+              "required": ["bucket", "location", "region", "endpointUrl", "addressingStyle", "signatureVersion", "redirectToObjectStorage", "existingSecret", "accessKeySecretKey", "secretKeySecretKey", "sessionTokenSecretKey", "existingCaSecret", "caSecretKey"],
+              "properties": {
+                "bucket": { "type": "string" },
+                "location": { "type": "string" },
+                "region": { "type": "string" },
+                "endpointUrl": { "type": "string", "pattern": "^$|^https?://" },
+                "addressingStyle": { "enum": ["auto", "path", "virtual"] },
+                "signatureVersion": { "type": "string", "minLength": 1 },
+                "redirectToObjectStorage": { "type": "boolean" },
+                "existingSecret": { "type": "string" },
+                "accessKeySecretKey": { "type": "string", "minLength": 1 },
+                "secretKeySecretKey": { "type": "string", "minLength": 1 },
+                "sessionTokenSecretKey": { "type": "string" },
+                "existingCaSecret": { "type": "string" },
+                "caSecretKey": { "type": "string", "minLength": 1 }
+              }
+            }
           }
         }
       }
@@ -278,13 +320,14 @@
     },
     "restore": {
       "type": "object",
-      "required": ["enabled", "requestId", "snapshot", "secrets", "confirmation"],
+      "required": ["enabled", "requestId", "snapshot", "secrets", "confirmation", "objectStorageConfirmation"],
       "properties": {
         "enabled": { "type": "boolean" },
         "requestId": { "$ref": "#/definitions/requestId" },
         "snapshot": { "type": "string", "minLength": 1 },
         "secrets": { "type": "boolean" },
-        "confirmation": { "type": "string" }
+        "confirmation": { "type": "string" },
+        "objectStorageConfirmation": { "type": "string" }
       }
     }
   },
@@ -361,6 +404,56 @@
       "then": {
         "properties": {
           "networkPolicy": { "properties": { "enabled": { "const": true } } }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "pulp": {
+            "properties": {
+              "storage": {
+                "properties": { "backend": { "const": "s3" } }
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "pulp": {
+            "properties": {
+              "storage": {
+                "properties": {
+                  "existingClaim": { "maxLength": 0 },
+                  "s3": {
+                    "properties": { "bucket": { "minLength": 1 } }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "restore": { "properties": { "enabled": { "const": true } } },
+          "pulp": {
+            "properties": {
+              "storage": { "properties": { "backend": { "const": "s3" } } }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "restore": {
+            "properties": {
+              "objectStorageConfirmation": { "const": "BUCKET_RESTORED" }
+            }
+          }
         }
       }
     }

@@ -28,9 +28,9 @@ flowchart LR
   PulpContent --> Valkey
   PulpWorker[Pulp workers] --> DB
   PulpWorker --> Valkey
-  PulpAPI --> RWX[(Shared content storage)]
-  PulpContent --> RWX
-  PulpWorker --> RWX
+  PulpAPI --> ContentStore[(RWX claim or S3 bucket)]
+  PulpContent --> ContentStore
+  PulpWorker --> ContentStore
   Candlepin --> DB
   Candlepin --> Artemis[(External Artemis)]
 ```
@@ -67,7 +67,17 @@ upgrades. The detailed contract is in [`candlepin-ha.md`](candlepin-ha.md).
 
 ### Pulp
 
-Pulp already exposes separate API, content, and worker commands. All three use the same database, Valkey, symmetric key, and content storage. The chart requires ReadWriteMany storage so replicas on different nodes see identical content.
+Pulp already exposes separate API, content, and worker commands. All three use
+the same database, Valkey, symmetric key, and content storage. Filesystem mode
+requires ReadWriteMany storage so replicas on different nodes see identical
+content. S3 mode makes the bucket authoritative and gives every pod only local
+scratch space, removing the RWX scheduling and storage dependency.
+
+Pulp runtime pods use a dedicated ServiceAccount. Cloud workload identity can
+therefore grant bucket access without extending that authority to Foreman or
+Candlepin. Static access keys remain supported through a dedicated Secret, but
+are exposed only to the three Pulp runtime roles. The complete boundary is in
+[`pulp-object-storage.md`](pulp-object-storage.md).
 
 Pulp API and content Deployments have independent HPAs because their load profiles differ. Pulp workers remain explicitly sized until a queue-depth metric is available; CPU-only worker scaling can add pods after work has already saturated while scaling down active workers prematurely.
 
@@ -141,9 +151,11 @@ pending work. If chart migrations are disabled, Candlepin falls back to its
 upstream `MANAGE` startup behavior and the schema restricts it to one replica.
 
 Maintenance-gated recovery Jobs stop all database writers before making a
-logical dump of each database and an encrypted Restic snapshot of Pulp storage
-and application Secrets. Their lifecycle and external ownership boundaries are
-defined in [`disaster-recovery.md`](disaster-recovery.md).
+logical dump of each database and an encrypted Restic snapshot of application
+Secrets plus Pulp filesystem storage when that backend is selected. S3 objects
+remain under the bucket operator's versioning, replication, and recovery
+policy. Their lifecycle and external ownership boundaries are defined in
+[`disaster-recovery.md`](disaster-recovery.md).
 
 ## Network services
 

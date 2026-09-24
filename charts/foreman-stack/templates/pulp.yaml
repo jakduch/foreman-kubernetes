@@ -56,7 +56,7 @@ spec:
         app.kubernetes.io/instance: {{ $root.Release.Name }}
         app.kubernetes.io/component: pulp-{{ $service.name }}
     spec:
-      serviceAccountName: {{ include "foreman-stack.serviceAccountName" $root }}
+      serviceAccountName: {{ include "foreman-stack.pulpServiceAccountName" $root }}
       automountServiceAccountToken: false
       securityContext:
         fsGroup: 700
@@ -93,14 +93,15 @@ spec:
               containerPort: {{ $service.port }}
           env:
             {{- include "foreman-stack.pulpEnv" $root | nindent 12 }}
+            {{- include "foreman-stack.pulpObjectStorageCredentialEnv" $root | nindent 12 }}
           volumeMounts:
-            - name: pulp-data
-              mountPath: /var/lib/pulp
+            {{- include "foreman-stack.pulpStorageVolumeMount" $root | nindent 12 }}
             - name: pulp-config
               mountPath: /etc/pulp/certs/database_fields.symmetric.key
               subPath: database_fields.symmetric.key
               readOnly: true
             {{- include "foreman-stack.pulpDatabaseCaVolumeMount" $root | nindent 12 }}
+            {{- include "foreman-stack.pulpObjectStorageCaVolumeMount" $root | nindent 12 }}
           startupProbe:
             tcpSocket:
               port: http
@@ -130,13 +131,12 @@ spec:
           resources:
             {{- toYaml $root.Values.pulp.resources | nindent 12 }}
       volumes:
-        - name: pulp-data
-          persistentVolumeClaim:
-            claimName: {{ default (printf "%s-pulp" (include "foreman-stack.fullname" $root)) $root.Values.pulp.storage.existingClaim }}
+        {{- include "foreman-stack.pulpStorageVolume" $root | nindent 8 }}
         - name: pulp-config
           secret:
             secretName: {{ $root.Values.pulp.existingConfigSecret }}
         {{- include "foreman-stack.pulpDatabaseCaVolume" $root | nindent 8 }}
+        {{- include "foreman-stack.pulpObjectStorageCaVolume" $root | nindent 8 }}
       {{- include "foreman-stack.topologySpread" (dict "Values" $root.Values "Release" $root.Release "component" (printf "pulp-%s" $service.name)) | nindent 6 }}
 {{- end }}
 ---
@@ -159,7 +159,7 @@ spec:
         app.kubernetes.io/instance: {{ .Release.Name }}
         app.kubernetes.io/component: pulp-worker
     spec:
-      serviceAccountName: {{ include "foreman-stack.serviceAccountName" . }}
+      serviceAccountName: {{ include "foreman-stack.pulpServiceAccountName" . }}
       automountServiceAccountToken: false
       securityContext:
         fsGroup: 700
@@ -183,23 +183,23 @@ spec:
             - /usr/bin/pulp-worker
           env:
             {{- include "foreman-stack.pulpEnv" . | nindent 12 }}
+            {{- include "foreman-stack.pulpObjectStorageCredentialEnv" . | nindent 12 }}
           volumeMounts:
-            - name: pulp-data
-              mountPath: /var/lib/pulp
+            {{- include "foreman-stack.pulpStorageVolumeMount" . | nindent 12 }}
             - name: pulp-config
               mountPath: /etc/pulp/certs/database_fields.symmetric.key
               subPath: database_fields.symmetric.key
               readOnly: true
             {{- include "foreman-stack.pulpDatabaseCaVolumeMount" . | nindent 12 }}
+            {{- include "foreman-stack.pulpObjectStorageCaVolumeMount" . | nindent 12 }}
           resources:
             {{- toYaml .Values.pulp.resources | nindent 12 }}
       volumes:
-        - name: pulp-data
-          persistentVolumeClaim:
-            claimName: {{ default (printf "%s-pulp" (include "foreman-stack.fullname" .)) .Values.pulp.storage.existingClaim }}
+        {{- include "foreman-stack.pulpStorageVolume" . | nindent 8 }}
         - name: pulp-config
           secret:
             secretName: {{ .Values.pulp.existingConfigSecret }}
         {{- include "foreman-stack.pulpDatabaseCaVolume" . | nindent 8 }}
+        {{- include "foreman-stack.pulpObjectStorageCaVolume" . | nindent 8 }}
       {{- include "foreman-stack.topologySpread" (dict "Values" .Values "Release" .Release "component" "pulp-worker") | nindent 6 }}
 {{- end }}

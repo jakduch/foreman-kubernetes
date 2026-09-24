@@ -29,12 +29,19 @@ for secret_name in ${BACKUP_SECRET_NAMES}; do
       > "/work/secrets/${secret_name}.json"
 done
 
+includes_pulp_filesystem=false
+if [ "${PULP_STORAGE_BACKEND}" = filesystem ]; then
+  includes_pulp_filesystem=true
+fi
+
 jq -n \
   --arg schema_version "1" \
   --arg created_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
   --arg chart_version "${CHART_VERSION}" \
   --arg release "${HELM_RELEASE}" \
   --arg namespace "${POD_NAMESPACE}" \
+  --arg pulp_storage_backend "${PULP_STORAGE_BACKEND}" \
+  --argjson includes_pulp_filesystem "${includes_pulp_filesystem}" \
   --arg secret_names "${BACKUP_SECRET_NAMES}" \
   '{
     schema_version: $schema_version,
@@ -43,7 +50,8 @@ jq -n \
     helm_release: $release,
     namespace: $namespace,
     databases: ["foreman", "candlepin", "pulp"],
-    includes_pulp_filesystem: true,
+    pulp_storage_backend: $pulp_storage_backend,
+    includes_pulp_filesystem: $includes_pulp_filesystem,
     secret_names: ($secret_names | split(" ") | map(select(length > 0)))
   }' > /work/metadata/manifest.json
 
@@ -57,11 +65,17 @@ if ! restic cat config >/dev/null 2>&1; then
 fi
 
 log "Creating encrypted recovery snapshot"
+set -- /work
+if [ "${PULP_STORAGE_BACKEND}" = filesystem ]; then
+  set -- "$@" /var/lib/pulp
+else
+  log "Pulp objects are external; the bucket must use an independently protected, coordinated recovery point"
+fi
 restic backup \
   --host "${HELM_RELEASE}" \
   --tag foreman-stack \
   --tag "request-${BACKUP_REQUEST_ID}" \
-  /work /var/lib/pulp
+  "$@"
 
 if [ "${RETENTION_ENABLED}" = true ]; then
   set -- \

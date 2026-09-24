@@ -56,7 +56,11 @@ pending.
 - Provides separate `pulpcore-api`, `pulpcore-content`, and `pulpcore-worker` executables.
 - API defaults to port 24817 and content to port 24816 in the current foremanctl contract.
 - Migration command: `pulpcore-manager migrate --noinput`.
-- Every role requires a shared database, Valkey, symmetric key, and content storage.
+- Every role requires a shared database, Valkey, symmetric key, and content
+  storage. The chart supports either a shared filesystem or Pulpcore's
+  `storages.backends.s3.S3Storage` backend.
+- S3 mode uses `/var/lib/pulp/tmp` only as per-pod scratch space and can redirect
+  downloads to signed object-store URLs.
 - The `pulp_smart_proxy` plugin exposes Foreman-compatible feature discovery below `/pulp/api/v3/smart_proxy` and advertises `PULP_SMART_PROXY_PULP_URL` as Katello's API base URL.
 - Katello currently builds generated Pulp clients from the advertised URL's scheme and hostname, without retaining a non-default port. The internal control Service therefore exposes HTTPS on port 443 while its unprivileged proxy container listens on 8443.
 - Pulp remote-user authentication reads `HTTP_REMOTE_USER`; the chart sets it only behind a private mTLS proxy after validating the client certificate common name.
@@ -101,6 +105,12 @@ The chart generates `candlepin.conf`, `server.xml`, `tomcat.conf`, `logging.prop
 ### `pulp-runtime` and `pulp-config`
 
 `pulp-runtime` contains `database-password` and `django-secret-key`. `pulp-config` contains `database_fields.symmetric.key`. The chart generates all non-secret Dynaconf environment values, including database host, Valkey URL, content origin, and enabled plugins.
+
+With S3 storage, an optional `pulp-object-storage` Secret contains the selected
+access-key, secret-key, and optional session-token keys. Workload identity can
+replace that Secret through annotations on Pulp's dedicated ServiceAccount. An
+optional object-storage CA Secret supplies the selected CA key through
+`AWS_CA_BUNDLE`.
 
 An optional Pulp database CA Secret contains `db-ca.crt`. When configured, the
 same trust root is mounted into API, content, worker, migration, and recovery

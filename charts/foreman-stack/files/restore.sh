@@ -13,6 +13,11 @@ if [ "${RESTORE_CONFIRMATION}" != RESTORE ]; then
   exit 1
 fi
 
+if [ "${PULP_STORAGE_BACKEND}" = s3 ] && [ "${PULP_OBJECT_STORAGE_CONFIRMATION}" != BUCKET_RESTORED ]; then
+  log "Object-storage restore must be completed and confirmed before restoring the Pulp database" >&2
+  exit 1
+fi
+
 wait_for_quiescence
 prepare_work_directory
 
@@ -37,14 +42,22 @@ done
 jq -e \
   --arg release "${HELM_RELEASE}" \
   --arg namespace "${POD_NAMESPACE}" \
-  '.schema_version == "1" and .helm_release == $release and .namespace == $namespace' \
+  --arg pulp_storage_backend "${PULP_STORAGE_BACKEND}" \
+  '.schema_version == "1" and
+   .helm_release == $release and
+   .namespace == $namespace and
+   (.pulp_storage_backend // (if .includes_pulp_filesystem then "filesystem" else "unknown" end)) == $pulp_storage_backend' \
   /work/metadata/manifest.json >/dev/null
 
-log "Replacing Pulp filesystem from the selected recovery snapshot"
-find /var/lib/pulp -mindepth 1 -maxdepth 1 -exec rm -rf {} +
-restic restore "${snapshot_id}" \
-  --target / \
-  --include '/var/lib/pulp/**'
+if [ "${PULP_STORAGE_BACKEND}" = filesystem ]; then
+  log "Replacing Pulp filesystem from the selected recovery snapshot"
+  find /var/lib/pulp -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+  restic restore "${snapshot_id}" \
+    --target / \
+    --include '/var/lib/pulp/**'
+else
+  log "Pulp objects are external; restore the bucket to the coordinated recovery point before leaving maintenance mode"
+fi
 
 restore_database Foreman /work/databases/foreman.dump \
   --dbname "${FOREMAN_DATABASE_URL}"

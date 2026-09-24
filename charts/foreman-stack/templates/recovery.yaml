@@ -23,6 +23,12 @@
 {{- if .Values.pulp.existingDatabaseCaSecret }}
 {{- $secretNames = append $secretNames .Values.pulp.existingDatabaseCaSecret }}
 {{- end }}
+{{- if and (eq .Values.pulp.storage.backend "s3") .Values.pulp.storage.s3.existingSecret }}
+{{- $secretNames = append $secretNames .Values.pulp.storage.s3.existingSecret }}
+{{- end }}
+{{- if and (eq .Values.pulp.storage.backend "s3") .Values.pulp.storage.s3.existingCaSecret }}
+{{- $secretNames = append $secretNames .Values.pulp.storage.s3.existingCaSecret }}
+{{- end }}
 {{- if .Values.ingress.enabled }}
 {{- $secretNames = append $secretNames .Values.ingress.foreman.tlsSecret .Values.ingress.foreman.clientCaSecret .Values.ingress.pulpContent.tlsSecret .Values.ingress.pulpContent.clientCaSecret }}
 {{- end }}
@@ -186,6 +192,8 @@ spec:
             - name: PULP_DATABASE_SSLROOTCERT
               value: /etc/recovery/database-ca/pulp/db-ca.crt
             {{- end }}
+            - name: PULP_STORAGE_BACKEND
+              value: {{ .Values.pulp.storage.backend | quote }}
             - name: RESTIC_CACHE_DIR
               value: /tmp/restic-cache
             {{- if .Values.recovery.repository.existingClaim }}
@@ -214,6 +222,8 @@ spec:
               value: {{ .Values.restore.secrets | quote }}
             - name: RESTORE_CONFIRMATION
               value: {{ .Values.restore.confirmation | quote }}
+            - name: PULP_OBJECT_STORAGE_CONFIRMATION
+              value: {{ .Values.restore.objectStorageConfirmation | quote }}
             {{- end }}
           securityContext:
             allowPrivilegeEscalation: false
@@ -230,8 +240,10 @@ spec:
               mountPath: /work
             - name: recovery-tmp
               mountPath: /tmp
+            {{- if eq .Values.pulp.storage.backend "filesystem" }}
             - name: pulp-data
               mountPath: /var/lib/pulp
+            {{- end }}
             {{- if .Values.recovery.repository.existingClaim }}
             - name: recovery-repository
               mountPath: {{ .Values.recovery.repository.path }}
@@ -261,9 +273,11 @@ spec:
           {{- end }}
         - name: recovery-tmp
           emptyDir: {}
+        {{- if eq .Values.pulp.storage.backend "filesystem" }}
         - name: pulp-data
           persistentVolumeClaim:
             claimName: {{ default (printf "%s-pulp" (include "foreman-stack.fullname" .)) .Values.pulp.storage.existingClaim }}
+        {{- end }}
         {{- if .Values.recovery.repository.existingClaim }}
         - name: recovery-repository
           persistentVolumeClaim:

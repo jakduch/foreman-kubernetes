@@ -122,6 +122,11 @@ pulp:
     repository: quay.io/foreman/pulp
     tag: foreman-nightly
     pullPolicy: IfNotPresent
+  serviceAccount:
+    create: true
+    name: ""
+    # Used by cloud workload identity integrations such as AWS IRSA.
+    annotations: {}
   existingRuntimeSecret: pulp-runtime
   databasePasswordSecretKey: database-password
   djangoSecretKey: django-secret-key
@@ -184,10 +189,33 @@ pulp:
   workers:
     replicas: 4
   storage:
+    # filesystem keeps Pulp artifacts on a shared RWX claim. s3 moves the
+    # authoritative artifacts to S3 or an S3-compatible object store.
+    backend: filesystem
     existingClaim: ""
     storageClass: ""
     accessMode: ReadWriteMany
     size: 100Gi
+    scratch:
+      # Per-pod temporary space used by Pulp when object storage is enabled.
+      sizeLimit: 20Gi
+    s3:
+      bucket: ""
+      # Optional key prefix within the bucket.
+      location: ""
+      region: ""
+      endpointUrl: ""
+      addressingStyle: auto
+      signatureVersion: s3v4
+      redirectToObjectStorage: true
+      # Leave empty to use the cloud SDK's workload identity/default chain.
+      existingSecret: ""
+      accessKeySecretKey: access-key-id
+      secretKeySecretKey: secret-access-key
+      sessionTokenSecretKey: ""
+      # Optional private CA for an S3-compatible HTTPS endpoint.
+      existingCaSecret: ""
+      caSecretKey: ca.crt
   resources:
     requests:
       cpu: 250m
@@ -313,3 +341,6 @@ restore:
   # credentials must still match the externally managed PostgreSQL roles.
   secrets: false
   confirmation: ""
+  # Required as BUCKET_RESTORED for S3 mode after the external bucket has been
+  # rolled back to the recovery point coordinated with the database snapshot.
+  objectStorageConfirmation: ""

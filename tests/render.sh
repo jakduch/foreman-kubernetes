@@ -10,7 +10,9 @@ rendered_restore="$(mktemp)"
 rendered_egress="$(mktemp)"
 rendered_singletons="$(mktemp)"
 rendered_ha="$(mktemp)"
-trap 'rm -f "${rendered}" "${rendered_ingress}" "${rendered_backup}" "${rendered_restore}" "${rendered_egress}" "${rendered_singletons}" "${rendered_ha}"' EXIT
+rendered_s3="$(mktemp)"
+rendered_s3_backup="$(mktemp)"
+trap 'rm -f "${rendered}" "${rendered_ingress}" "${rendered_backup}" "${rendered_restore}" "${rendered_egress}" "${rendered_singletons}" "${rendered_ha}" "${rendered_s3}" "${rendered_s3_backup}"' EXIT
 
 helm lint "${chart}"
 helm template test "${chart}" > "${rendered}"
@@ -20,6 +22,7 @@ helm lint "${chart}" --values "${repo_root}/tests/kind/values.yaml"
 helm lint "${chart}" --values "${repo_root}/profiles/nightly-candidate-2026-09-23.yaml"
 helm lint "${chart}" --values "${repo_root}/tests/egress-values.yaml"
 helm lint "${chart}" --values "${repo_root}/tests/ha-values.yaml"
+helm lint "${chart}" --values "${repo_root}/examples/pulp-s3-values.yaml"
 helm lint "${chart}" \
   --values "${repo_root}/examples/cluster-values.yaml" \
   --values "${repo_root}/examples/candlepin-ha-values.yaml"
@@ -39,6 +42,13 @@ helm template test "${chart}" \
   --values "${repo_root}/tests/egress-values.yaml" > "${rendered_egress}"
 helm template test "${chart}" \
   --values "${repo_root}/tests/ha-values.yaml" > "${rendered_ha}"
+helm template test "${chart}" \
+  --values "${repo_root}/examples/pulp-s3-values.yaml" > "${rendered_s3}"
+helm template test "${chart}" \
+  --values "${repo_root}/examples/pulp-s3-values.yaml" \
+  --set maintenance.enabled=true \
+  --set backup.enabled=true \
+  --set backup.requestId=20260924-s3 > "${rendered_s3_backup}"
 helm template test "${chart}" \
   --set foreman.replicas=1 \
   --set foreman.dynflow.workers=1 \
@@ -64,6 +74,8 @@ grep -q 'name: test-foreman-stack-foreman' "${rendered}"
 grep -q 'name: test-foreman-stack-candlepin' "${rendered}"
 grep -q 'name: test-foreman-stack-dynflow-orchestrator' "${rendered}"
 grep -q 'name: test-foreman-stack-pulp-worker' "${rendered}"
+grep -q '^kind: PersistentVolumeClaim$' "${rendered}"
+grep -q 'mountPath: /var/lib/pulp$' "${rendered}"
 grep -q 'replicas: 1' "${rendered}"
 grep -q 'name: test-foreman-stack-foreman-config' "${rendered}"
 grep -q 'CANDLEPIN_AUTH_OAUTH_CONSUMER_KATELLO_SECRET' "${rendered}"
@@ -151,6 +163,40 @@ if [[ "$(grep -c '^kind: PodDisruptionBudget$' "${rendered_ha}")" -ne 7 ]]; then
   exit 1
 fi
 
+if grep -q '^kind: PersistentVolumeClaim$' "${rendered_s3}"; then
+  echo 'object-backed Pulp must not render a shared content claim' >&2
+  exit 1
+fi
+grep -q 'name: PULP_STORAGES__default__BACKEND' "${rendered_s3}"
+grep -q 'value: storages.backends.s3.S3Storage' "${rendered_s3}"
+grep -q 'name: PULP_STORAGES__default__OPTIONS__bucket_name' "${rendered_s3}"
+grep -Eq 'value: "?foreman-pulp"?' "${rendered_s3}"
+grep -q 'name: PULP_STORAGES__default__OPTIONS__location' "${rendered_s3}"
+grep -q 'name: PULP_STORAGES__default__OPTIONS__endpoint_url' "${rendered_s3}"
+grep -q 'name: PULP_REDIRECT_TO_OBJECT_STORAGE' "${rendered_s3}"
+grep -q 'name: PULP_STORAGES__default__OPTIONS__access_key' "${rendered_s3}"
+if [[ "$(grep -c 'name: PULP_STORAGES__default__OPTIONS__access_key' "${rendered_s3}")" -ne 3 ]]; then
+  echo 'static object credentials must be exposed only to the three Pulp runtime roles' >&2
+  exit 1
+fi
+grep -q 'name: pulp-object-storage-ca' "${rendered_s3}"
+grep -q 'mountPath: /etc/pulp/object-storage/ca.crt' "${rendered_s3}"
+grep -q 'mountPath: /var/lib/pulp/tmp' "${rendered_s3}"
+grep -q 'sizeLimit: 20Gi' "${rendered_s3}"
+grep -q 'eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/foreman-pulp' "${rendered_s3}"
+if [[ "$(grep -c 'serviceAccountName: test-foreman-stack-pulp$' "${rendered_s3}")" -ne 3 ]]; then
+  echo 'only Pulp API, content, and worker Deployments should use the object-storage identity' >&2
+  exit 1
+fi
+if grep -q 'persistentVolumeClaim:' "${rendered_s3_backup}"; then
+  echo 'object-backed recovery must not depend on the Pulp filesystem claim' >&2
+  exit 1
+fi
+grep -q 'name: PULP_STORAGE_BACKEND' "${rendered_s3_backup}"
+grep -A1 'name: PULP_STORAGE_BACKEND' "${rendered_s3_backup}" | grep -Eq 'value: "?s3"?'
+grep -q -- '- pulp-object-storage$' "${rendered_s3_backup}"
+grep -q -- '- pulp-object-storage-ca$' "${rendered_s3_backup}"
+
 grep -q 'app.kubernetes.io/component: recovery-backup' "${rendered_backup}"
 grep -q 'name: BACKUP_REQUEST_ID' "${rendered_backup}"
 grep -q 'name: RESTIC_CACHE_DIR' "${rendered_backup}"
@@ -203,6 +249,36 @@ if helm template test "${chart}" \
   echo 'expected restricted Candlepin HA without an Artemis egress peer to be rejected' >&2
   exit 1
 fi
+
+if helm template test "${chart}" \
+  --set pulp.storage.backend=s3 >/dev/null 2>&1; then
+  echo 'expected object storage without a bucket to be rejected' >&2
+  exit 1
+fi
+
+if helm template test "${chart}" \
+  --values "${repo_root}/tests/s3-egress-missing-values.yaml" >/dev/null 2>&1; then
+  echo 'expected restricted object storage without an S3 egress peer to be rejected' >&2
+  exit 1
+fi
+
+if helm template test "${chart}" \
+  --values "${repo_root}/examples/pulp-s3-values.yaml" \
+  --set maintenance.enabled=true \
+  --set restore.enabled=true \
+  --set restore.requestId=20260924-s3 \
+  --set restore.confirmation=RESTORE >/dev/null 2>&1; then
+  echo 'expected S3 restore without a coordinated bucket confirmation to be rejected' >&2
+  exit 1
+fi
+
+helm template test "${chart}" \
+  --values "${repo_root}/examples/pulp-s3-values.yaml" \
+  --set maintenance.enabled=true \
+  --set restore.enabled=true \
+  --set restore.requestId=20260924-s3 \
+  --set restore.confirmation=RESTORE \
+  --set restore.objectStorageConfirmation=BUCKET_RESTORED >/dev/null
 
 if helm template test "${chart}" \
   --set candlepin.highAvailability.enabled=true >/dev/null 2>&1; then

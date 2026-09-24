@@ -15,14 +15,16 @@ The initial Helm chart is under [`charts/foreman-stack`](charts/foreman-stack). 
 - a scalable Foreman web Deployment;
 - one Dynflow orchestrator and independently scalable worker Deployments;
 - a Candlepin Deployment with an opt-in external-Artemis and clustered-Quartz HA mode;
-- separate Pulp API, content, and worker Deployments backed by shared RWX storage;
+- separate Pulp API, content, and worker Deployments backed by shared RWX or
+  S3-compatible object storage;
 - a private, mutually authenticated Pulp control endpoint and automatic registration of Pulp in Foreman;
 - an optional ingress-nginx profile for Foreman and public Pulp content;
 - independent optional HPAs for Foreman web, Pulp API, and Pulp content replicas;
 - separate Candlepin, Pulp, and Foreman migration Jobs;
 - Foreman recurring tasks as non-overlapping CronJobs.
 - maintenance-gated, encrypted backup and restore Jobs covering all three
-  PostgreSQL databases, Pulp content, and application Secrets.
+  PostgreSQL databases, application Secrets, and Pulp filesystem content when
+  that backend is selected, with an explicit external recovery gate for S3.
 - explicit non-root identities, restricted container privileges, scoped
   disruption budgets, and optional component-level egress isolation.
 
@@ -49,6 +51,11 @@ The Candlepin HA contract is available as a separate overlay in
 [`examples/candlepin-ha-values.yaml`](examples/candlepin-ha-values.yaml); it
 requires an operator-supplied external Artemis service and Secrets.
 
+Pulp can replace its shared RWX claim with S3-compatible object storage through
+[`examples/pulp-s3-values.yaml`](examples/pulp-s3-values.yaml). The complete
+credential, egress, direct-download, and recovery contract is documented in
+[`docs/pulp-object-storage.md`](docs/pulp-object-storage.md).
+
 The example Secrets contain placeholders only. Populate them outside Git before installing:
 
 ```sh
@@ -74,6 +81,7 @@ credential, and recovery-drill contracts.
 - [`docs/compatibility.md`](docs/compatibility.md) records digest-pinned image candidates and their test status.
 - [`docs/disaster-recovery.md`](docs/disaster-recovery.md) defines portable recovery sets and the destructive restore gate.
 - [`docs/candlepin-ha.md`](docs/candlepin-ha.md) defines the external broker, clustered scheduler, and migration boundary.
+- [`docs/pulp-object-storage.md`](docs/pulp-object-storage.md) defines the optional S3-compatible artifact backend and its recovery boundary.
 - [`docs/roadmap.md`](docs/roadmap.md) lists the next implementation slices.
 
 ## Upstream source snapshots reviewed

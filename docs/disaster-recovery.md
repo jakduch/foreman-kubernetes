@@ -7,7 +7,8 @@ all workloads that can write to Foreman, Candlepin, or Pulp state.
 The recovery set contains:
 
 - logical, custom-format PostgreSQL dumps for Foreman, Candlepin, and Pulp;
-- the complete Pulp filesystem mounted at `/var/lib/pulp`;
+- the complete Pulp filesystem mounted at `/var/lib/pulp` when filesystem
+  storage is selected;
 - an encrypted escrow copy of the application, certificate, ingress, and image
   pull Secrets known to the chart;
 - a versioned manifest identifying the Helm release, namespace, and chart.
@@ -29,9 +30,16 @@ Escrow the repository Secret and its password outside the cluster. A local
 Restic repository must use storage independent from the Pulp data claim or it
 will not survive the same storage failure.
 
-The current chart uses Pulp's filesystem storage. If Pulp is changed to an
-object-storage backend, protect that bucket independently and do not assume the
-`/var/lib/pulp` snapshot contains its objects.
+With Pulp object storage, the recovery set records the backend and excludes
+bucket objects. Protect the bucket independently with versioning or provider
+snapshots and replication. Coordinate its recovery point with the database
+dump; the chart refuses to restore a snapshot created for a different Pulp
+storage backend.
+
+For S3 restores, roll the bucket back first and add
+`--set restore.objectStorageConfirmation=BUCKET_RESTORED` to the restore Helm
+revision. Both the schema and the recovery script reject the database restore
+without this separate acknowledgement.
 
 ## Recovery toolbox
 
@@ -132,10 +140,12 @@ helm upgrade foreman charts/foreman-stack \
   --timeout 6h
 ```
 
-The Job validates the snapshot owner, tag, manifest, and all three dumps before
-deleting current Pulp files. It then restores Pulp content and replaces objects
-inside the existing databases. It never drops or creates the databases or their
-roles.
+The Job validates the snapshot owner, tag, storage backend, manifest, and all
+three dumps before modifying state. In filesystem mode it then replaces Pulp
+content. In S3 mode it leaves objects untouched and requires the operator to
+restore the bucket to the coordinated point before leaving maintenance mode.
+It replaces objects inside the existing databases but never drops or creates
+the databases or their roles.
 
 Secret escrow is not applied by default. This avoids silently reverting rotated
 external database credentials. To restore it in the same environment, add
@@ -154,7 +164,8 @@ A recovery mechanism is not considered verified until a disposable cluster can:
 
 1. create data in Foreman, Candlepin, and Pulp;
 2. create a recovery snapshot;
-3. replace all three databases, Pulp storage, and application Secrets;
+3. replace all three databases, Pulp storage, and application Secrets, using a
+   coordinated bucket recovery point in S3 mode;
 4. restore the snapshot into a clean namespace;
 5. pass Foreman ping, Candlepin status, Pulp content download, and Katello Pulp
    registration checks;
@@ -162,4 +173,3 @@ A recovery mechanism is not considered verified until a disposable cluster can:
 
 This drill belongs on an amd64 runner because the currently pinned Foreman,
 Candlepin, and Pulp images are amd64-only.
-

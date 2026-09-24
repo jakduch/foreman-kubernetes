@@ -31,6 +31,14 @@ app.kubernetes.io/component: {{ .component }}
 {{- end }}
 {{- end }}
 
+{{- define "foreman-stack.pulpServiceAccountName" -}}
+{{- if .Values.pulp.serviceAccount.create }}
+{{- default (printf "%s-pulp" (include "foreman-stack.fullname" .)) .Values.pulp.serviceAccount.name }}
+{{- else }}
+{{- required "pulp.serviceAccount.name is required when pulp.serviceAccount.create is false" .Values.pulp.serviceAccount.name }}
+{{- end }}
+{{- end }}
+
 {{- define "foreman-stack.image" -}}
 {{- printf "%s:%s" .repository .tag }}
 {{- end }}
@@ -173,6 +181,38 @@ runAsGroup: {{ . }}
 - name: PULP_DATABASES__default__OPTIONS__sslrootcert
   value: /etc/pulp/certs/db-ca.crt
 {{- end }}
+{{- if eq .Values.pulp.storage.backend "s3" }}
+- name: PULP_MEDIA_ROOT
+  value: ""
+- name: PULP_WORKING_DIRECTORY
+  value: /var/lib/pulp/tmp
+- name: PULP_STORAGES__default__BACKEND
+  value: storages.backends.s3.S3Storage
+- name: PULP_STORAGES__default__OPTIONS__bucket_name
+  value: {{ .Values.pulp.storage.s3.bucket | quote }}
+{{- with .Values.pulp.storage.s3.location }}
+- name: PULP_STORAGES__default__OPTIONS__location
+  value: {{ . | quote }}
+{{- end }}
+{{- with .Values.pulp.storage.s3.region }}
+- name: PULP_STORAGES__default__OPTIONS__region_name
+  value: {{ . | quote }}
+{{- end }}
+{{- with .Values.pulp.storage.s3.endpointUrl }}
+- name: PULP_STORAGES__default__OPTIONS__endpoint_url
+  value: {{ . | quote }}
+{{- end }}
+- name: PULP_STORAGES__default__OPTIONS__addressing_style
+  value: {{ .Values.pulp.storage.s3.addressingStyle | quote }}
+- name: PULP_STORAGES__default__OPTIONS__signature_version
+  value: {{ .Values.pulp.storage.s3.signatureVersion | quote }}
+- name: PULP_REDIRECT_TO_OBJECT_STORAGE
+  value: {{ .Values.pulp.storage.s3.redirectToObjectStorage | quote }}
+{{- if .Values.pulp.storage.s3.existingCaSecret }}
+- name: AWS_CA_BUNDLE
+  value: /etc/pulp/object-storage/ca.crt
+{{- end }}
+{{- end }}
 - name: PULP_REDIS_URL
   value: {{ printf "redis://%s:%v/%v" .Values.valkey.host .Values.valkey.port .Values.valkey.pulpDatabase | quote }}
 - name: PULP_SECRET_KEY
@@ -204,6 +244,65 @@ runAsGroup: {{ . }}
   value: "true"
 - name: PULP_CACHE_ENABLED
   value: "true"
+{{- end }}
+
+{{- define "foreman-stack.pulpObjectStorageCredentialEnv" -}}
+{{- if and (eq .Values.pulp.storage.backend "s3") .Values.pulp.storage.s3.existingSecret }}
+- name: PULP_STORAGES__default__OPTIONS__access_key
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Values.pulp.storage.s3.existingSecret }}
+      key: {{ .Values.pulp.storage.s3.accessKeySecretKey }}
+- name: PULP_STORAGES__default__OPTIONS__secret_key
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Values.pulp.storage.s3.existingSecret }}
+      key: {{ .Values.pulp.storage.s3.secretKeySecretKey }}
+{{- if .Values.pulp.storage.s3.sessionTokenSecretKey }}
+- name: PULP_STORAGES__default__OPTIONS__security_token
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Values.pulp.storage.s3.existingSecret }}
+      key: {{ .Values.pulp.storage.s3.sessionTokenSecretKey }}
+{{- end }}
+{{- end }}
+{{- end }}
+
+{{- define "foreman-stack.pulpStorageVolumeMount" -}}
+- name: pulp-data
+{{- if eq .Values.pulp.storage.backend "filesystem" }}
+  mountPath: /var/lib/pulp
+{{- else }}
+  mountPath: /var/lib/pulp/tmp
+{{- end }}
+{{- end }}
+
+{{- define "foreman-stack.pulpStorageVolume" -}}
+- name: pulp-data
+{{- if eq .Values.pulp.storage.backend "filesystem" }}
+  persistentVolumeClaim:
+    claimName: {{ default (printf "%s-pulp" (include "foreman-stack.fullname" .)) .Values.pulp.storage.existingClaim }}
+{{- else }}
+  emptyDir:
+    sizeLimit: {{ .Values.pulp.storage.scratch.sizeLimit }}
+{{- end }}
+{{- end }}
+
+{{- define "foreman-stack.pulpObjectStorageCaVolumeMount" -}}
+{{- if and (eq .Values.pulp.storage.backend "s3") .Values.pulp.storage.s3.existingCaSecret }}
+- name: pulp-object-storage-ca
+  mountPath: /etc/pulp/object-storage/ca.crt
+  subPath: {{ .Values.pulp.storage.s3.caSecretKey }}
+  readOnly: true
+{{- end }}
+{{- end }}
+
+{{- define "foreman-stack.pulpObjectStorageCaVolume" -}}
+{{- if and (eq .Values.pulp.storage.backend "s3") .Values.pulp.storage.s3.existingCaSecret }}
+- name: pulp-object-storage-ca
+  secret:
+    secretName: {{ .Values.pulp.storage.s3.existingCaSecret }}
+{{- end }}
 {{- end }}
 
 {{- define "foreman-stack.pulpDatabaseCaVolumeMount" -}}
@@ -260,6 +359,7 @@ runAsGroup: {{ . }}
       subPath: database_fields.symmetric.key
       readOnly: true
     {{- include "foreman-stack.pulpDatabaseCaVolumeMount" . | nindent 4 }}
+    {{- include "foreman-stack.pulpObjectStorageCaVolumeMount" . | nindent 4 }}
 {{- end }}
 
 {{- define "foreman-stack.topologySpread" -}}
