@@ -27,6 +27,8 @@ spec:
         app.kubernetes.io/name: {{ include "foreman-stack.name" $root }}
         app.kubernetes.io/instance: {{ $root.Release.Name }}
         app.kubernetes.io/component: dynflow-{{ $worker.name }}
+      annotations:
+        checksum/config: {{ toJson (dict "platform" $root.Values.platform "valkey" $root.Values.valkey "foreman" $root.Values.foreman "candlepinService" (include "foreman-stack.candlepinServiceName" $root)) | sha256sum }}
     spec:
       serviceAccountName: {{ include "foreman-stack.serviceAccountName" $root }}
       automountServiceAccountToken: false

@@ -239,6 +239,17 @@ grep -q 'name: test-foreman-stack-foreman' "${rendered}"
 grep -q 'name: test-foreman-stack-candlepin' "${rendered}"
 grep -q 'name: test-foreman-stack-dynflow-orchestrator' "${rendered}"
 grep -q 'name: test-foreman-stack-pulp-worker' "${rendered}"
+RUBY_RENDERED_MANIFEST="${rendered}" ruby <<'RUBY'
+require 'yaml'
+
+deployments = YAML.load_stream(File.read(ENV.fetch('RUBY_RENDERED_MANIFEST'))).compact.select do |resource|
+  resource['kind'] == 'Deployment' && resource.dig('metadata', 'name')&.include?('-dynflow-')
+end
+abort "expected three Dynflow deployments, got #{deployments.length}" unless deployments.length == 3
+abort 'Dynflow deployment is missing its configuration checksum' unless deployments.all? do |deployment|
+  deployment.dig('spec', 'template', 'metadata', 'annotations', 'checksum/config')
+end
+RUBY
 grep -q 'name: test-foreman-stack-smoke-test' "${rendered}"
 grep -q 'helm.sh/hook: test' "${rendered}"
 grep -q 'CANDLEPIN_STATUS_URL' "${rendered}"
