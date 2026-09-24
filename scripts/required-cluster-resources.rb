@@ -24,6 +24,11 @@ end
 
 documents.each do |document|
   case document['kind']
+  when 'HorizontalPodAutoscaler'
+    metric_types = Array(document.dig('spec', 'metrics')).map { |metric| metric['type'] }.compact
+    if metric_types.any? { |metric_type| ['Resource', 'ContainerResource'].include?(metric_type) }
+      requirements << ['APIService', 'v1beta1.metrics.k8s.io', 'Available']
+    end
   when 'PersistentVolumeClaim'
     storage_class = document.dig('spec', 'storageClassName').to_s
     if storage_class.empty?

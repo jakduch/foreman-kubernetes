@@ -64,6 +64,19 @@ if [[ "$1" == template && "$2" == foreman ]]; then
       'spec:' \
       '  ingressClassName: nginx'
   fi
+  if [[ "${FAKE_RENDER_HPA:-0}" == 1 ]]; then
+    printf '%s\n' \
+      '---' \
+      'apiVersion: autoscaling/v2' \
+      'kind: HorizontalPodAutoscaler' \
+      'metadata:' \
+      '  name: foreman' \
+      'spec:' \
+      '  metrics:' \
+      '    - type: Resource' \
+      '      resource:' \
+      '        name: cpu'
+  fi
 fi
 if [[ -n "${FAKE_HELM_FAIL_MATCH:-}" && "$*" == *"${FAKE_HELM_FAIL_MATCH}"* ]]; then
   exit 1
@@ -85,6 +98,11 @@ if [[ "$*" == 'get storageclass --output=json' ]]; then
 fi
 if [[ "$*" == 'get IngressClass nginx --output=json' ]]; then
   printf '{"spec":{"controller":"%s"}}\n' "${FAKE_INGRESS_CONTROLLER:-k8s.io/ingress-nginx}"
+fi
+if [[ "$*" == 'get apiservice v1beta1.metrics.k8s.io --output=json' ]]; then
+  [[ "${FAKE_METRICS_API_EXISTS:-1}" == 1 ]] || exit 1
+  printf '{"status":{"conditions":[{"type":"Available","status":"%s"}]}}\n' \
+    "${FAKE_METRICS_API_STATUS:-True}"
 fi
 SCRIPT
 
@@ -212,6 +230,22 @@ if PATH="${fake_bin}:${PATH}" \
 fi
 if grep -Fq 'helm upgrade --install ' "${tool_log}"; then
   echo 'installation started after ingress implementation preflight failed' >&2
+  exit 1
+fi
+
+: > "${tool_log}"
+if PATH="${fake_bin}:${PATH}" \
+  FAKE_TOOL_LOG="${tool_log}" \
+  FAKE_RENDER_HPA=1 \
+  FAKE_METRICS_API_STATUS=False \
+  ALLOW_CANDIDATE=1 \
+  "${repo_root}/scripts/install-release.sh" \
+    "${application_values}" "${execution_values}" >/dev/null 2>&1; then
+  echo 'installation accepted autoscaling without an available resource Metrics API' >&2
+  exit 1
+fi
+if grep -Fq 'helm upgrade --install ' "${tool_log}"; then
+  echo 'installation started after Metrics API preflight failed' >&2
   exit 1
 fi
 

@@ -50,6 +50,23 @@ check_required_cluster_resources() {
           }
         fi
         ;;
+      APIService)
+        resource_json="$(kubectl get apiservice "${resource_name}" --output=json)" || {
+          echo "required APIService ${resource_name} does not exist" >&2
+          return 1
+        }
+        if [[ "${resource_contract}" == 'Available' ]]; then
+          jq --exit-status '
+            any(
+              .status.conditions[]?;
+              .type == "Available" and .status == "True"
+            )
+          ' <<<"${resource_json}" >/dev/null || {
+            echo "APIService ${resource_name} is not Available; autoscaling cannot read resource metrics" >&2
+            return 1
+          }
+        fi
+        ;;
       PersistentVolumeClaim | ServiceAccount)
         kubectl --namespace "${namespace}" get "${resource_kind}" "${resource_name}" >/dev/null || {
           echo "required ${resource_kind} ${namespace}/${resource_name} does not exist" >&2

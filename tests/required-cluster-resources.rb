@@ -57,6 +57,25 @@ manifest = <<~YAML
       foreman-kubernetes.io/required-ingress-controller: k8s.io/ingress-nginx
   spec:
     ingressClassName: nginx
+  ---
+  apiVersion: autoscaling/v2
+  kind: HorizontalPodAutoscaler
+  metadata:
+    name: web
+  spec:
+    scaleTargetRef:
+      apiVersion: apps/v1
+      kind: Deployment
+      name: web
+    minReplicas: 2
+    maxReplicas: 4
+    metrics:
+      - type: Resource
+        resource:
+          name: cpu
+          target:
+            type: Utilization
+            averageUtilization: 75
 YAML
 
 output, error, status = Open3.capture3(
@@ -66,6 +85,7 @@ output, error, status = Open3.capture3(
 abort error unless status.success?
 
 expected = <<~OUTPUT
+  APIService\tv1beta1.metrics.k8s.io\tAvailable
   DefaultStorageClass\t
   IngressClass\tnginx\tk8s.io/ingress-nginx
   PersistentVolumeClaim\timported-content

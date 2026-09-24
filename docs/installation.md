@@ -16,6 +16,9 @@ mix image profiles from different sets.
   `k8s.io/ingress-nginx`; the install and upgrade helpers verify the
   controller because the client-certificate bridge uses ingress-nginx
   variables and annotations.
+- When a resource-based horizontal autoscaler is enabled, the aggregated
+  `v1beta1.metrics.k8s.io` API must exist and report `Available=True` (normally
+  provided by metrics-server).
 
 The chart does not create production credentials. Copy the example values into
 deployment-owned files outside this repository and create the referenced
@@ -50,7 +53,7 @@ The installer performs these gates before changing the cluster:
 3. it renders and lints both charts with deployment values followed by the
    authoritative digest-pinned image profiles;
 4. it verifies every referenced IngressClass, named or default StorageClass,
-   external PVC, and external ServiceAccount;
+   required resource Metrics API, external PVC, and external ServiceAccount;
 5. it discovers every non-optional, externally managed Secret used by a Pod
    template and verifies both the Secret and each explicitly referenced key;
 6. it rejects maintenance-only renders that omit normal migration workloads.
