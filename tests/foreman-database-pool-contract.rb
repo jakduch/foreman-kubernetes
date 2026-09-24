@@ -42,19 +42,21 @@ resources.each do |resource|
   component = template.dig('metadata', 'labels', 'app.kubernetes.io/component')
   next unless expected.key?(component)
 
-  Array(template.dig('spec', 'containers')).each do |container|
+  containers = Array(template.dig('spec', 'initContainers')) + Array(template.dig('spec', 'containers'))
+  containers.each do |container|
     next unless Array(container['env']).any? { |entry| entry['name'] == 'DATABASE_URL' }
 
     pool = Array(container['env']).find { |entry| entry['name'] == 'FOREMAN_DATABASE_POOL' }
     abort "#{resource.dig('metadata', 'name')} has no FOREMAN_DATABASE_POOL" unless pool
-    abort "#{resource.dig('metadata', 'name')} expected pool #{expected.fetch(component)}, got #{pool['value']}" unless pool['value'].to_i == expected.fetch(component)
+    expected_pool = container['name'] == 'wait-for-foreman-migrations' ? 5 : expected.fetch(component)
+    abort "#{resource.dig('metadata', 'name')}/#{container['name']} expected pool #{expected_pool}, got #{pool['value']}" unless pool['value'].to_i == expected_pool
 
     mount = Array(container['volumeMounts']).find do |entry|
       entry['mountPath'] == '/usr/share/foreman/config/database.yml' && entry['subPath'] == 'database.yml'
     end
     abort "#{resource.dig('metadata', 'name')} does not mount generated database.yml" unless mount
 
-    seen[component] += 1
+    seen[component] += 1 unless container['name'] == 'wait-for-foreman-migrations'
   end
 end
 

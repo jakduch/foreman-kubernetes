@@ -445,6 +445,7 @@ server {
     - until bin/rails db:abort_if_pending_migrations; do sleep {{ .Values.migrations.checkIntervalSeconds }}; done
   env:
     {{- include "foreman-stack.foremanEnv" . | nindent 4 }}
+    {{- include "foreman-stack.foremanDatabasePoolEnv" .Values.foreman.databasePools.utility | nindent 4 }}
   resources:
     {{- toYaml .Values.foreman.resources | nindent 4 }}
   volumeMounts:
