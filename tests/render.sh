@@ -93,8 +93,10 @@ helm template execution "${execution_chart}" > "${rendered_execution}"
 helm lint "${operator_chart}"
 helm template release-controller "${operator_chart}" --namespace foreman --include-crds > "${rendered_operator}"
 helm template release-controller "${operator_chart}" --namespace foreman \
+  --set monitoring.serviceMonitor.enabled=true \
   --set monitoring.prometheusRule.enabled=true \
   --set monitoring.grafanaDashboard.enabled=true \
+  --set-string monitoring.serviceMonitor.labels.release=platform-monitoring \
   --set-string monitoring.prometheusRule.labels.release=platform-monitoring > "${rendered_operator_monitoring}"
 if helm template release-controller "${operator_chart}" \
   --set controller.releaseLeaseDurationSeconds=240 >/dev/null 2>&1; then

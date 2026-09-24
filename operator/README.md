@@ -25,8 +25,12 @@ health. Metric labels are
 limited to namespace, release name, and the fixed phase vocabulary; they never
 contain release specs, Secret contents, or command output.
 The metrics Service keeps NotReady candidates discoverable. An opt-in
-`PrometheusRule` packages alerts only when its external CRD is explicitly
-available; the operator chart does not install or own a monitoring stack.
+`ServiceMonitor` and `PrometheusRule` are emitted only when their external CRDs
+are explicitly available and each feature is enabled; the operator chart does
+not install or own a monitoring stack. The ServiceMonitor selects the exact
+metrics Service labels and supplies bounded scrape timing, so the packaged
+alerts have a native discovery path without relying on installation-specific
+annotation scraping.
 The same opt-in rule group alerts on a `Blocked` release, a failed drift audit,
 and a generation that remains unobserved for ten minutes. An independent
 opt-in Grafana dashboard ConfigMap visualizes controller health, cycle outcomes,

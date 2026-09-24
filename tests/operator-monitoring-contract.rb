@@ -13,8 +13,27 @@ service = default_documents.find { |item| item['kind'] == 'Service' }
 abort 'operator metrics Service is missing' unless service
 abort 'NotReady controller metrics disappear from discovery' unless service.dig('spec', 'publishNotReadyAddresses') == true
 abort 'PrometheusRule was enabled without an explicit dependency' if default_documents.any? { |item| item['kind'] == 'PrometheusRule' }
+abort 'ServiceMonitor was enabled without an explicit dependency' if default_documents.any? { |item| item['kind'] == 'ServiceMonitor' }
 abort 'Grafana dashboard was enabled without an explicit dependency' if default_documents.any? do |item|
   item['kind'] == 'ConfigMap' && item.dig('metadata', 'name').to_s.end_with?('-dashboard')
+end
+
+monitor = monitoring_documents.find { |item| item['kind'] == 'ServiceMonitor' }
+abort 'enabled ServiceMonitor is missing' unless monitor
+abort 'ServiceMonitor discovery label is missing' unless monitor.dig('metadata', 'labels', 'release') == 'platform-monitoring'
+unless monitor.dig('spec', 'selector', 'matchLabels') == service.dig('spec', 'selector')
+  abort 'ServiceMonitor does not select the operator metrics Service'
+end
+endpoint = Array(monitor.dig('spec', 'endpoints')).first
+unless endpoint == {
+  'port' => 'metrics',
+  'path' => '/metrics',
+  'scheme' => 'http',
+  'interval' => '30s',
+  'scrapeTimeout' => '10s',
+  'honorLabels' => false
+}
+  abort 'ServiceMonitor endpoint does not preserve the bounded metrics scrape contract'
 end
 
 rule = monitoring_documents.find { |item| item['kind'] == 'PrometheusRule' }
@@ -69,4 +88,4 @@ end.join('\n')
   abort "dashboard does not consume #{metric}" unless dashboard_expressions.include?(metric)
 end
 
-puts 'Operator monitoring packages seven alerts and one opt-in Grafana dashboard.'
+puts 'Operator monitoring packages discovery, seven alerts, and one opt-in Grafana dashboard.'
