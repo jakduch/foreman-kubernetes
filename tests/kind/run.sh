@@ -261,7 +261,14 @@ install_dependencies() {
   kubectl --namespace "${namespace}" rollout status deployment/artemis --timeout=5m
   kubectl --namespace "${namespace}" rollout status deployment/content-source --timeout=5m
   "${repo_root}/tests/kind/apply-secrets.sh" "${temporary_directory}"
+  kubectl --namespace "${namespace}" delete job execution-ansible-content-loader \
+    --ignore-not-found=true \
+    --wait=true
   kubectl apply --filename="${repo_root}/tests/kind/execution-target.yaml"
+  kubectl --namespace "${namespace}" wait \
+    --for=condition=complete \
+    job/execution-ansible-content-loader \
+    --timeout=5m
   kubectl --namespace "${namespace}" rollout status deployment/execution-target --timeout=5m
 }
 

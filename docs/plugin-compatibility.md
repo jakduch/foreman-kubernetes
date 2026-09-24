@@ -28,7 +28,7 @@ from the reviewed official image.
 | `foreman-tasks` | yes | Foreman and Dynflow pods | full integration run |
 | `katello` | yes | Foreman pods | full Katello content lifecycle |
 | `foreman_remote_execution` | no | Foreman plus the execution Smart Proxy chart | real SSH workflow, cancellation, restart, interrupted-job recovery |
-| `foreman_ansible` | no | Foreman plus the execution Smart Proxy chart | real role workflow, content refresh, runner restart/recovery |
+| `foreman_ansible` | no | Foreman plus the execution Smart Proxy chart | real role workflow is modelled; content replacement and interrupted runner recovery remain |
 | `foreman_google` | no | Foreman pods | provider credentials, egress, API test |
 | `foreman_azure_rm` | no | Foreman pods | provider credentials, egress, API test |
 | `foreman_kubevirt` | no | Foreman pods | KubeVirt credentials, egress, API test |
@@ -62,7 +62,7 @@ proxies, and each should be placed close to the resources it controls.
 | Function | Placement in this design | Reason |
 | --- | --- | --- |
 | Pulp content | Pulp control endpoint in Kubernetes | implemented as Pulp's `pulp_smart_proxy`, not a generic Smart Proxy pod |
-| Remote Execution / Ansible | dedicated singleton execution-proxy chart or an external edge proxy | Kubernetes state, identity, feature, storage, and egress contracts are modelled; real workflow and failure proof is pending |
+| Remote Execution / Ansible | dedicated singleton execution-proxy chart or an external edge proxy | Kubernetes state, identity, feature, storage, and egress contracts plus command/role workflows are modelled; live failure proof is pending |
 | DHCP / DNS / TFTP | external edge proxy | tied to provisioning networks, stable endpoints, backend state, and often privileged host integration |
 | BMC / Redfish | external management-network proxy | must reach the isolated management network and handle privileged credentials |
 | Discovery | external provisioning-network proxy | requires direct placement on the discovery/PXE network |

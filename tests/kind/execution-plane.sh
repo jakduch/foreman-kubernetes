@@ -11,6 +11,7 @@ namespace="foreman"
 proxy_name="Kubernetes execution proxy"
 proxy_url="https://execution-foreman-execution-proxy:8443"
 target_name="execution-target.foreman.svc.cluster.local"
+role_name="foreman_kubernetes_test"
 
 foreman_pod() {
   kubectl --namespace "${namespace}" get pod \
@@ -161,6 +162,58 @@ ensure_target_host() {
   )" | jq --exit-status --raw-output '.id'
 }
 
+configure_execution_defaults() {
+  foreman_api PUT /api/settings/remote_execution_ssh_user \
+    '{"setting":{"value":"foreman"}}' >/dev/null
+}
+
+sync_ansible_role() {
+  local proxy_id="$1"
+  local available_roles
+  local role_id
+  local sync_response
+  local task_id
+
+  available_roles="$(foreman_api GET "/ansible/api/v2/ansible_roles/fetch?proxy_id=${proxy_id}")"
+  if ! jq --exit-status --arg role_name "${role_name}" \
+    '.results.ansible_roles[] | select(.name == $role_name)' \
+    <<<"${available_roles}" >/dev/null; then
+    echo "Ansible role ${role_name} is not visible through Smart Proxy ${proxy_id}" >&2
+    exit 1
+  fi
+
+  sync_response="$(foreman_api PUT /ansible/api/v2/ansible_roles/sync "$(
+    jq --compact-output --null-input \
+      --argjson proxy_id "${proxy_id}" \
+      --arg role_name "${role_name}" '{
+        proxy_id: $proxy_id,
+        role_names: [$role_name]
+      }'
+  )")"
+  task_id="$(jq --raw-output '.id // empty' <<<"${sync_response}")"
+  if [[ -n "${task_id}" ]]; then
+    wait_for_task "${task_id}" >&2
+  fi
+
+  role_id="$(foreman_api GET '/ansible/api/v2/ansible_roles?per_page=all' | \
+    exact_result_id "${role_name}")"
+  printf '%s\n' "${role_id}"
+}
+
+assign_ansible_role() {
+  local host_id="$1"
+  local role_id="$2"
+
+  foreman_api POST "/api/hosts/${host_id}/assign_ansible_roles" "$(
+    jq --compact-output --null-input \
+      --argjson role_id "${role_id}" '{ansible_role_ids: [$role_id]}'
+  )" >/dev/null
+
+  foreman_api GET "/api/hosts/${host_id}/ansible_roles" | \
+    jq --exit-status --arg role_name "${role_name}" \
+      '.[] | select(.name == $role_name)' >/dev/null
+}
+
 run_job() {
   local marker="$1"
   local provider="$2"
@@ -218,15 +271,47 @@ run_job() {
   fi
 }
 
+run_role_job() {
+  local host_id="$1"
+  local proxy_id="$2"
+  local marker="foreman-kubernetes-role-ok"
+  local invocation
+  local invocation_id
+  local selected_proxy_id
+  local task_id
+
+  kubectl --namespace "${namespace}" exec deployment/execution-target -- \
+    rm -f "/tmp/${marker}"
+
+  invocation="$(foreman_api POST "/api/hosts/${host_id}/play_roles")"
+  invocation_id="$(jq --exit-status --raw-output '.id' <<<"${invocation}")"
+  task_id="$(jq --exit-status --raw-output '.dynflow_task.id' <<<"${invocation}")"
+  wait_for_task "${task_id}"
+
+  kubectl --namespace "${namespace}" exec deployment/execution-target -- \
+    test -f "/tmp/${marker}"
+
+  selected_proxy_id="$(foreman_api GET "/api/job_invocations/${invocation_id}/hosts?per_page=all" | \
+    jq --exit-status --raw-output '.results[0].smart_proxy_id')"
+  if [[ "${selected_proxy_id}" != "${proxy_id}" ]]; then
+    echo "Ansible role job used Smart Proxy ${selected_proxy_id}, expected ${proxy_id}" >&2
+    exit 1
+  fi
+}
+
 organization_id="$(default_taxonomy_id organizations)"
 location_id="$(default_taxonomy_id locations)"
 proxy_id="$(register_execution_proxy "${location_id}" "${organization_id}")"
-ensure_target_host "${location_id}" "${organization_id}" >/dev/null
+host_id="$(ensure_target_host "${location_id}" "${organization_id}")"
+configure_execution_defaults
+role_id="$(sync_ansible_role "${proxy_id}")"
+assign_ansible_role "${host_id}" "${role_id}"
 
 ansible_template_id="$(foreman_api GET '/api/job_templates?per_page=all' | \
   exact_result_id 'Run Command - Ansible Default')"
 
 run_job foreman-kubernetes-rex-ok Script "${proxy_id}"
 run_job foreman-kubernetes-ansible-ok Ansible "${proxy_id}" "${ansible_template_id}"
+run_role_job "${host_id}" "${proxy_id}"
 
-echo "Execution proxy registration, feature boundary, SSH job, and Ansible job checks passed."
+echo "Execution proxy registration, role sync, SSH, Ansible command, and Ansible role checks passed."

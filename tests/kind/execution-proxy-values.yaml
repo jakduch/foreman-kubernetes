@@ -7,7 +7,7 @@ ssh:
   user: foreman
 
 ansible:
-  size: 1Gi
+  existingClaim: execution-ansible-content
 
 state:
   size: 1Gi

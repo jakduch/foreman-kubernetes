@@ -1,4 +1,114 @@
 apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: execution-ansible-content
+  namespace: foreman
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 64Mi
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: execution-ansible-content
+  namespace: foreman
+data:
+  ansible.cfg: |
+    [defaults]
+    roles_path = /etc/ansible/roles
+  defaults-main.yml: |
+    ---
+    {}
+  meta-main.yml: |
+    ---
+    galaxy_info:
+      role_name: foreman_kubernetes_test
+      author: Foreman Kubernetes integration
+      description: Disposable role for the execution-plane integration drill
+      license: GPL-3.0-or-later
+      min_ansible_version: "2.15"
+    dependencies: []
+  tasks-main.yml: |
+    ---
+    - name: Record the role execution
+      ansible.builtin.file:
+        path: /tmp/foreman-kubernetes-role-ok
+        state: touch
+        mode: "0644"
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: execution-ansible-content-loader
+  namespace: foreman
+spec:
+  backoffLimit: 2
+  template:
+    metadata:
+      labels:
+        app: execution-ansible-content-loader
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      securityContext:
+        fsGroup: 991
+        fsGroupChangePolicy: OnRootMismatch
+        runAsGroup: 991
+        runAsNonRoot: true
+        runAsUser: 991
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: load-role
+          image: foreman-kubernetes-ssh-target:test
+          imagePullPolicy: Never
+          command:
+            - /bin/sh
+            - -ec
+          args:
+            - |
+              rm -rf /content/*
+              install -d -m 0755 \
+                /content/roles/foreman_kubernetes_test/defaults \
+                /content/roles/foreman_kubernetes_test/meta \
+                /content/roles/foreman_kubernetes_test/tasks
+              install -m 0644 /source/ansible.cfg /content/ansible.cfg
+              install -m 0644 /source/defaults-main.yml \
+                /content/roles/foreman_kubernetes_test/defaults/main.yml
+              install -m 0644 /source/meta-main.yml \
+                /content/roles/foreman_kubernetes_test/meta/main.yml
+              install -m 0644 /source/tasks-main.yml \
+                /content/roles/foreman_kubernetes_test/tasks/main.yml
+          resources:
+            requests:
+              cpu: 5m
+              memory: 8Mi
+            limits:
+              memory: 32Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - name: source
+              mountPath: /source
+              readOnly: true
+            - name: content
+              mountPath: /content
+      volumes:
+        - name: source
+          configMap:
+            name: execution-ansible-content
+        - name: content
+          persistentVolumeClaim:
+            claimName: execution-ansible-content
+---
+apiVersion: v1
 kind: Service
 metadata:
   name: execution-target

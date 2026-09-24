@@ -147,6 +147,7 @@ grep -q ':ssh_ca_known_hosts_file: /etc/foreman-proxy/ssh-host-keys/known_hosts'
 grep -q 'ANSIBLE_HOST_KEY_CHECKING="True"' "${rendered_execution_egress}"
 grep -Fq 'quay.io/foreman/foreman-proxy:nightly@sha256:244c756844a137990779ad153998c426eb0326d8d6f376192ea6e84947affd47' "${rendered_execution_kind}"
 grep -Fq ':foreman_url: "https://foreman.test"' "${rendered_execution_kind}"
+grep -Fq 'claimName: execution-ansible-content' "${rendered_execution_kind}"
 
 if helm template execution "${execution_chart}" --set replicas=2 >/dev/null 2>&1; then
   echo 'expected multiple execution proxy replicas to be rejected' >&2
@@ -184,6 +185,13 @@ grep -Fq \
   "${repo_root}/images/ssh-target/Dockerfile"
 grep -Fq "expected 'Ansible,Dynflow,Script'" \
   "${repo_root}/tests/kind/execution-plane.sh"
+grep -Fq '/ansible/api/v2/ansible_roles/sync' \
+  "${repo_root}/tests/kind/execution-plane.sh"
+grep -Fq '/play_roles' "${repo_root}/tests/kind/execution-plane.sh"
+grep -Fq 'foreman-kubernetes-role-ok' \
+  "${repo_root}/tests/kind/execution-target.yaml"
+grep -Fq 'claimName: execution-ansible-content' \
+  "${repo_root}/tests/kind/execution-target.yaml"
 grep -Fq "if [[ ! -s \"\${workdir}/ca.crt\" ]]" \
   "${repo_root}/tests/kind/apply-secrets.sh"
 grep -Fq 'foreman-execution-proxy-tls' "${rendered_kind_backup}"
