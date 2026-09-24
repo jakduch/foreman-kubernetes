@@ -64,6 +64,11 @@ The chart consumes existing Secrets and never generates private keys:
 Secret key names are configurable. The SSH key projection is group-readable
 only long enough for a non-root init container to copy it into an `emptyDir`
 with mode `0600`; the main container receives that runtime copy read-only.
+After updating any of these Secrets, change `secretRolloutToken` in the same
+Helm revision. That recreates the singleton pod so projected TLS files are
+reopened and the init container copies the new SSH identity into runtime
+storage. Updating a Secret without changing the token is not a completed
+rotation.
 
 SSH user certificates are supported by enabling `ssh.userCertificate` and
 adding the configured certificate and CA public-key entries to the SSH Secret.

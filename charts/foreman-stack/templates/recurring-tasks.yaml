@@ -24,6 +24,8 @@ spec:
           labels:
             app.kubernetes.io/instance: {{ $root.Release.Name }}
             app.kubernetes.io/component: foreman-cron
+          annotations:
+            checksum/secrets: {{ $root.Values.secretRolloutToken | sha256sum }}
         spec:
           restartPolicy: Never
           serviceAccountName: {{ include "foreman-stack.serviceAccountName" $root }}

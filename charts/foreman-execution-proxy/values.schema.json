@@ -1,8 +1,9 @@
 {
   "$schema": "https://json-schema.org/draft-07/schema#",
   "type": "object",
-  "required": ["image", "replicas", "proxy", "ssh", "ansible", "state", "serviceAccount", "networkPolicy", "resources", "initResources"],
+  "required": ["secretRolloutToken", "image", "replicas", "proxy", "ssh", "ansible", "state", "serviceAccount", "networkPolicy", "resources", "initResources"],
   "properties": {
+    "secretRolloutToken": { "type": "string", "minLength": 1, "maxLength": 128 },
     "image": {
       "type": "object",
       "required": ["repository", "tag", "pullPolicy"],

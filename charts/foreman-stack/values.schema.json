@@ -1,8 +1,9 @@
 {
   "$schema": "https://json-schema.org/draft-07/schema#",
   "type": "object",
-  "required": ["platform", "ingress", "valkey", "sharedSecret", "smartProxy", "foreman", "candlepin", "pulp", "migrations", "smokeTest", "networkPolicy", "maintenance", "recovery", "backup", "restore"],
+  "required": ["secretRolloutToken", "platform", "ingress", "valkey", "sharedSecret", "smartProxy", "foreman", "candlepin", "pulp", "migrations", "smokeTest", "networkPolicy", "maintenance", "recovery", "backup", "restore"],
   "properties": {
+    "secretRolloutToken": { "type": "string", "minLength": 1, "maxLength": 128 },
     "platform": {
       "type": "object",
       "required": ["fqdn", "domain", "externalUrl"],

@@ -3,6 +3,11 @@ fullnameOverride: ""
 
 imagePullSecrets: []
 
+# Existing Secret contents are intentionally not read by Helm. Change this
+# value after rotating any referenced credential or certificate to restart all
+# long-running processes that may cache it or mount it through subPath.
+secretRolloutToken: initial
+
 platform:
   fqdn: foreman.example.test
   domain: example.test

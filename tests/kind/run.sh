@@ -15,6 +15,8 @@ temporary_directory="$(mktemp -d)"
 skip_recovery_test="${SKIP_RECOVERY_TEST:-0}"
 content_lifecycle_state="${temporary_directory}/content-lifecycle.json"
 foreman_database_url_backup=""
+application_secret_rollout_token=initial
+execution_secret_rollout_token=initial
 
 helm_apply() {
   helm upgrade --install "${release}" "${repo_root}/charts/foreman-stack" \
@@ -22,6 +24,7 @@ helm_apply() {
     --values "${repo_root}/tests/kind/values.yaml" \
     --values "${repo_root}/examples/execution-control-plane-values.yaml" \
     --values "${image_profile}" \
+    --set-string secretRolloutToken="${application_secret_rollout_token}" \
     --wait \
     --wait-for-jobs \
     --timeout 30m \
@@ -33,6 +36,7 @@ helm_execution_apply() {
     --namespace "${namespace}" \
     --values "${repo_root}/tests/kind/execution-proxy-values.yaml" \
     --values "${execution_proxy_image_profile}" \
+    --set-string secretRolloutToken="${execution_secret_rollout_token}" \
     --wait \
     --timeout 15m \
     "$@"
@@ -581,9 +585,10 @@ rotate_execution_identity() {
     --from-file=id_rsa_foreman_proxy.pub="${rotated_prefix}-ssh.pub" \
     --dry-run=client --output=yaml | kubectl apply --filename=-
 
+  execution_secret_rollout_token=rotated-identity-1
   kubectl --namespace "${namespace}" rollout restart \
-    deployment/execution-target \
-    deployment/execution-foreman-execution-proxy
+    deployment/execution-target
+  helm_execution_apply
   kubectl --namespace "${namespace}" rollout status \
     deployment/execution-target \
     --timeout=5m

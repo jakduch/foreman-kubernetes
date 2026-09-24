@@ -3,6 +3,10 @@ fullnameOverride: ""
 
 imagePullSecrets: []
 
+# Change after rotating a referenced TLS, SSH, or known-hosts Secret. Several
+# files use subPath or are copied into runtime storage during pod startup.
+secretRolloutToken: initial
+
 image:
   repository: quay.io/foreman/foreman-proxy
   tag: nightly

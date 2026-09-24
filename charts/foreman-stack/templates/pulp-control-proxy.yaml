@@ -83,6 +83,7 @@ spec:
         app.kubernetes.io/component: pulp-control-proxy
       annotations:
         checksum/config: {{ toJson (dict "fqdn" .Values.platform.fqdn "controlProxy" .Values.pulp.controlProxy "apiPort" .Values.pulp.api.port) | sha256sum }}
+        checksum/secrets: {{ .Values.secretRolloutToken | sha256sum }}
     spec:
       serviceAccountName: {{ include "foreman-stack.serviceAccountName" . }}
       automountServiceAccountToken: false

@@ -169,3 +169,21 @@ pods, and Dynaconf receives it as PostgreSQL's `sslrootcert` option.
 - `ingress-client-ca` contains `ca.crt` used by ingress-nginx to verify optional client certificates before replacing the upstream certificate headers.
 
 The default trusted common name for the Pulp control plane is `platform.fqdn`; additional names must be listed explicitly in `pulp.controlProxy.trustedClientCommonNames`.
+
+## Existing Secret rotation
+
+Helm cannot detect a content-only update to an existing Secret. Several keys
+are also mounted through `subPath`, which means Kubernetes does not replace the
+file inside an already running container. After applying any referenced
+credential, certificate, CA, image-pull, or encryption Secret, change
+`secretRolloutToken` in the same reviewed Helm revision. Every long-running
+Foreman, Dynflow, Katello event, Candlepin, Pulp, control-proxy, and recurring
+task template includes the token hash and is therefore recreated.
+
+The token does not make a CA replacement atomic. For CA rotation, first deploy
+a trust bundle containing the old and new roots and change the token. Then
+issue and deploy new leaf identities and change the token again. Remove the old
+root only after all peers use the new identity, followed by a third token
+change. Pulp's database-fields encryption key requires an application-aware
+data re-encryption procedure; it must not be treated as an ordinary TLS key
+rotation.

@@ -55,6 +55,8 @@ spec:
         app.kubernetes.io/name: {{ include "foreman-stack.name" $root }}
         app.kubernetes.io/instance: {{ $root.Release.Name }}
         app.kubernetes.io/component: pulp-{{ $service.name }}
+      annotations:
+        checksum/secrets: {{ $root.Values.secretRolloutToken | sha256sum }}
     spec:
       serviceAccountName: {{ include "foreman-stack.pulpServiceAccountName" $root }}
       automountServiceAccountToken: false
@@ -166,6 +168,8 @@ spec:
         app.kubernetes.io/name: {{ include "foreman-stack.name" . }}
         app.kubernetes.io/instance: {{ .Release.Name }}
         app.kubernetes.io/component: pulp-worker
+      annotations:
+        checksum/secrets: {{ .Values.secretRolloutToken | sha256sum }}
     spec:
       serviceAccountName: {{ include "foreman-stack.pulpServiceAccountName" . }}
       automountServiceAccountToken: false

@@ -21,6 +21,7 @@ spec:
         app.kubernetes.io/component: katello-event-daemon
       annotations:
         checksum/config: {{ toJson (dict "platform" .Values.platform "valkey" .Values.valkey "foreman" .Values.foreman "candlepinService" (include "foreman-stack.candlepinServiceName" .)) | sha256sum }}
+        checksum/secrets: {{ .Values.secretRolloutToken | sha256sum }}
     spec:
       serviceAccountName: {{ include "foreman-stack.serviceAccountName" . }}
       automountServiceAccountToken: false

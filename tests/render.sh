@@ -14,13 +14,15 @@ rendered_ha="$(mktemp)"
 rendered_candlepin_port="$(mktemp)"
 rendered_foreman_service_port="$(mktemp)"
 rendered_no_migrations="$(mktemp)"
+rendered_secret_rotation="$(mktemp)"
 rendered_s3="$(mktemp)"
 rendered_s3_backup="$(mktemp)"
 rendered_kind_backup="$(mktemp)"
 rendered_execution="$(mktemp)"
 rendered_execution_egress="$(mktemp)"
 rendered_execution_kind="$(mktemp)"
-trap 'rm -f "${rendered}" "${rendered_ingress}" "${rendered_backup}" "${rendered_restore}" "${rendered_egress}" "${rendered_singletons}" "${rendered_ha}" "${rendered_candlepin_port}" "${rendered_foreman_service_port}" "${rendered_no_migrations}" "${rendered_s3}" "${rendered_s3_backup}" "${rendered_kind_backup}" "${rendered_execution}" "${rendered_execution_egress}" "${rendered_execution_kind}"' EXIT
+rendered_execution_secret_rotation="$(mktemp)"
+trap 'rm -f "${rendered}" "${rendered_ingress}" "${rendered_backup}" "${rendered_restore}" "${rendered_egress}" "${rendered_singletons}" "${rendered_ha}" "${rendered_candlepin_port}" "${rendered_foreman_service_port}" "${rendered_no_migrations}" "${rendered_secret_rotation}" "${rendered_s3}" "${rendered_s3_backup}" "${rendered_kind_backup}" "${rendered_execution}" "${rendered_execution_egress}" "${rendered_execution_kind}" "${rendered_execution_secret_rotation}"' EXIT
 
 ruby "${repo_root}/tests/yaml-duplicates.rb"
 ruby "${repo_root}/tests/operator-contract.rb"
@@ -29,6 +31,8 @@ helm lint "${chart}"
 helm template test "${chart}" > "${rendered}"
 helm lint "${execution_chart}"
 helm template execution "${execution_chart}" > "${rendered_execution}"
+helm template execution "${execution_chart}" \
+  --set secretRolloutToken=rotated-credentials > "${rendered_execution_secret_rotation}"
 helm lint "${execution_chart}" --values "${repo_root}/examples/execution-proxy-values.yaml"
 helm lint "${execution_chart}" --values "${repo_root}/tests/execution-proxy-egress-values.yaml"
 helm lint "${execution_chart}" \
@@ -83,6 +87,8 @@ helm template test "${chart}" \
 helm template test "${chart}" \
   --set migrations.enabled=false > "${rendered_no_migrations}"
 helm template test "${chart}" \
+  --set secretRolloutToken=rotated-credentials > "${rendered_secret_rotation}"
+helm template test "${chart}" \
   --values "${repo_root}/examples/pulp-s3-values.yaml" > "${rendered_s3}"
 helm template test "${chart}" \
   --values "${repo_root}/examples/pulp-s3-values.yaml" \
@@ -106,6 +112,7 @@ for manifest in \
   "${rendered_candlepin_port}" \
   "${rendered_foreman_service_port}" \
   "${rendered_no_migrations}" \
+  "${rendered_secret_rotation}" \
   "${rendered_s3}" \
   "${rendered_backup}" \
   "${rendered_restore}" \
@@ -128,10 +135,14 @@ ruby "${repo_root}/tests/foreman-shared-tmp-contract.rb" "${rendered_s3}" false
 ruby "${repo_root}/tests/recovery-storage-contract.rb" "${rendered_backup}" true
 ruby "${repo_root}/tests/recovery-storage-contract.rb" "${rendered_restore}" true
 ruby "${repo_root}/tests/recovery-storage-contract.rb" "${rendered_s3_backup}" false
+ruby "${repo_root}/tests/secret-rollout-contract.rb" "${rendered}" "${rendered_secret_rotation}"
 
 ruby "${repo_root}/tests/kubernetes-invariants.rb" "${rendered_execution}"
 ruby "${repo_root}/tests/kubernetes-invariants.rb" "${rendered_execution_egress}"
 ruby "${repo_root}/tests/kubernetes-invariants.rb" "${rendered_execution_kind}"
+ruby "${repo_root}/tests/kubernetes-invariants.rb" "${rendered_execution_secret_rotation}"
+ruby "${repo_root}/tests/secret-rollout-contract.rb" \
+  "${rendered_execution}" "${rendered_execution_secret_rotation}"
 ruby -c "${execution_chart}/files/check-features.rb"
 
 grep -q 'name: FOREMAN_PROXY_ENABLED_PLUGINS' "${rendered_execution}"
