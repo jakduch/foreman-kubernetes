@@ -9,7 +9,7 @@ The chart keeps component ownership separate and does not assume that independen
 | Foreman with Katello | `quay.io/foreman/foreman:nightly` | `sha256:9c77128c7acd629c62686a9119816d6f6b7726cd6492d9eaa894d54c345c4941` | `linux/amd64` | Manifest verified; integration pending |
 | Candlepin | `quay.io/foreman/candlepin:foreman-nightly` | `sha256:b9fe6c5f161132b39982e1951e8b4a16bf00d2565ecb17e53b13b56196a1f280` | `linux/amd64` | Manifest verified; integration pending |
 | Pulp | `quay.io/foreman/pulp:foreman-nightly` | `sha256:c3d32a385d09225c40f70d60128fcf62c94cb669536b10ccbadc0ec8ac4afa6b` | `linux/amd64` | Manifest verified; integration pending |
-| Execution Smart Proxy | `quay.io/foreman/foreman-proxy:nightly` | `sha256:244c756844a137990779ad153998c426eb0326d8d6f376192ea6e84947affd47` | `linux/amd64` | Manifest verified; command and role execution drill implemented but unrun |
+| Execution Smart Proxy | `quay.io/foreman/foreman-proxy:nightly` | `sha256:244c756844a137990779ad153998c426eb0326d8d6f376192ea6e84947affd47` | `linux/amd64` | Manifest verified; success/failure/cancel and role drill implemented but unrun |
 
 The manifests were read from the official Quay repositories on 2026-09-24. No layers were downloaded. The current images are single-platform, so an ARM cluster needs explicit emulation and is not a release target until upstream publishes multi-architecture manifests.
 

@@ -44,22 +44,82 @@ foreman_api() {
 
 wait_for_task() {
   local task_id="$1"
+  local expected_result="${2:-success}"
 
   kubectl --namespace "${namespace}" exec "$(foreman_pod)" -- \
-    env "TASK_ID=${task_id}" bin/rails runner '
+    env "TASK_ID=${task_id}" "EXPECTED_RESULT=${expected_result}" bin/rails runner '
       task = ForemanTasks::Task.find(ENV.fetch("TASK_ID"))
+      expected = ENV.fetch("EXPECTED_RESULT")
       deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 600
       loop do
         task.reload
         if task.stopped?
-          abort "Task #{task.id} (#{task.label}) ended with #{task.result}" unless task.result == "success"
-          puts "Task #{task.id} (#{task.label}) succeeded"
+          valid = case expected
+                  when "success" then task.result == "success"
+                  when "error" then task.result == "error"
+                  when "not-success" then task.result != "success"
+                  else false
+                  end
+          abort "Task #{task.id} (#{task.label}) ended with #{task.result}, expected #{expected}" unless valid
+          puts "Task #{task.id} (#{task.label}) ended with expected result #{task.result}"
           break
         end
         abort "Timed out waiting for task #{task.id} (#{task.label})" if Process.clock_gettime(Process::CLOCK_MONOTONIC) >= deadline
         sleep 2
       end
     '
+}
+
+create_script_job() {
+  local command="$1"
+
+  foreman_api POST '/api/job_invocations?include_hosts=false' "$(
+    jq --compact-output --null-input \
+      --arg command "${command}" \
+      --arg search_query "name = \"${target_name}\"" '{
+        job_invocation: {
+          feature: "run_script",
+          inputs: {command: $command},
+          search_query: $search_query,
+          targeting_type: "static_query",
+          ssh_user: "foreman"
+        }
+      }'
+  )"
+}
+
+assert_job_proxy() {
+  local invocation_id="$1"
+  local provider="$2"
+  local proxy_id="$3"
+  local selected_proxy_id
+
+  selected_proxy_id="$(foreman_api GET "/api/job_invocations/${invocation_id}/hosts?per_page=all" | \
+    jq --exit-status --raw-output '.results[0].smart_proxy_id')"
+  if [[ "${selected_proxy_id}" != "${proxy_id}" ]]; then
+    echo "${provider} job used Smart Proxy ${selected_proxy_id}, expected ${proxy_id}" >&2
+    exit 1
+  fi
+}
+
+wait_for_job_proxy() {
+  local invocation_id="$1"
+  local proxy_id="$2"
+  local selected_proxy_id
+
+  for _ in $(seq 1 120); do
+    selected_proxy_id="$(
+      foreman_api GET "/api/job_invocations/${invocation_id}/hosts?per_page=all" | \
+        jq --raw-output '.results[0].smart_proxy_id // empty'
+    )"
+    if [[ "${selected_proxy_id}" == "${proxy_id}" ]]; then
+      return
+    fi
+    sleep 1
+  done
+
+  echo "Job ${invocation_id} was not dispatched through Smart Proxy ${proxy_id}" >&2
+  exit 1
 }
 
 first_result_id() {
@@ -221,7 +281,6 @@ run_job() {
   local template_id="${4:-}"
   local invocation
   local invocation_id
-  local selected_proxy_id
   local task_id
   local payload
 
@@ -229,17 +288,7 @@ run_job() {
     rm -f "/tmp/${marker}"
 
   if [[ "${provider}" == Script ]]; then
-    payload="$(jq --compact-output --null-input \
-      --arg command "touch /tmp/${marker}" \
-      --arg search_query "name = \"${target_name}\"" '{
-        job_invocation: {
-          feature: "run_script",
-          inputs: {command: $command},
-          search_query: $search_query,
-          targeting_type: "static_query",
-          ssh_user: "foreman"
-        }
-      }')"
+    invocation="$(create_script_job "touch /tmp/${marker}")"
   else
     payload="$(jq --compact-output --null-input \
       --arg command "touch /tmp/${marker}" \
@@ -253,9 +302,9 @@ run_job() {
           ssh_user: "foreman"
         }
       }')"
+    invocation="$(foreman_api POST '/api/job_invocations?include_hosts=false' "${payload}")"
   fi
 
-  invocation="$(foreman_api POST '/api/job_invocations?include_hosts=false' "${payload}")"
   invocation_id="$(jq --exit-status --raw-output '.id' <<<"${invocation}")"
   task_id="$(jq --exit-status --raw-output '.dynflow_task.id' <<<"${invocation}")"
   wait_for_task "${task_id}"
@@ -263,12 +312,44 @@ run_job() {
   kubectl --namespace "${namespace}" exec deployment/execution-target -- \
     test -f "/tmp/${marker}"
 
-  selected_proxy_id="$(foreman_api GET "/api/job_invocations/${invocation_id}/hosts?per_page=all" | \
-    jq --exit-status --raw-output '.results[0].smart_proxy_id')"
-  if [[ "${selected_proxy_id}" != "${proxy_id}" ]]; then
-    echo "${provider} job used Smart Proxy ${selected_proxy_id}, expected ${proxy_id}" >&2
-    exit 1
-  fi
+  assert_job_proxy "${invocation_id}" "${provider}" "${proxy_id}"
+}
+
+assert_failed_job() {
+  local proxy_id="$1"
+  local invocation
+  local invocation_id
+  local task_id
+
+  invocation="$(create_script_job 'printf "expected failure\\n"; exit 23')"
+  invocation_id="$(jq --exit-status --raw-output '.id' <<<"${invocation}")"
+  task_id="$(jq --exit-status --raw-output '.dynflow_task.id' <<<"${invocation}")"
+  wait_for_task "${task_id}" error
+
+  foreman_api GET "/api/job_invocations/${invocation_id}?include_hosts=false" | \
+    jq --exit-status '.failed == 1 and .succeeded == 0' >/dev/null
+  assert_job_proxy "${invocation_id}" 'Expected-failure Script' "${proxy_id}"
+}
+
+assert_cancelled_job() {
+  local proxy_id="$1"
+  local cancellation
+  local invocation
+  local invocation_id
+  local task_id
+
+  invocation="$(create_script_job 'sleep 300')"
+  invocation_id="$(jq --exit-status --raw-output '.id' <<<"${invocation}")"
+  task_id="$(jq --exit-status --raw-output '.dynflow_task.id' <<<"${invocation}")"
+
+  wait_for_job_proxy "${invocation_id}" "${proxy_id}"
+  cancellation="$(foreman_api POST "/api/job_invocations/${invocation_id}/cancel" '{}')"
+  jq --exit-status '.cancelled == true' <<<"${cancellation}" >/dev/null
+  wait_for_task "${task_id}" not-success
+
+  foreman_api GET "/api/job_invocations/${invocation_id}?include_hosts=false" | \
+    jq --exit-status '.cancelled == 1 and .succeeded == 0' >/dev/null
+  assert_job_proxy "${invocation_id}" 'Cancelled Script' "${proxy_id}"
 }
 
 run_role_job() {
@@ -277,7 +358,6 @@ run_role_job() {
   local marker="foreman-kubernetes-role-ok"
   local invocation
   local invocation_id
-  local selected_proxy_id
   local task_id
 
   kubectl --namespace "${namespace}" exec deployment/execution-target -- \
@@ -291,12 +371,7 @@ run_role_job() {
   kubectl --namespace "${namespace}" exec deployment/execution-target -- \
     test -f "/tmp/${marker}"
 
-  selected_proxy_id="$(foreman_api GET "/api/job_invocations/${invocation_id}/hosts?per_page=all" | \
-    jq --exit-status --raw-output '.results[0].smart_proxy_id')"
-  if [[ "${selected_proxy_id}" != "${proxy_id}" ]]; then
-    echo "Ansible role job used Smart Proxy ${selected_proxy_id}, expected ${proxy_id}" >&2
-    exit 1
-  fi
+  assert_job_proxy "${invocation_id}" 'Ansible role' "${proxy_id}"
 }
 
 organization_id="$(default_taxonomy_id organizations)"
@@ -310,8 +385,10 @@ assign_ansible_role "${host_id}" "${role_id}"
 ansible_template_id="$(foreman_api GET '/api/job_templates?per_page=all' | \
   exact_result_id 'Run Command - Ansible Default')"
 
+assert_failed_job "${proxy_id}"
+assert_cancelled_job "${proxy_id}"
 run_job foreman-kubernetes-rex-ok Script "${proxy_id}"
 run_job foreman-kubernetes-ansible-ok Ansible "${proxy_id}" "${ansible_template_id}"
 run_role_job "${host_id}" "${proxy_id}"
 
-echo "Execution proxy registration, role sync, SSH, Ansible command, and Ansible role checks passed."
+echo "Execution proxy registration, failure/cancellation, role sync, SSH, Ansible command, and Ansible role checks passed."

@@ -188,6 +188,8 @@ grep -Fq "expected 'Ansible,Dynflow,Script'" \
 grep -Fq '/ansible/api/v2/ansible_roles/sync' \
   "${repo_root}/tests/kind/execution-plane.sh"
 grep -Fq '/play_roles' "${repo_root}/tests/kind/execution-plane.sh"
+grep -Fq '/cancel' "${repo_root}/tests/kind/execution-plane.sh"
+grep -Fq 'expected failure' "${repo_root}/tests/kind/execution-plane.sh"
 grep -Fq 'foreman-kubernetes-role-ok' \
   "${repo_root}/tests/kind/execution-target.yaml"
 grep -Fq 'claimName: execution-ansible-content' \

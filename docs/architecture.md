@@ -182,10 +182,11 @@ identity mounts, target egress controls, and an exact positive feature
 readiness check. Network-control features remain forbidden in that profile.
 
 The implementation drill is prepared but still unrun against the published
-images. It covers proxy registration, the exact feature boundary, real SSH and
-Ansible commands, declarative role-content publication, Foreman role sync and
-assignment, role execution, clean restoration, and successful new jobs after a
-proxy restart. Smart Proxy Dynflow still uses SQLite, REx retains process-local job
+images. It covers proxy registration, the exact feature boundary, successful,
+failed, and cancelled SSH jobs, real Ansible commands, declarative role-content
+publication, Foreman role sync and assignment, role execution, clean
+restoration, and successful new jobs after a proxy restart. Smart Proxy Dynflow
+still uses SQLite, REx retains process-local job
 data, and the runners have no active-job handoff protocol. The schema therefore
 fixes the executor to one replica and uses `Recreate`; pretending that a Service
 in front of multiple independent executors is HA would lose job ownership

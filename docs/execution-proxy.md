@@ -140,15 +140,18 @@ installs the digest-pinned Smart Proxy, registers it through Foreman, requires
 the exact Ansible/Dynflow/Script feature set, and runs harmless SSH and Ansible
 commands against a disposable target. A short-lived content publisher writes a
 test role to the proxy's content claim; the drill discovers and imports it
-through Foreman, assigns it to the target, and executes it. It repeats those
-jobs after a clean namespace restore and after restarting the proxy Pod. The
-drill is implemented but has not yet been executed against the published
-candidate images.
+through Foreman, assigns it to the target, and executes it. An expected command
+failure and a cancelled long-running command must both reach terminal state
+before a successful command proves the executor remains usable. The drill
+repeats the workflow after a clean namespace restore and after restarting the
+proxy Pod. It is implemented but has not yet been executed against the
+published candidate images.
 
 Still required before production support:
 
 1. run the complete pinned amd64 drill in CI and retain its evidence;
-2. test cancellation and an interrupted job across a Pod restart;
+2. run the prepared failure and cancellation assertions, then add an
+   interrupted job across a Pod restart;
 3. verify replacement of already-imported role/collection content and SSH key
    or certificate rotation;
 4. validate restricted egress against real Foreman and target networks;
