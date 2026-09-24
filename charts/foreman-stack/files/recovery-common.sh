@@ -24,7 +24,10 @@ wait_for_quiescence() {
         --output json |
         jq -r '
           .items[]
-          | select(.metadata.deletionTimestamp == null)
+          | select(
+              (.status.phase // "") != "Succeeded" and
+              (.status.phase // "") != "Failed"
+            )
           | .metadata.labels["app.kubernetes.io/component"] as $component
           | select(
               $component == "foreman" or

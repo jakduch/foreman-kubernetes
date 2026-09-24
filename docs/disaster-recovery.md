@@ -4,6 +4,10 @@ The chart provides explicit, one-shot backup and restore Jobs. They create an
 application-consistent recovery point only while maintenance mode has removed
 all workloads that can write to Foreman, Candlepin, or Pulp state.
 
+Quiescence includes Pods that are still terminating: a deletion timestamp does
+not prove that a process has stopped writing. Completed and failed Job Pods are
+ignored because their processes have already exited.
+
 The recovery set contains:
 
 - logical, custom-format PostgreSQL dumps for Foreman, Candlepin, and Pulp;

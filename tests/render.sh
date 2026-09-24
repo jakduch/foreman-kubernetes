@@ -276,6 +276,7 @@ shellcheck -x \
   "${repo_root}/tests/kind/execution-plane.sh" \
   "${repo_root}/tests/kind/publish-ansible-content.sh" \
   "${repo_root}/tests/kind/run.sh"
+shellcheck "${repo_root}/tests/recovery-quiescence.sh"
 
 ruby "${repo_root}/tests/plugin-compatibility.rb"
 ruby "${repo_root}/tests/release-sets.rb"
@@ -288,6 +289,7 @@ ruby -c "${repo_root}/tests/operator-contract.rb"
 ruby "${repo_root}/tests/integration-evidence.rb"
 ruby "${repo_root}/tests/required-cluster-resources.rb"
 ruby "${repo_root}/tests/required-secrets.rb"
+"${repo_root}/tests/recovery-quiescence.sh"
 "${repo_root}/tests/install-release.sh"
 "${repo_root}/tests/upgrade-release.sh"
 

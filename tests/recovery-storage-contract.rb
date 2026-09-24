@@ -50,5 +50,8 @@ abort 'restore validates the snapshot after deleting Pulp data' unless pulp_dele
 secret_validation = restore.index('Secret escrow manifest is incomplete')
 abort 'restore validates Secret escrow after destructive changes' unless secret_validation && secret_validation < validation_boundary
 abort 'recovery quiescence omits the Katello event daemon' unless common.include?('$component == "katello-event-daemon"')
+abort 'recovery ignores terminating writers' if common.include?('.metadata.deletionTimestamp == null')
+abort 'recovery does not ignore successful Jobs' unless common.include?('(.status.phase // "") != "Succeeded"')
+abort 'recovery does not ignore failed Jobs' unless common.include?('(.status.phase // "") != "Failed"')
 
 puts "Recovery storage includes avatars; Pulp filesystem mounted=#{expect_pulp}."
