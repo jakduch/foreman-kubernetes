@@ -2,6 +2,25 @@
 
 The chart keeps component ownership separate and does not assume that independently published moving tags are compatible. A profile pins one candidate combination by OCI digest. Promotion to a supported set requires the disposable install, mTLS registration, scale, and upgrade test to pass.
 
+`compatibility/release-sets.json` is the machine-readable pairing contract. A
+set names both the application profile (Foreman/Katello, Candlepin, and Pulp)
+and the execution-proxy profile, plus their common target platform and maturity
+state. The integration harness resolves its default profiles through this file
+and rejects one-sided profile overrides, preventing a proxy candidate from
+being qualified accidentally against an unrelated application candidate. Every
+image reference in a declared set must be pinned by OCI digest.
+
+Set states have deliberately narrow meanings:
+
+- `candidate`: statically valid and manifest-verified, but the complete runtime
+  drill has not passed;
+- `supported`: the complete pinned integration and upgrade drill has retained
+  evidence for that exact set;
+- `retired`: retained for upgrade-path or historical evidence, not new installs.
+
+No set is promoted automatically from a successful render. Runtime evidence is
+still required.
+
 ## Nightly candidate from 2026-09-23
 
 | Component | Published tag | OCI digest | Platform | Status |
@@ -32,4 +51,16 @@ Use the candidate with another values file, keeping environment-specific values 
 helm upgrade --install foreman charts/foreman-stack \
   --values profiles/nightly-candidate-2026-09-23.yaml \
   --values /secure/path/production-values.yaml
+```
+
+The disposable drill uses the manifest default. Select another declared set
+with `COMPATIBILITY_SET`. Low-level profile overrides remain available for
+candidate development, but both sides must be supplied together:
+
+```sh
+COMPATIBILITY_SET=nightly-candidate-2026-09-24 tests/kind/run.sh
+
+IMAGE_PROFILE=/absolute/application-profile.yaml \
+EXECUTION_PROXY_IMAGE_PROFILE=/absolute/execution-profile.yaml \
+  tests/kind/run.sh
 ```

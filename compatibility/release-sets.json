@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "default": "nightly-candidate-2026-09-24",
+  "sets": {
+    "nightly-candidate-2026-09-24": {
+      "status": "candidate",
+      "platform": "linux/amd64",
+      "applicationProfile": "profiles/nightly-candidate-2026-09-23.yaml",
+      "executionProxyProfile": "profiles/execution-proxy-nightly-candidate-2026-09-24.yaml"
+    }
+  }
+}

@@ -187,6 +187,7 @@ shellcheck \
   "${repo_root}/tests/kind/run.sh"
 
 ruby "${repo_root}/tests/plugin-compatibility.rb"
+ruby "${repo_root}/tests/release-sets.rb"
 
 grep -Fq \
   'apache/artemis:2.57.0-alpine@sha256:ca99ce1b72c5765a15dd507db4215591c43da623cd9f42db1bcd4319e5f4b579' \
@@ -223,7 +224,7 @@ grep -Fq 'assert_interrupted_job_recovery' \
   "${repo_root}/tests/kind/execution-plane.sh"
 grep -Fq 'start_upgrade_job' \
   "${repo_root}/tests/kind/execution-plane.sh"
-grep -Fq 'wait_for_task "${task_id}" success' \
+grep -Fq "wait_for_task \"\${task_id}\" success" \
   "${repo_root}/tests/kind/execution-plane.sh"
 grep -Fq -- '--grace-period=0' \
   "${repo_root}/tests/kind/execution-plane.sh"
@@ -247,6 +248,7 @@ grep -Fq 'start_execution_upgrade_job proxy-upgrade' \
 grep -Fq 'finish_execution_upgrade_job proxy-upgrade' \
   "${repo_root}/tests/kind/run.sh"
 grep -Fq 'assert_pods_replaced' "${repo_root}/tests/kind/run.sh"
+grep -Fq 'compatibility/release-sets.json' "${repo_root}/tests/kind/run.sh"
 grep -Fq -- '-purpose sslserver' "${repo_root}/tests/kind/run.sh"
 grep -Fq -- '-purpose sslclient' "${repo_root}/tests/kind/run.sh"
 

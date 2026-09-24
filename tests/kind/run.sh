@@ -5,8 +5,10 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cluster_name="${KIND_CLUSTER_NAME:-foreman-stack-e2e}"
 namespace="foreman"
 release="foreman"
-image_profile="${IMAGE_PROFILE:-${repo_root}/profiles/nightly-candidate-2026-09-23.yaml}"
-execution_proxy_image_profile="${EXECUTION_PROXY_IMAGE_PROFILE:-${repo_root}/profiles/execution-proxy-nightly-candidate-2026-09-24.yaml}"
+compatibility_sets_file="${repo_root}/compatibility/release-sets.json"
+compatibility_set="${COMPATIBILITY_SET:-}"
+image_profile="${IMAGE_PROFILE:-}"
+execution_proxy_image_profile="${EXECUTION_PROXY_IMAGE_PROFILE:-}"
 kind_node_image="${KIND_NODE_IMAGE:-kindest/node:v1.34.11@sha256:44e222ee2132dab25ff87301682f89eb82c7880ea3a1bf543bfe9708fd08d67d}"
 created_cluster=false
 temporary_directory="$(mktemp -d)"
@@ -466,6 +468,30 @@ for command_name in kind kubectl helm openssl curl jq docker ssh-keygen cmp; do
     exit 1
   fi
 done
+
+if [[ -n "${image_profile}" && -z "${execution_proxy_image_profile}" ]] ||
+  [[ -z "${image_profile}" && -n "${execution_proxy_image_profile}" ]]; then
+  echo 'IMAGE_PROFILE and EXECUTION_PROXY_IMAGE_PROFILE must be overridden together' >&2
+  exit 1
+fi
+
+if [[ -z "${image_profile}" ]]; then
+  if [[ -z "${compatibility_set}" ]]; then
+    compatibility_set="$(jq --exit-status --raw-output '.default' \
+      "${compatibility_sets_file}")"
+  fi
+  if ! jq --exit-status --arg set "${compatibility_set}" \
+    '.sets[$set]' "${compatibility_sets_file}" >/dev/null; then
+    echo "unknown compatibility set: ${compatibility_set}" >&2
+    exit 1
+  fi
+  image_profile="${repo_root}/$(jq --exit-status --raw-output \
+    --arg set "${compatibility_set}" '.sets[$set].applicationProfile' \
+    "${compatibility_sets_file}")"
+  execution_proxy_image_profile="${repo_root}/$(jq --exit-status --raw-output \
+    --arg set "${compatibility_set}" '.sets[$set].executionProxyProfile' \
+    "${compatibility_sets_file}")"
+fi
 
 if [[ ! -f "${image_profile}" ]]; then
   echo "image profile does not exist: ${image_profile}" >&2

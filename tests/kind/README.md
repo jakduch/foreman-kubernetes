@@ -75,11 +75,12 @@ namespace. Set `SKIP_RECOVERY_TEST=1` for a faster diagnostic run that omits
 the recovery toolbox build and recovery drill; the SSH target is still built
 because execution tests remain active.
 
-By default the harness uses the digest-pinned nightly candidate under
-`profiles/` and a digest-pinned Kubernetes 1.34 kind node. The published
+By default the harness resolves the paired, digest-pinned nightly candidate
+from `compatibility/release-sets.json` and uses a digest-pinned Kubernetes 1.34
+kind node. `COMPATIBILITY_SET` selects another declared pair. The published
 application images are currently `linux/amd64` only. The script refuses an ARM
 host unless `ALLOW_EMULATION=1` explicitly opts into the slower, host-dependent
-emulation path. `IMAGE_PROFILE=/absolute/path/to/values.yaml` selects another
-candidate set; `KIND_NODE_IMAGE=...` selects another Kubernetes test image.
-`EXECUTION_PROXY_IMAGE_PROFILE=/absolute/path/to/values.yaml` selects another
-digest-pinned Smart Proxy candidate.
+emulation path. For candidate development, `IMAGE_PROFILE` and
+`EXECUTION_PROXY_IMAGE_PROFILE` may override both halves of the pair together;
+a one-sided override is rejected. `KIND_NODE_IMAGE=...` selects another
+Kubernetes test image.
