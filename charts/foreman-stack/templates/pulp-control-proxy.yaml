@@ -110,7 +110,7 @@ kind: PodDisruptionBudget
 metadata:
   name: {{ include "foreman-stack.pulpControlProxyServiceName" . }}
 spec:
-  minAvailable: 1
+  maxUnavailable: 1
   selector:
     matchLabels:
       app.kubernetes.io/instance: {{ .Release.Name }}

@@ -150,8 +150,10 @@ Disruption budgets protect redundant Foreman, Candlepin, Pulp, Pulp control,
 and Dynflow worker pools. They are rendered from the minimum replica count,
 including the HPA minimum, and are omitted when a workload is configured as a
 singleton. No budget is created for the Dynflow orchestrator or default
-single-replica Candlepin: a `minAvailable: 1` budget on a singleton would block
-voluntary node drains without providing actual availability.
+single-replica Candlepin: any availability budget on a singleton would block
+voluntary node drains without providing actual availability. Redundant
+components use `maxUnavailable: 1`, so increasing a deployment from two to
+many replicas never weakens the budget to a single surviving pod.
 
 Topology spread is soft by default so development and single-node clusters can
 start. Production profiles can switch it to `DoNotSchedule`; Kubernetes then

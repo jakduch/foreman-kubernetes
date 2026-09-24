@@ -187,6 +187,7 @@ ruby "${repo_root}/tests/recurring-tasks-migration-barrier.rb" "${rendered_no_mi
 ruby "${repo_root}/tests/foreman-shared-tmp-contract.rb" "${rendered}" true
 ruby "${repo_root}/tests/foreman-shared-tmp-contract.rb" "${rendered_s3}" false
 ruby "${repo_root}/tests/foreman-database-pool-contract.rb" "${rendered}"
+ruby "${repo_root}/tests/disruption-budget-contract.rb" "${rendered}"
 ruby "${repo_root}/tests/recovery-storage-contract.rb" "${rendered_backup}" true
 ruby "${repo_root}/tests/recovery-storage-contract.rb" "${rendered_restore}" true
 ruby "${repo_root}/tests/recovery-storage-contract.rb" "${rendered_s3_backup}" false
@@ -483,6 +484,7 @@ if [[ "$(grep -c '^kind: PodDisruptionBudget$' "${rendered_singletons}")" -ne 1 
 fi
 grep -A4 '^kind: PodDisruptionBudget$' "${rendered_singletons}" | \
   grep -q 'name: test-foreman-stack-pulp-control'
+ruby "${repo_root}/tests/disruption-budget-contract.rb" "${rendered_singletons}"
 
 if [[ "$(grep -c '^    - Egress$' "${rendered_egress}")" -ne 4 ]]; then
   echo 'expected component-scoped Foreman, Pulp, Candlepin, and control-proxy egress policies' >&2
