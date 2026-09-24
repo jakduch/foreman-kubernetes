@@ -1,0 +1,29 @@
+name: Chart checks
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  render:
+    name: Helm ${{ matrix.helm }}
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        helm:
+          - v3.19.0
+          - v4.3.0
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+        with:
+          version: ${{ matrix.helm }}
+      - name: Check shell scripts
+        run: shellcheck tests/render.sh tests/kind/run.sh tests/kind/apply-secrets.sh
+      - name: Lint and render chart profiles
+        run: tests/render.sh
