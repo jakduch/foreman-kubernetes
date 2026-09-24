@@ -3,7 +3,7 @@
 
 require 'yaml'
 
-abort "usage: #{$PROGRAM_NAME} OPERATOR_RENDER APPLICATION_RENDER EXECUTION_RENDER" unless ARGV.length == 3
+abort "usage: #{$PROGRAM_NAME} OPERATOR_RENDER MANAGED_RENDER..." unless ARGV.length >= 2
 
 operator_documents = YAML.load_stream(File.read(ARGV.fetch(0))).compact
 managed_documents = ARGV.drop(1).flat_map { |path| YAML.load_stream(File.read(path)).compact }
@@ -22,6 +22,7 @@ resource_names = {
   ['batch', 'Job'] => 'jobs',
   ['networking.k8s.io', 'Ingress'] => 'ingresses',
   ['networking.k8s.io', 'NetworkPolicy'] => 'networkpolicies',
+  ['monitoring.coreos.com', 'PrometheusRule'] => 'prometheusrules',
   ['policy', 'PodDisruptionBudget'] => 'poddisruptionbudgets'
 }.freeze
 

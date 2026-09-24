@@ -46,6 +46,8 @@ The initial Helm chart is under [`charts/foreman-stack`](charts/foreman-stack). 
   that backend is selected, with an explicit external recovery gate for S3.
 - explicit non-root identities, restricted container privileges, scoped
   disruption budgets, and optional component-level egress isolation.
+- opt-in Prometheus Operator workload alerts for application and execution
+  availability, crash loops, failed Jobs, and storage provisioning failures.
 
 ## Current status
 

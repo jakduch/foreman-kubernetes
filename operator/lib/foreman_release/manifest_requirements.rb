@@ -54,6 +54,10 @@ module ForemanRelease
 
     def add_document_requirement(requirements, document)
       case document['kind']
+      when 'PrometheusRule'
+        requirements << ['CustomResourceDefinition', 'prometheusrules.monitoring.coreos.com']
+      when 'ServiceMonitor'
+        requirements << ['CustomResourceDefinition', 'servicemonitors.monitoring.coreos.com']
       when 'HorizontalPodAutoscaler'
         metrics = Array(document.dig('spec', 'metrics')).map { |metric| metric['type'] }
         requirements << ['APIService', 'v1beta1.metrics.k8s.io', 'Available'] unless (metrics & %w[Resource ContainerResource]).empty?

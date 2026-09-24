@@ -27,6 +27,8 @@ rendered_release_operation="$(mktemp)"
 rendered_release_application="$(mktemp)"
 rendered_manual_migration_stage="$(mktemp)"
 rendered_secret_rotation="$(mktemp)"
+rendered_monitoring="$(mktemp)"
+rendered_monitoring_maintenance="$(mktemp)"
 rendered_s3="$(mktemp)"
 rendered_s3_backup="$(mktemp)"
 rendered_smtp="$(mktemp)"
@@ -38,10 +40,11 @@ rendered_execution_egress="$(mktemp)"
 rendered_execution_kind="$(mktemp)"
 rendered_execution_operation="$(mktemp)"
 rendered_execution_secret_rotation="$(mktemp)"
+rendered_execution_monitoring="$(mktemp)"
 rendered_operator="$(mktemp)"
 rendered_operator_monitoring="$(mktemp)"
 rendered_operator_egress="$(mktemp)"
-trap 'rm -f "${rendered}" "${rendered_ingress}" "${rendered_execution_registration}" "${rendered_ingress_overrides}" "${rendered_minimal_pulp_ingress}" "${rendered_backup}" "${rendered_restore}" "${rendered_egress}" "${rendered_egress_backup}" "${rendered_egress_backup_local}" "${rendered_singletons}" "${rendered_ha}" "${rendered_candlepin_port}" "${rendered_foreman_service_port}" "${rendered_foreman_secret_contract}" "${rendered_database_tls_disabled}" "${rendered_image_pull_secrets}" "${rendered_no_migrations}" "${rendered_release_operation}" "${rendered_release_application}" "${rendered_manual_migration_stage}" "${rendered_secret_rotation}" "${rendered_s3}" "${rendered_s3_backup}" "${rendered_smtp}" "${rendered_smtp_backup}" "${rendered_kind}" "${rendered_kind_backup}" "${rendered_execution}" "${rendered_execution_egress}" "${rendered_execution_kind}" "${rendered_execution_operation}" "${rendered_execution_secret_rotation}" "${rendered_operator}" "${rendered_operator_monitoring}" "${rendered_operator_egress}"' EXIT
+trap 'rm -f "${rendered}" "${rendered_ingress}" "${rendered_execution_registration}" "${rendered_ingress_overrides}" "${rendered_minimal_pulp_ingress}" "${rendered_backup}" "${rendered_restore}" "${rendered_egress}" "${rendered_egress_backup}" "${rendered_egress_backup_local}" "${rendered_singletons}" "${rendered_ha}" "${rendered_candlepin_port}" "${rendered_foreman_service_port}" "${rendered_foreman_secret_contract}" "${rendered_database_tls_disabled}" "${rendered_image_pull_secrets}" "${rendered_no_migrations}" "${rendered_release_operation}" "${rendered_release_application}" "${rendered_manual_migration_stage}" "${rendered_secret_rotation}" "${rendered_monitoring}" "${rendered_monitoring_maintenance}" "${rendered_s3}" "${rendered_s3_backup}" "${rendered_smtp}" "${rendered_smtp_backup}" "${rendered_kind}" "${rendered_kind_backup}" "${rendered_execution}" "${rendered_execution_egress}" "${rendered_execution_kind}" "${rendered_execution_operation}" "${rendered_execution_secret_rotation}" "${rendered_execution_monitoring}" "${rendered_operator}" "${rendered_operator_monitoring}" "${rendered_operator_egress}"' EXIT
 
 ruby "${repo_root}/tests/yaml-duplicates.rb"
 ruby "${repo_root}/tests/workflow-action-pins.rb" "${repo_root}/.github/workflows"
@@ -75,6 +78,13 @@ if helm lint "${chart}" --set-string releaseOperation.id=orphan-operation >/dev/
   exit 1
 fi
 helm template test "${chart}" > "${rendered}"
+helm template test "${chart}" \
+  --set monitoring.prometheusRule.enabled=true \
+  --set-string monitoring.prometheusRule.labels.release=platform-monitoring > "${rendered_monitoring}"
+helm template test "${chart}" \
+  --set maintenance.enabled=true \
+  --set monitoring.prometheusRule.enabled=true \
+  --set-string monitoring.prometheusRule.labels.release=platform-monitoring > "${rendered_monitoring_maintenance}"
 helm lint "${execution_chart}"
 if helm lint "${execution_chart}" --set 'proxy.trsutedHosts[0]=foreman.example.test' >/dev/null 2>&1; then
   echo 'execution values schema accepted an unknown proxy key' >&2
@@ -91,6 +101,9 @@ if helm template execution "${execution_chart}" \
   exit 1
 fi
 helm template execution "${execution_chart}" > "${rendered_execution}"
+helm template execution "${execution_chart}" \
+  --set monitoring.prometheusRule.enabled=true \
+  --set-string monitoring.prometheusRule.labels.release=platform-monitoring > "${rendered_execution_monitoring}"
 helm lint "${operator_chart}"
 helm template release-controller "${operator_chart}" --namespace foreman --include-crds > "${rendered_operator}"
 helm template release-controller "${operator_chart}" --namespace foreman \
@@ -385,9 +398,13 @@ ruby "${repo_root}/tests/kubernetes-invariants.rb" "${rendered_operator_egress}"
 ruby "${repo_root}/tests/operator-chart-contract.rb" "${rendered_operator}"
 ruby "${repo_root}/tests/operator-egress-contract.rb" "${rendered_operator_egress}"
 ruby "${repo_root}/tests/operator-rbac-coverage.rb" \
-  "${rendered_operator}" "${rendered_ingress}" "${rendered_execution}"
+  "${rendered_operator}" "${rendered_ingress}" "${rendered_monitoring}" \
+  "${rendered_execution_monitoring}"
 ruby "${repo_root}/tests/operator-monitoring-contract.rb" \
   "${rendered_operator}" "${rendered_operator_monitoring}"
+ruby "${repo_root}/tests/workload-monitoring-contract.rb" \
+  "${rendered}" "${rendered_monitoring}" "${rendered_monitoring_maintenance}" \
+  "${rendered_execution}" "${rendered_execution_monitoring}"
 ruby -c "${execution_chart}/files/check-features.rb"
 
 grep -q 'name: FOREMAN_PROXY_ENABLED_PLUGINS' "${rendered_execution}"

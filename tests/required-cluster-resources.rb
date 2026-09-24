@@ -76,6 +76,11 @@ manifest = <<~YAML
           target:
             type: Utilization
             averageUtilization: 75
+  ---
+  apiVersion: monitoring.coreos.com/v1
+  kind: PrometheusRule
+  metadata:
+    name: foreman
 YAML
 
 output, error, status = Open3.capture3(
@@ -86,6 +91,7 @@ abort error unless status.success?
 
 expected = <<~OUTPUT
   APIService\tv1beta1.metrics.k8s.io\tAvailable
+  CustomResourceDefinition\tprometheusrules.monitoring.coreos.com
   DefaultStorageClass\t
   IngressClass\tnginx\tk8s.io/ingress-nginx
   PersistentVolumeClaim\timported-content

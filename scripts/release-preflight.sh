@@ -67,6 +67,12 @@ check_required_cluster_resources() {
           }
         fi
         ;;
+      CustomResourceDefinition)
+        kubectl get customresourcedefinition "${resource_name}" >/dev/null || {
+          echo "required CustomResourceDefinition ${resource_name} does not exist" >&2
+          return 1
+        }
+        ;;
       PersistentVolumeClaim | ServiceAccount)
         kubectl --namespace "${namespace}" get "${resource_kind}" "${resource_name}" >/dev/null || {
           echo "required ${resource_kind} ${namespace}/${resource_name} does not exist" >&2

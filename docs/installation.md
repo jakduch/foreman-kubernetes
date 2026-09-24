@@ -109,6 +109,16 @@ already watches labelled ConfigMaps. The default
 with the deployment's discovery label when necessary. The chart supplies only
 the dashboard and never installs Grafana.
 
+The application and execution-proxy charts also provide opt-in workload
+alerts. Enable `monitoring.prometheusRule.enabled=true` in each release and set
+`monitoring.prometheusRule.labels` to the Prometheus Operator discovery labels.
+These rules consume kube-state-metrics to report missing metrics, unavailable
+Deployments, crash-looping containers, failed application Jobs, and Pending or
+Lost chart-owned PVCs. Guarded preflight requires the `PrometheusRule` CRD
+before changing workloads. Application rules are deliberately absent from a
+maintenance revision, where the database-writing Deployments are expected to
+be stopped; controller alerts continue to report the release operation.
+
 The release controller is a privileged in-namespace client of the Kubernetes
 API. Set `networkPolicy.egress.enabled=true` only after listing the in-cluster
 API Service CIDR or another exact endpoint under

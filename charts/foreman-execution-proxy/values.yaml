@@ -101,6 +101,13 @@ smokeTest:
     limits:
       memory: 128Mi
 
+monitoring:
+  prometheusRule:
+    # Requires Prometheus Operator and kube-state-metrics. The release
+    # preflight verifies the PrometheusRule CRD when this is enabled.
+    enabled: false
+    labels: {}
+
 networkPolicy:
   enabled: true
   ingress:

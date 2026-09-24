@@ -51,6 +51,8 @@ module ForemanRelease
         if contract == 'Available' && !condition_true?(api_service, 'Available')
           raise InvalidRelease, "APIService #{name} is not Available"
         end
+      when 'CustomResourceDefinition'
+        required_resource(nil, 'customresourcedefinition', name)
       when 'PersistentVolumeClaim', 'ServiceAccount'
         required_resource(namespace, kind.downcase, name)
       else

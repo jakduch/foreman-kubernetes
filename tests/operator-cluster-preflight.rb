@@ -70,6 +70,11 @@ documents = [
     'spec' => {'metrics' => [{'type' => 'Resource'}]}
   },
   {
+    'apiVersion' => 'monitoring.coreos.com/v1',
+    'kind' => 'PrometheusRule',
+    'metadata' => {'name' => 'foreman'}
+  },
+  {
     'apiVersion' => 'apps/v1',
     'kind' => 'Deployment',
     'metadata' => {'name' => 'web'},
@@ -104,6 +109,9 @@ client.objects = {
   [nil, 'apiservice', 'v1beta1.metrics.k8s.io'] => {
     'status' => {'conditions' => [{'type' => 'Available', 'status' => 'True'}]}
   },
+  [nil, 'customresourcedefinition', 'prometheusrules.monitoring.coreos.com'] => {
+    'metadata' => {'name' => 'prometheusrules.monitoring.coreos.com'}
+  },
   ['platform', 'persistentvolumeclaim', 'imported-content'] => {'metadata' => {'name' => 'imported-content'}},
   ['platform', 'serviceaccount', 'external-runtime'] => {'metadata' => {'name' => 'external-runtime'}},
   ['platform', 'secret', 'database'] => {'data' => {'password' => 'encoded'}},
@@ -128,6 +136,15 @@ begin
   raise 'missing IngressClass was accepted'
 rescue ForemanRelease::InvalidRelease => error
   raise unless error.message.include?('required ingressclass nginx does not exist')
+end
+
+client.objects[[nil, 'ingressclass', 'nginx']] = {'spec' => {'controller' => 'k8s.io/ingress-nginx'}}
+client.objects.delete([nil, 'customresourcedefinition', 'prometheusrules.monitoring.coreos.com'])
+begin
+  preflight.validate!(documents, 'platform')
+  raise 'missing PrometheusRule CRD was accepted'
+rescue ForemanRelease::InvalidRelease => error
+  raise unless error.message.include?('required customresourcedefinition prometheusrules.monitoring.coreos.com')
 end
 
 puts 'Operator preflight validates rendered cluster resources and Secret keys.'
