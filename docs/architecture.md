@@ -112,6 +112,14 @@ upstream application images still have package-defined cache and temporary
 write paths; switching them blindly to read-only would be a reliability change,
 so that remains gated on the full image integration test.
 
+Resource requests and memory limits also apply to migration wait containers,
+schema Jobs, recurring tasks, Pulp registration, and recovery. These processes
+are part of the release or recovery critical path and must remain schedulable
+and bounded in namespaces that enforce a LimitRange or ResourceQuota; they use
+the budget of the component whose code they execute. Recovery has its own
+budget because its database dumps and Restic workload differ from the running
+services.
+
 Ingress isolation is enabled by default. Egress isolation is opt-in because
 standard Kubernetes NetworkPolicy cannot select DNS names. When enabled, the
 operator must identify PostgreSQL and Valkey by namespace/pod selectors or

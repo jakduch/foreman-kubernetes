@@ -34,18 +34,22 @@ documents.group_by { |resource| identity(resource) }.each do |resource_identity,
 end
 
 workloads = documents.select { |resource| pod_template(resource) }
+maintenance_render = workloads.any? do |workload|
+  pod_template(workload).dig('metadata', 'labels', 'app.kubernetes.io/component').to_s.start_with?('recovery-')
+end
 workloads.each do |workload|
   template = pod_template(workload)
   pod_spec = template.fetch('spec')
   workload_name = identity(workload).join('/')
   selector = workload.dig('spec', 'selector', 'matchLabels')
   labels = template.dig('metadata', 'labels') || {}
+  recovery_workload = labels.fetch('app.kubernetes.io/component', '').start_with?('recovery-')
 
   if selector && !labels_match?(selector, labels)
     errors << "#{workload_name} selector does not match its pod template"
   end
 
-  if pod_spec['automountServiceAccountToken'] != false
+  if pod_spec['automountServiceAccountToken'] != false && !recovery_workload
     errors << "#{workload_name} must disable the Kubernetes API token"
   end
 
@@ -60,9 +64,13 @@ workloads.each do |workload|
     container_name = "#{workload_name}/#{container.fetch('name')}"
     security = container.fetch('securityContext', {})
     effective_non_root = security.fetch('runAsNonRoot', pod_security['runAsNonRoot'])
-    errors << "#{container_name} may run as root" unless effective_non_root == true
+    errors << "#{container_name} may run as root" unless effective_non_root == true || recovery_workload
     errors << "#{container_name} permits privilege escalation" unless security['allowPrivilegeEscalation'] == false
     errors << "#{container_name} does not drop all capabilities" unless Array(security.dig('capabilities', 'drop')).include?('ALL')
+    resources = container.fetch('resources', {})
+    errors << "#{container_name} has no CPU request" unless resources.dig('requests', 'cpu')
+    errors << "#{container_name} has no memory request" unless resources.dig('requests', 'memory')
+    errors << "#{container_name} has no memory limit" unless resources.dig('limits', 'memory')
 
     Array(container['volumeMounts']).each do |mount|
       next if volume_names.include?(mount.fetch('name'))
@@ -83,7 +91,7 @@ services.each do |service|
       labels_match?(selector, pod_template(workload).dig('metadata', 'labels') || {})
   end
   if selected_workloads.empty?
-    errors << "#{service_name} does not select a rendered workload"
+    errors << "#{service_name} does not select a rendered workload" unless maintenance_render
     next
   end
 

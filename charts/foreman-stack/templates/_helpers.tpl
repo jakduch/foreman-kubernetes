@@ -337,6 +337,8 @@ runAsGroup: {{ . }}
   envFrom:
     - secretRef:
         name: {{ .Values.foreman.existingEnvSecret }}
+  resources:
+    {{- toYaml .Values.foreman.resources | nindent 4 }}
   volumeMounts:
     {{- include "foreman-stack.foremanVolumeMounts" . | nindent 4 }}
 {{- end }}
@@ -353,6 +355,8 @@ runAsGroup: {{ . }}
     - until pulpcore-manager migrate --check; do sleep {{ .Values.migrations.checkIntervalSeconds }}; done
   env:
     {{- include "foreman-stack.pulpEnv" . | nindent 4 }}
+  resources:
+    {{- toYaml .Values.pulp.resources | nindent 4 }}
   volumeMounts:
     - name: pulp-config
       mountPath: /etc/pulp/certs/database_fields.symmetric.key

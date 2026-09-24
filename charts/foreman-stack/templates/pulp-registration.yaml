@@ -71,6 +71,8 @@ spec:
           envFrom:
             - secretRef:
                 name: {{ .Values.foreman.existingEnvSecret }}
+          resources:
+            {{- toYaml .Values.foreman.resources | nindent 12 }}
           volumeMounts:
             {{- include "foreman-stack.foremanVolumeMounts" . | nindent 12 }}
       volumes:

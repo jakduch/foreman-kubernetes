@@ -41,6 +41,8 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.candlepin.existingRuntimeSecret }}
                   key: {{ .Values.candlepin.databasePasswordSecretKey }}
+          resources:
+            {{- toYaml .Values.candlepin.resources | nindent 12 }}
           volumeMounts:
             - name: candlepin-generated-config
               mountPath: /opt/foreman-kubernetes/candlepin-migrate.sh
@@ -105,6 +107,8 @@ spec:
             - --noinput
           env:
             {{- include "foreman-stack.pulpEnv" . | nindent 12 }}
+          resources:
+            {{- toYaml .Values.pulp.resources | nindent 12 }}
           volumeMounts:
             - name: pulp-config
               mountPath: /etc/pulp/certs/database_fields.symmetric.key
@@ -160,6 +164,8 @@ spec:
           envFrom:
             - secretRef:
                 name: {{ .Values.foreman.existingEnvSecret }}
+          resources:
+            {{- toYaml .Values.foreman.resources | nindent 12 }}
           volumeMounts:
             {{- include "foreman-stack.foremanVolumeMounts" . | nindent 12 }}
       volumes:

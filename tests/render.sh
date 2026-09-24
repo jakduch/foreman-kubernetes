@@ -65,7 +65,10 @@ for manifest in \
   "${rendered_egress}" \
   "${rendered_singletons}" \
   "${rendered_ha}" \
-  "${rendered_s3}"; do
+  "${rendered_s3}" \
+  "${rendered_backup}" \
+  "${rendered_restore}" \
+  "${rendered_s3_backup}"; do
   ruby "${repo_root}/tests/kubernetes-invariants.rb" "${manifest}"
 done
 

@@ -328,6 +328,12 @@ recovery:
   activeDeadlineSeconds: 21600
   quiescenceTimeoutSeconds: 600
   extraSecretNames: []
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 2Gi
 
 backup:
   enabled: false

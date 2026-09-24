@@ -334,7 +334,7 @@
     },
     "recovery": {
       "type": "object",
-      "required": ["image", "repository", "work", "activeDeadlineSeconds", "quiescenceTimeoutSeconds", "extraSecretNames"],
+      "required": ["image", "repository", "work", "activeDeadlineSeconds", "quiescenceTimeoutSeconds", "extraSecretNames", "resources"],
       "properties": {
         "image": { "$ref": "#/definitions/image" },
         "repository": {
@@ -356,6 +356,7 @@
         },
         "activeDeadlineSeconds": { "type": "integer", "minimum": 300 },
         "quiescenceTimeoutSeconds": { "type": "integer", "minimum": 30 },
+        "resources": { "$ref": "#/definitions/resources" },
         "extraSecretNames": {
           "type": "array",
           "items": { "type": "string", "minLength": 1 },
@@ -575,6 +576,27 @@
         "repository": { "type": "string", "minLength": 1 },
         "tag": { "type": "string", "minLength": 1 },
         "pullPolicy": { "enum": ["Always", "IfNotPresent", "Never"] }
+      }
+    },
+    "resources": {
+      "type": "object",
+      "required": ["requests", "limits"],
+      "properties": {
+        "requests": {
+          "type": "object",
+          "required": ["cpu", "memory"],
+          "properties": {
+            "cpu": { "type": "string", "minLength": 1 },
+            "memory": { "type": "string", "minLength": 1 }
+          }
+        },
+        "limits": {
+          "type": "object",
+          "required": ["memory"],
+          "properties": {
+            "memory": { "type": "string", "minLength": 1 }
+          }
+        }
       }
     },
     "requestId": {
