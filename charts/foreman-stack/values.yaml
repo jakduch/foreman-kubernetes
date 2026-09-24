@@ -93,6 +93,13 @@ foreman:
     storageClass: ""
     accessMode: ReadWriteMany
     size: 20Gi
+  avatarStorage:
+    # LDAP avatar hashes live in PostgreSQL, but the image bytes are served
+    # from Rails public storage and must survive and be visible to every pod.
+    existingClaim: ""
+    storageClass: ""
+    accessMode: ReadWriteMany
+    size: 1Gi
   resources:
     requests:
       cpu: 500m

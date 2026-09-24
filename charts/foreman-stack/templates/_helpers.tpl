@@ -166,6 +166,17 @@ runAsGroup: {{ . }}
     secretName: {{ .Values.foreman.existingCertificateSecret }}
 {{- end }}
 
+{{- define "foreman-stack.foremanAvatarVolumeMount" -}}
+- name: foreman-avatars
+  mountPath: /usr/share/foreman/public/images/avatars
+{{- end }}
+
+{{- define "foreman-stack.foremanAvatarVolume" -}}
+- name: foreman-avatars
+  persistentVolumeClaim:
+    claimName: {{ default (printf "%s-foreman-avatars" (include "foreman-stack.fullname" .)) .Values.foreman.avatarStorage.existingClaim }}
+{{- end }}
+
 {{- define "foreman-stack.pulpEnv" -}}
 - name: PULP_DATABASES__default__NAME
   value: {{ .Values.pulp.database.name | quote }}

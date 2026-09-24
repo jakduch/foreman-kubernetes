@@ -35,7 +35,7 @@ if [ "${PULP_STORAGE_BACKEND}" = filesystem ]; then
 fi
 
 jq -n \
-  --arg schema_version "1" \
+  --arg schema_version "2" \
   --arg created_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
   --arg chart_version "${CHART_VERSION}" \
   --arg release "${HELM_RELEASE}" \
@@ -50,6 +50,7 @@ jq -n \
     helm_release: $release,
     namespace: $namespace,
     databases: ["foreman", "candlepin", "pulp"],
+    includes_foreman_avatars: true,
     pulp_storage_backend: $pulp_storage_backend,
     includes_pulp_filesystem: $includes_pulp_filesystem,
     secret_names: ($secret_names | split(" ") | map(select(length > 0)))
@@ -65,7 +66,7 @@ if ! restic cat config >/dev/null 2>&1; then
 fi
 
 log "Creating encrypted recovery snapshot"
-set -- /work
+set -- /work /var/lib/foreman/avatars
 if [ "${PULP_STORAGE_BACKEND}" = filesystem ]; then
   set -- "$@" /var/lib/pulp
 else

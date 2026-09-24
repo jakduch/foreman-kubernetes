@@ -15,3 +15,21 @@ spec:
     requests:
       storage: {{ .Values.foreman.sharedTmp.size }}
 {{- end }}
+{{- if not .Values.foreman.avatarStorage.existingClaim }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "foreman-stack.fullname" . }}-foreman-avatars
+  labels:
+    {{- include "foreman-stack.componentLabels" (dict "root" . "component" "foreman-avatars") | nindent 4 }}
+spec:
+  accessModes:
+    - {{ .Values.foreman.avatarStorage.accessMode }}
+  {{- with .Values.foreman.avatarStorage.storageClass }}
+  storageClassName: {{ . }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.foreman.avatarStorage.size }}
+{{- end }}

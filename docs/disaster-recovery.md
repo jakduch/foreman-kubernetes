@@ -7,6 +7,7 @@ all workloads that can write to Foreman, Candlepin, or Pulp state.
 The recovery set contains:
 
 - logical, custom-format PostgreSQL dumps for Foreman, Candlepin, and Pulp;
+- Foreman's LDAP avatar files, whose hashes but not bytes live in PostgreSQL;
 - the complete Pulp filesystem mounted at `/var/lib/pulp` when filesystem
   storage is selected;
 - an encrypted escrow copy of the application, certificate, ingress, and image

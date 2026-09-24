@@ -243,6 +243,8 @@ spec:
               mountPath: /work
             - name: recovery-tmp
               mountPath: /tmp
+            - name: foreman-avatars
+              mountPath: /var/lib/foreman/avatars
             {{- if eq .Values.pulp.storage.backend "filesystem" }}
             - name: pulp-data
               mountPath: /var/lib/pulp
@@ -276,6 +278,9 @@ spec:
           {{- end }}
         - name: recovery-tmp
           emptyDir: {}
+        - name: foreman-avatars
+          persistentVolumeClaim:
+            claimName: {{ default (printf "%s-foreman-avatars" (include "foreman-stack.fullname" .)) .Values.foreman.avatarStorage.existingClaim }}
         {{- if eq .Values.pulp.storage.backend "filesystem" }}
         - name: pulp-data
           persistentVolumeClaim:

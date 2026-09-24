@@ -71,6 +71,7 @@ spec:
                 name: {{ .Values.foreman.existingEnvSecret }}
           volumeMounts:
             {{- include "foreman-stack.foremanVolumeMounts" . | nindent 12 }}
+            {{- include "foreman-stack.foremanAvatarVolumeMount" . | nindent 12 }}
           startupProbe:
             tcpSocket:
               port: http
@@ -96,6 +97,7 @@ spec:
             {{- toYaml .Values.foreman.resources | nindent 12 }}
       volumes:
         {{- include "foreman-stack.foremanVolumes" . | nindent 8 }}
+        {{- include "foreman-stack.foremanAvatarVolume" . | nindent 8 }}
       {{- include "foreman-stack.topologySpread" (dict "Values" .Values "Release" .Release "component" "foreman") | nindent 6 }}
 {{- $minimumReplicas := ternary .Values.foreman.autoscaling.minReplicas .Values.foreman.replicas .Values.foreman.autoscaling.enabled }}
 {{- if and .Values.podDisruptionBudget.enabled (gt (int $minimumReplicas) 1) }}

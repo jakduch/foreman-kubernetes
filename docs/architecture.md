@@ -159,6 +159,11 @@ workflows nondeterministically fail. This volume is an operational hand-off
 area, not authoritative backup state; maintenance must drain active tasks
 before backup or restore.
 
+LDAP avatar bytes are different: Foreman stores only their hash in PostgreSQL
+and serves the file from `public/images/avatars`. A second RWX claim keeps those
+durable files consistent across web replicas and the recovery workflow includes
+it alongside the database snapshot.
+
 The chart also exposes an opt-in-on-invocation Helm test. Its short-lived,
 unprivileged Job calls the Foreman/Katello aggregate health endpoint and the
 Candlepin and Pulp status endpoints through the same NetworkPolicy boundary as

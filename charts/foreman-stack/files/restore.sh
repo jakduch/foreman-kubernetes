@@ -43,11 +43,18 @@ jq -e \
   --arg release "${HELM_RELEASE}" \
   --arg namespace "${POD_NAMESPACE}" \
   --arg pulp_storage_backend "${PULP_STORAGE_BACKEND}" \
-  '.schema_version == "1" and
+  '.schema_version == "2" and
    .helm_release == $release and
    .namespace == $namespace and
+   .includes_foreman_avatars == true and
    (.pulp_storage_backend // (if .includes_pulp_filesystem then "filesystem" else "unknown" end)) == $pulp_storage_backend' \
   /work/metadata/manifest.json >/dev/null
+
+log "Replacing Foreman LDAP avatars from the selected recovery snapshot"
+find /var/lib/foreman/avatars -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+restic restore "${snapshot_id}" \
+  --target / \
+  --include '/var/lib/foreman/avatars/**'
 
 if [ "${PULP_STORAGE_BACKEND}" = filesystem ]; then
   log "Replacing Pulp filesystem from the selected recovery snapshot"

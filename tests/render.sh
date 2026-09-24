@@ -13,13 +13,14 @@ rendered_singletons="$(mktemp)"
 rendered_ha="$(mktemp)"
 rendered_candlepin_port="$(mktemp)"
 rendered_foreman_service_port="$(mktemp)"
+rendered_no_migrations="$(mktemp)"
 rendered_s3="$(mktemp)"
 rendered_s3_backup="$(mktemp)"
 rendered_kind_backup="$(mktemp)"
 rendered_execution="$(mktemp)"
 rendered_execution_egress="$(mktemp)"
 rendered_execution_kind="$(mktemp)"
-trap 'rm -f "${rendered}" "${rendered_ingress}" "${rendered_backup}" "${rendered_restore}" "${rendered_egress}" "${rendered_singletons}" "${rendered_ha}" "${rendered_candlepin_port}" "${rendered_foreman_service_port}" "${rendered_s3}" "${rendered_s3_backup}" "${rendered_kind_backup}" "${rendered_execution}" "${rendered_execution_egress}" "${rendered_execution_kind}"' EXIT
+trap 'rm -f "${rendered}" "${rendered_ingress}" "${rendered_backup}" "${rendered_restore}" "${rendered_egress}" "${rendered_singletons}" "${rendered_ha}" "${rendered_candlepin_port}" "${rendered_foreman_service_port}" "${rendered_no_migrations}" "${rendered_s3}" "${rendered_s3_backup}" "${rendered_kind_backup}" "${rendered_execution}" "${rendered_execution_egress}" "${rendered_execution_kind}"' EXIT
 
 ruby "${repo_root}/tests/yaml-duplicates.rb"
 ruby "${repo_root}/tests/operator-contract.rb"
@@ -80,6 +81,8 @@ helm template test "${chart}" \
 helm template test "${chart}" \
   --set foreman.service.port=3100 > "${rendered_foreman_service_port}"
 helm template test "${chart}" \
+  --set migrations.enabled=false > "${rendered_no_migrations}"
+helm template test "${chart}" \
   --values "${repo_root}/examples/pulp-s3-values.yaml" > "${rendered_s3}"
 helm template test "${chart}" \
   --values "${repo_root}/examples/pulp-s3-values.yaml" \
@@ -102,6 +105,7 @@ for manifest in \
   "${rendered_ha}" \
   "${rendered_candlepin_port}" \
   "${rendered_foreman_service_port}" \
+  "${rendered_no_migrations}" \
   "${rendered_s3}" \
   "${rendered_backup}" \
   "${rendered_restore}" \
@@ -115,6 +119,9 @@ ruby "${repo_root}/tests/pulp-process-contract.rb" "${rendered}"
 ruby "${repo_root}/tests/katello-event-daemon-contract.rb" "${rendered_egress}"
 ruby "${repo_root}/tests/foreman-shared-tmp-contract.rb" "${rendered}" true
 ruby "${repo_root}/tests/foreman-shared-tmp-contract.rb" "${rendered_s3}" false
+ruby "${repo_root}/tests/recovery-storage-contract.rb" "${rendered_backup}" true
+ruby "${repo_root}/tests/recovery-storage-contract.rb" "${rendered_restore}" true
+ruby "${repo_root}/tests/recovery-storage-contract.rb" "${rendered_s3_backup}" false
 
 ruby "${repo_root}/tests/kubernetes-invariants.rb" "${rendered_execution}"
 ruby "${repo_root}/tests/kubernetes-invariants.rb" "${rendered_execution_egress}"
@@ -416,10 +423,6 @@ if [[ "$(grep -c 'serviceAccountName: test-foreman-stack-pulp$' "${rendered_s3}"
   echo 'only Pulp API, content, and worker Deployments should use the object-storage identity' >&2
   exit 1
 fi
-if grep -q 'persistentVolumeClaim:' "${rendered_s3_backup}"; then
-  echo 'object-backed recovery must not depend on the Pulp filesystem claim' >&2
-  exit 1
-fi
 grep -q 'name: PULP_STORAGE_BACKEND' "${rendered_s3_backup}"
 grep -A1 'name: PULP_STORAGE_BACKEND' "${rendered_s3_backup}" | grep -Eq 'value: "?s3"?'
 grep -q -- '- pulp-object-storage$' "${rendered_s3_backup}"
@@ -536,15 +539,12 @@ if helm template test "${chart}" \
   exit 1
 fi
 
-if ! helm template test "${chart}" \
-  --set migrations.enabled=false | grep -q 'candlepin.db.database_manage_on_startup=Manage'; then
+if ! grep -q 'candlepin.db.database_manage_on_startup=Manage' "${rendered_no_migrations}"; then
   echo 'Candlepin must retain upstream startup migration ownership when chart migrations are disabled' >&2
   exit 1
 fi
 
-
-if helm template test "${chart}" \
-  --set migrations.enabled=false | grep -q 'name: test-foreman-stack-candlepin-migrate-1'; then
+if grep -q 'name: test-foreman-stack-candlepin-migrate-1' "${rendered_no_migrations}"; then
   echo 'Candlepin migration resources must be omitted when chart migrations are disabled' >&2
   exit 1
 fi

@@ -50,6 +50,12 @@ pulp_worker_pod() {
     --output=jsonpath='{.items[0].metadata.name}'
 }
 
+dynflow_worker_pod() {
+  kubectl --namespace "${namespace}" get pod \
+    --selector=app.kubernetes.io/component=dynflow-worker \
+    --output=jsonpath='{.items[0].metadata.name}'
+}
+
 pod_uids() {
   local selector="$1"
 
@@ -291,6 +297,39 @@ assert_pulp_probe() {
     echo "Pulp recovery probe is '${actual_value}', expected '${expected_value}'" >&2
     exit 1
   fi
+}
+
+set_avatar_probe() {
+  local expected_value="$1"
+
+  # The inner shell expands its positional argument inside the container.
+  # shellcheck disable=SC2016
+  kubectl --namespace "${namespace}" exec "$(foreman_pod)" -- \
+    sh -c 'printf "%s\n" "$1" > /usr/share/foreman/public/images/avatars/recovery-probe' sh "${expected_value}"
+}
+
+assert_avatar_probe() {
+  local expected_value="$1"
+  local actual_value
+
+  actual_value="$(
+    kubectl --namespace "${namespace}" exec "$(foreman_pod)" -- \
+      sh -c 'cat /usr/share/foreman/public/images/avatars/recovery-probe'
+  )"
+  if [[ "${actual_value}" != "${expected_value}" ]]; then
+    echo "Foreman avatar recovery probe is '${actual_value}', expected '${expected_value}'" >&2
+    exit 1
+  fi
+}
+
+assert_shared_foreman_tmp() {
+  kubectl --namespace "${namespace}" exec "$(foreman_pod)" -- \
+    sh -c 'printf "%s\n" shared-between-pods > /usr/share/foreman/tmp/shared-volume-probe'
+
+  # The command substitution intentionally runs inside the worker container.
+  # shellcheck disable=SC2016
+  kubectl --namespace "${namespace}" exec "$(dynflow_worker_pod)" -- \
+    sh -c 'test "$(cat /usr/share/foreman/tmp/shared-volume-probe)" = shared-between-pods && rm /usr/share/foreman/tmp/shared-volume-probe'
 }
 
 set_secret_probe() {
@@ -559,12 +598,24 @@ reset_namespace_for_restore() {
   kubectl delete namespace "${namespace}" --wait=true
   kubectl delete persistentvolume \
     foreman-kind-pulp-data \
+    foreman-kind-tmp \
+    foreman-kind-avatars \
     foreman-kind-recovery-repository \
     --ignore-not-found=true \
     --wait=true
 
   docker exec "${kind_node}" \
     find /var/local/foreman-kind-pulp \
+    -mindepth 1 \
+    -maxdepth 1 \
+    -exec rm -rf -- '{}' +
+  docker exec "${kind_node}" \
+    find /var/local/foreman-kind-tmp \
+    -mindepth 1 \
+    -maxdepth 1 \
+    -exec rm -rf -- '{}' +
+  docker exec "${kind_node}" \
+    find /var/local/foreman-kind-avatars \
     -mindepth 1 \
     -maxdepth 1 \
     -exec rm -rf -- '{}' +
@@ -575,6 +626,7 @@ reset_namespace_for_restore() {
   assert_secret_probe after-reset
   assert_database_probes_absent
   docker exec "${kind_node}" test ! -e /var/local/foreman-kind-pulp/recovery-probe
+  docker exec "${kind_node}" test ! -e /var/local/foreman-kind-avatars/recovery-probe
 }
 
 cleanup() {
@@ -697,6 +749,7 @@ kubectl --namespace "${namespace}" wait \
   --timeout=10m
 
 assert_foreman_ready
+assert_shared_foreman_tmp
 assert_candlepin_ha
 assert_candlepin_pod_recovery
 assert_application_smoke_test
@@ -718,6 +771,7 @@ assert_execution_plane v1 1
 if [[ "${skip_recovery_test}" != 1 ]]; then
   set_database_probes before-backup
   set_pulp_probe before-backup
+  set_avatar_probe before-backup
   assert_secret_probe before-backup
 
   helm_apply \
@@ -730,9 +784,11 @@ if [[ "${skip_recovery_test}" != 1 ]]; then
 
   set_database_probes after-backup
   set_pulp_probe after-backup
+  set_avatar_probe after-backup
   set_secret_probe after-backup
   assert_database_probes after-backup
   assert_pulp_probe after-backup
+  assert_avatar_probe after-backup
   assert_secret_probe after-backup
 
   reset_namespace_for_restore
@@ -756,6 +812,7 @@ if [[ "${skip_recovery_test}" != 1 ]]; then
     assert "${temporary_directory}" "${content_lifecycle_state}"
   assert_database_probes before-backup
   assert_pulp_probe before-backup
+  assert_avatar_probe before-backup
   assert_secret_probe before-backup
   assert_execution_plane
 fi

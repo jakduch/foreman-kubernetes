@@ -39,7 +39,8 @@
   job, restores the injected Secret even during cleanup, and replaces the held
   Pods only after the next migration succeeds.
 - One-shot, maintenance-gated recovery Jobs produce encrypted Restic snapshots
-  of all three databases, Pulp filesystem storage, and application Secrets.
+  of all three databases, Foreman's LDAP avatars, Pulp filesystem storage, and
+  application Secrets.
 - Restore requires an explicit confirmation value, validates snapshot identity
   and contents before deletion, and keeps recovery RBAC separate from runtime
   ServiceAccounts.
