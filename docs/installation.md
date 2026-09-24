@@ -82,6 +82,12 @@ Lease holder, migration Job names, and Helm revisions are durable. Change
 `spec.paused=true` to stop at the next safe phase boundary; it never terminates
 an active migration or rollout.
 
+Both `adoptExisting` flags default to false. Set the relevant flag only for the
+first controlled takeover of an already installed Helm release, verify that
+its values match the referenced Secret and compatibility profile, and return
+the flag to false after ownership labels appear. A newly installed release or
+one already labelled with this ForemanRelease UID needs no adoption override.
+
 This path has command-level and render coverage but no retained real-cluster
 qualification yet. Do not replace the guarded scripts in production until the
 full integration workflow has exercised the published operator image and exact

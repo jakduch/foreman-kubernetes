@@ -11,11 +11,13 @@ spec:
     afterMigration: Halt
   application:
     releaseName: foreman
+    adoptExisting: false
     valuesSecretRef:
       name: foreman-release-values
       key: application.yaml
   executionProxy:
     releaseName: execution
+    adoptExisting: false
     valuesSecretRef:
       name: foreman-release-values
       key: execution-proxy.yaml

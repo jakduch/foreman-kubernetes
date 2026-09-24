@@ -77,6 +77,10 @@ spec:
                   required:
                     - valuesSecretRef
                   properties:
+                    adoptExisting:
+                      type: boolean
+                      default: false
+                      description: Explicitly allow the first operation to take ownership of an existing application Helm release.
                     releaseName:
                       type: string
                       default: foreman
@@ -100,6 +104,10 @@ spec:
                   required:
                     - valuesSecretRef
                   properties:
+                    adoptExisting:
+                      type: boolean
+                      default: false
+                      description: Explicitly allow the first operation to take ownership of an existing execution-proxy Helm release.
                     releaseName:
                       type: string
                       default: execution

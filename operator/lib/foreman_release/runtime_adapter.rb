@@ -49,6 +49,7 @@ module ForemanRelease
 
     def validate(resource, operation)
       validate_release_ownership!(resource)
+      validate_helm_ownership!(resource)
       context = resolve_context(resource)
       with_value_files(context) do |application_values, execution_values|
         lint_chart(@application_chart, application_values, context.profiles.application_path, resource, operation)
@@ -183,6 +184,40 @@ module ForemanRelease
 
       raise InvalidRelease,
             "ForemanRelease #{conflicting.dig('metadata', 'name')} already owns application #{application} or execution proxy #{execution}"
+    end
+
+    def validate_helm_ownership!(resource)
+      [
+        ['application', application_release(resource)],
+        ['executionProxy', execution_release(resource)]
+      ].each do |spec_key, release_name|
+        next unless helm_release_exists?(resource, release_name)
+        next if resource.dig('spec', spec_key, 'adoptExisting') == true
+        next if release_owned_by_resource?(resource, release_name)
+
+        raise InvalidRelease,
+              "Helm release #{release_name} already exists; set spec.#{spec_key}.adoptExisting=true to take ownership explicitly"
+      end
+    end
+
+    def helm_release_exists?(resource, release_name)
+      output = @runner.run(
+        'helm', 'list', '--namespace', resource.dig('metadata', 'namespace'),
+        '--filter', "^#{Regexp.escape(release_name)}$", '--output=json'
+      )
+      JSON.parse(output).any? { |release| release['name'] == release_name }
+    rescue JSON::ParserError => error
+      raise InvalidRelease, "cannot inspect Helm releases: #{error.message}"
+    end
+
+    def release_owned_by_resource?(resource, release_name)
+      labels = {
+        OWNER_LABEL => resource.dig('metadata', 'uid'),
+        INSTANCE_LABEL => release_name
+      }
+      %w[deployments jobs].any? do |type|
+        !@kubernetes_client.resources(resource.dig('metadata', 'namespace'), type, labels: labels).empty?
+      end
     end
 
     def resolve_context(resource, operation = nil)

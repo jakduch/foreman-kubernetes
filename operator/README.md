@@ -61,6 +61,11 @@ of an unsafe unchecked delete. Every migration, rollout, and verification
 reconciliation renews the Lease, including a release paused at a safe boundary.
 Preflight also rejects another ForemanRelease that names either of the same
 Helm releases, preventing two CRs from taking turns mutating one release.
+An existing Helm release without this CR's owner UID is rejected unless the
+matching `spec.application.adoptExisting` or
+`spec.executionProxy.adoptExisting` flag is explicitly enabled. Once labelled
+resources exist, retries and later compatibility-set changes recognize the
+release as already owned without keeping that adoption escape hatch enabled.
 
 `ForemanRelease` is namespaced because its Helm releases, values Secrets,
 migration Jobs, and status all belong to one application namespace. The

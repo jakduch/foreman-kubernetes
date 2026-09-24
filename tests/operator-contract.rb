@@ -31,6 +31,7 @@ end
   secret_reference = release_schema.dig('properties', 'valuesSecretRef')
   raise "#{release} Secret reference must require name and key" unless secret_reference.fetch('required').sort == %w[key name]
   raise "#{release} Secret reference must remain in the CR namespace" if secret_reference.fetch('properties').key?('namespace')
+  raise "#{release} does not require explicit existing-release adoption" unless release_schema.dig('properties', 'adoptExisting', 'default') == false
 end
 
 after_migration = spec_schema.dig('properties', 'failurePolicy', 'properties', 'afterMigration')

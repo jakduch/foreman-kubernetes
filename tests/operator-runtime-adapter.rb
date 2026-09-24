@@ -10,12 +10,14 @@ require root.join('operator/lib/foreman_release/runtime_adapter').to_s
 
 class RecordingHelmRunner
   attr_reader :calls, :renders, :values_modes
+  attr_accessor :existing_releases
 
   def initialize
     @real = ForemanRelease::CommandRunner.new
     @calls = []
     @renders = {}
     @values_modes = []
+    @existing_releases = []
   end
 
   def run(*command, stdin_data: '')
@@ -33,6 +35,8 @@ class RecordingHelmRunner
       'submitted'
     when %w[helm status]
       JSON.generate('version' => command.include?('execution') ? 4 : 2)
+    when %w[helm list]
+      JSON.generate(@existing_releases.map { |name| {'name' => name} })
     when %w[helm template]
       output = @real.run(*command, stdin_data: stdin_data)
       @renders[command.fetch(2)] = YAML.load_stream(output).compact
@@ -173,6 +177,18 @@ raise 'rendered cluster preflight was not executed' unless preflight.calls.lengt
 operation.merge!(validation.details)
 raise 'Secret values were not written with mode 0600' unless runner.values_modes.all? { |mode| mode == 0o600 }
 
+runner.existing_releases = ['foreman']
+begin
+  adapter.validate(resource, operation)
+  raise 'unmanaged existing Helm release was adopted implicitly'
+rescue ForemanRelease::InvalidRelease => error
+  raise unless error.message.include?('application.adoptExisting=true')
+end
+resource['spec']['application']['adoptExisting'] = true
+raise 'explicit Helm release adoption was rejected' unless adapter.validate(resource, operation).state == :succeeded
+resource['spec']['application']['adoptExisting'] = false
+runner.existing_releases = []
+
 conflict = Marshal.load(Marshal.dump(resource))
 conflict['metadata']['name'] = 'conflicting-release'
 conflict['metadata']['uid'] = '87654321-4321-4321-4321-cba987654321'
@@ -212,6 +228,10 @@ kubernetes.replace('jobs', operation_jobs.map { |job| complete_job(job) })
 migrations = adapter.ensure_migrations(resource, operation)
 raise 'completed migrations were not adopted' unless migrations.state == :succeeded
 raise 'migration Job names were not recorded' unless migrations.details.fetch(:migrationJobs).length == 3
+
+runner.existing_releases = ['foreman']
+raise 'controller-owned Helm release required re-adoption' unless adapter.validate(resource, operation).state == :succeeded
+runner.existing_releases = []
 
 deployments = application_render.select { |item| item['kind'] == 'Deployment' }.map { |item| available_deployment(item) }
 kubernetes.replace('deployments', deployments)
