@@ -96,8 +96,9 @@ Still required:
    amd64; the harness now terminates one scheduler pod and requires a distinct
    replacement while retaining exactly two live cluster rows.
 3. Exercise failed and successful migrations against the pinned image set.
-4. Move migration-before-rollout sequencing into the operator, then replace
-   `Recreate` with a proven rolling strategy.
+4. Exercise the operator's migration-before-rollout sequence, then replace
+   `Recreate` with a rolling strategy only after adjacent-version schema
+   compatibility is proven.
 
 ## Operator track
 

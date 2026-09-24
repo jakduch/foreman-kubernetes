@@ -67,7 +67,8 @@ end
 resource_runner = FakeRunner.new(
   JSON.generate('items' => [{'metadata' => {'name' => 'migration'}}]),
   JSON.generate('metadata' => {'name' => 'migration'}),
-  JSON.generate('metadata' => {'name' => 'smoke'})
+  JSON.generate('metadata' => {'name' => 'smoke'}),
+  JSON.generate('metadata' => {'name' => 'runtime-config', 'resourceVersion' => '8'})
 )
 resource_client = ForemanRelease::KubernetesClient.new(runner: resource_runner)
 listed = resource_client.resources('platform', 'jobs', labels: {'operation' => 'release-1', 'owner' => 'uid-1'})
@@ -79,6 +80,14 @@ raise 'single resource was not decoded' unless resource_client.resource('platfor
 created = resource_client.create('platform', {'apiVersion' => 'batch/v1', 'kind' => 'Job', 'metadata' => {'name' => 'smoke'}})
 raise 'created resource was not decoded' unless created.dig('metadata', 'name') == 'smoke'
 raise 'resource create did not use stdin' unless resource_runner.calls.last.last.include?('"kind":"Job"')
+replaced = resource_client.replace(
+  'platform',
+  {'apiVersion' => 'v1', 'kind' => 'ConfigMap', 'metadata' => {'name' => 'runtime-config', 'resourceVersion' => '7'}}
+)
+raise 'replaced resource was not decoded' unless replaced.dig('metadata', 'resourceVersion') == '8'
+replace_command = resource_runner.calls.last.first
+raise 'resource replace did not use kubectl replace' unless replace_command.include?('replace')
+raise 'resource replace did not use stdin' unless resource_runner.calls.last.last.include?('"resourceVersion":"7"')
 
 finalizer = 'platform.theforeman.org/release-protection'
 finalizer_runner = FakeRunner.new(

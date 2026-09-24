@@ -117,13 +117,11 @@ deployment-specific content workflow. The disposable kind harness contains the
 stronger active-job upgrade assertions, but they remain unverified until the
 complete pinned amd64 drill runs.
 
-## Future operator boundary
+## Release controller boundary
 
 The renewable Lease serializes the supported install, upgrade, and recovery
-helpers, but
-it cannot prevent a second administrator from bypassing it with raw Helm,
-publish component health as durable status, or decide whether a failed schema
-migration is safe to retry. A future controller should adopt the same Lease
-contract and add explicit phase/status conditions, migration Job ownership,
-and roll-forward recovery. It must retain the rule that database rollback is a
-separate recovery action, not a side effect of reverting Deployments.
+helpers and the `ForemanRelease` controller. The controller adds durable phase
+conditions, migration Job ownership, explicit retry authorization, and
+roll-forward sequencing, but it cannot prevent an administrator from bypassing
+the Lease with raw Helm. Database rollback remains a separate recovery action,
+not a side effect of reverting Deployments.

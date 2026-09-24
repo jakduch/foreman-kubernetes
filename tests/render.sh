@@ -24,6 +24,7 @@ rendered_database_tls_disabled="$(mktemp)"
 rendered_image_pull_secrets="$(mktemp)"
 rendered_no_migrations="$(mktemp)"
 rendered_release_operation="$(mktemp)"
+rendered_release_application="$(mktemp)"
 rendered_secret_rotation="$(mktemp)"
 rendered_s3="$(mktemp)"
 rendered_s3_backup="$(mktemp)"
@@ -38,7 +39,7 @@ rendered_execution_operation="$(mktemp)"
 rendered_execution_secret_rotation="$(mktemp)"
 rendered_operator="$(mktemp)"
 rendered_operator_monitoring="$(mktemp)"
-trap 'rm -f "${rendered}" "${rendered_ingress}" "${rendered_execution_registration}" "${rendered_ingress_overrides}" "${rendered_minimal_pulp_ingress}" "${rendered_backup}" "${rendered_restore}" "${rendered_egress}" "${rendered_egress_backup}" "${rendered_egress_backup_local}" "${rendered_singletons}" "${rendered_ha}" "${rendered_candlepin_port}" "${rendered_foreman_service_port}" "${rendered_foreman_secret_contract}" "${rendered_database_tls_disabled}" "${rendered_image_pull_secrets}" "${rendered_no_migrations}" "${rendered_release_operation}" "${rendered_secret_rotation}" "${rendered_s3}" "${rendered_s3_backup}" "${rendered_smtp}" "${rendered_smtp_backup}" "${rendered_kind}" "${rendered_kind_backup}" "${rendered_execution}" "${rendered_execution_egress}" "${rendered_execution_kind}" "${rendered_execution_operation}" "${rendered_execution_secret_rotation}" "${rendered_operator}" "${rendered_operator_monitoring}"' EXIT
+trap 'rm -f "${rendered}" "${rendered_ingress}" "${rendered_execution_registration}" "${rendered_ingress_overrides}" "${rendered_minimal_pulp_ingress}" "${rendered_backup}" "${rendered_restore}" "${rendered_egress}" "${rendered_egress_backup}" "${rendered_egress_backup_local}" "${rendered_singletons}" "${rendered_ha}" "${rendered_candlepin_port}" "${rendered_foreman_service_port}" "${rendered_foreman_secret_contract}" "${rendered_database_tls_disabled}" "${rendered_image_pull_secrets}" "${rendered_no_migrations}" "${rendered_release_operation}" "${rendered_release_application}" "${rendered_secret_rotation}" "${rendered_s3}" "${rendered_s3_backup}" "${rendered_smtp}" "${rendered_smtp_backup}" "${rendered_kind}" "${rendered_kind_backup}" "${rendered_execution}" "${rendered_execution_egress}" "${rendered_execution_kind}" "${rendered_execution_operation}" "${rendered_execution_secret_rotation}" "${rendered_operator}" "${rendered_operator_monitoring}"' EXIT
 
 ruby "${repo_root}/tests/yaml-duplicates.rb"
 ruby "${repo_root}/tests/workflow-action-pins.rb" "${repo_root}/.github/workflows"
@@ -231,6 +232,10 @@ helm template test "${chart}" \
   --set-string releaseOperation.id=uid-123-generation-7 \
   --set-string releaseOperation.ownerUid=12345678-1234-1234-1234-123456789abc > "${rendered_release_operation}"
 helm template test "${chart}" \
+  --set-string releaseOperation.id=uid-123-generation-7 \
+  --set-string releaseOperation.ownerUid=12345678-1234-1234-1234-123456789abc \
+  --set releaseOperation.skipMigrationJobs=true > "${rendered_release_application}"
+helm template test "${chart}" \
   --set secretRolloutToken=rotated-credentials > "${rendered_secret_rotation}"
 helm template test "${chart}" \
   --values "${repo_root}/examples/pulp-s3-values.yaml" > "${rendered_s3}"
@@ -294,6 +299,8 @@ ruby "${repo_root}/tests/release-operation-contract.rb" \
   "${rendered_release_operation}" \
   uid-123-generation-7 \
   12345678-1234-1234-1234-123456789abc
+ruby "${repo_root}/tests/operator-migration-staging-contract.rb" \
+  "${rendered_release_operation}" "${rendered_release_application}"
 ruby "${repo_root}/tests/candlepin-shutdown-contract.rb" "${rendered}"
 ruby "${repo_root}/tests/pulp-ingress-contract.rb" "${rendered_ingress}"
 ruby "${repo_root}/tests/pulp-ingress-contract.rb" "${rendered_minimal_pulp_ingress}"

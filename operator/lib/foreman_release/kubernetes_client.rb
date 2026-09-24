@@ -60,6 +60,14 @@ module ForemanRelease
       JSON.parse(response)
     end
 
+    def replace(namespace, resource)
+      response = @runner.run(
+        'kubectl', '--namespace', namespace, 'replace', '--filename=-', '--output=json',
+        stdin_data: JSON.generate(resource)
+      )
+      JSON.parse(response)
+    end
+
     def write_status(resource, status)
       metadata = resource.fetch('metadata')
       resource_version = metadata.fetch('resourceVersion')

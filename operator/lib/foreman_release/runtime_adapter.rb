@@ -27,6 +27,11 @@ module ForemanRelease
       'applicationProfileSha256' => :application_profile,
       'executionProxyProfileSha256' => :execution_proxy_profile
     }.freeze
+    MIGRATION_DEPENDENCY_TYPES = {
+      'ConfigMap' => 'configmap',
+      'PersistentVolumeClaim' => 'persistentvolumeclaim',
+      'ServiceAccount' => 'serviceaccount'
+    }.freeze
 
     ReleaseContext = Struct.new(
       :profiles,
@@ -96,25 +101,29 @@ module ForemanRelease
 
         live = operation_resources(resource, operation, 'jobs')
         matching = live.select { |job| expected_names(expected).include?(job.dig('metadata', 'name')) }
-        if matching.empty?
-          upgrade(
-            application_release(resource), @application_chart, values_path,
-            context.profiles.application_path, resource, operation
-          )
-          return Observation.new(state: :pending, message: 'application release submitted; waiting for migration Jobs')
+        unless matching.length == expected.length
+          submit_migration_bundle(resource, operation, resources, expected, matching)
+          return Observation.new(state: :pending, message: 'migration resources submitted; waiting for Jobs')
         end
-        return incomplete_job_set(expected, matching, 'migration') unless matching.length == expected.length
 
         observe_jobs(matching, details: {migrationJobs: expected_names(expected).sort})
       end
     end
 
     def ensure_application(resource, operation)
-      with_rendered_application(resource, operation) do |_context, _values_path, resources|
+      with_rendered_application(resource, operation) do |context, values_path, resources|
         expected_deployments = resources.select { |item| item['kind'] == 'Deployment' }
         raise InvalidRelease, 'application chart did not render any Deployments' if expected_deployments.empty?
 
         live_deployments = operation_resources(resource, operation, 'deployments')
+        if live_deployments.empty?
+          upgrade(
+            application_release(resource), @application_chart, values_path,
+            context.profiles.application_path, resource, operation,
+            skip_migration_jobs: true
+          )
+          return Observation.new(state: :pending, message: 'application release submitted after successful migrations')
+        end
         deployment_result = observe_deployments(expected_deployments, live_deployments)
         return deployment_result unless deployment_result.state == :succeeded
 
@@ -430,14 +439,105 @@ module ForemanRelease
       matches && expressions
     end
 
-    def upgrade(release_name, chart, values_path, profile_path, resource, operation)
+    def upgrade(release_name, chart, values_path, profile_path, resource, operation, skip_migration_jobs: false)
+      phase_arguments = if skip_migration_jobs
+                          ['--set', 'releaseOperation.skipMigrationJobs=true']
+                        else
+                          []
+                        end
       @runner.run(
         'helm', 'upgrade', '--install', release_name, chart,
         '--namespace', resource.dig('metadata', 'namespace'),
         '--history-max', '10',
         '--values', values_path, '--values', profile_path,
+        *phase_arguments,
         *operation_arguments(resource, operation)
       )
+    end
+
+    def submit_migration_bundle(resource, operation, rendered, expected_jobs, live_jobs)
+      dependencies = migration_dependencies(rendered, expected_jobs)
+      dependencies.each { |dependency| ensure_helm_dependency(resource, dependency) }
+
+      live_names = expected_names(live_jobs)
+      expected_jobs.reject { |job| live_names.include?(job.dig('metadata', 'name')) }.each do |job|
+        ensure_owned_resource(resource, operation, owned_operation_resource(job, resource), application_release(resource))
+      end
+    end
+
+    def migration_dependencies(rendered, migration_jobs)
+      names = MIGRATION_DEPENDENCY_TYPES.keys.to_h { |kind| [kind, []] }
+      migration_jobs.each do |job|
+        pod_spec = job.dig('spec', 'template', 'spec') || {}
+        names['ServiceAccount'] << pod_spec['serviceAccountName'] if pod_spec['serviceAccountName']
+        Array(pod_spec['volumes']).each do |volume|
+          names['ConfigMap'] << volume.dig('configMap', 'name') if volume.dig('configMap', 'name')
+          claim = volume.dig('persistentVolumeClaim', 'claimName')
+          names['PersistentVolumeClaim'] << claim if claim
+        end
+      end
+
+      rendered.select do |item|
+        names.fetch(item['kind'], []).include?(item.dig('metadata', 'name'))
+      end
+    end
+
+    def ensure_helm_dependency(resource, desired)
+      namespace = resource.dig('metadata', 'namespace')
+      release_name = application_release(resource)
+      dependency = Marshal.load(Marshal.dump(desired))
+      metadata = dependency.fetch('metadata')
+      metadata.delete('namespace')
+      metadata['labels'] ||= {}
+      metadata['labels']['app.kubernetes.io/managed-by'] = 'Helm'
+      metadata['annotations'] ||= {}
+      metadata['annotations']['meta.helm.sh/release-name'] = release_name
+      metadata['annotations']['meta.helm.sh/release-namespace'] = namespace
+      @kubernetes_client.create(namespace, dependency)
+    rescue CommandError => error
+      raise unless error.stderr.include?('AlreadyExists')
+
+      type = MIGRATION_DEPENDENCY_TYPES.fetch(dependency.fetch('kind'))
+      existing = @kubernetes_client.resource(namespace, type, dependency.dig('metadata', 'name'))
+      validate_helm_dependency_ownership!(existing, release_name, namespace)
+      return unless dependency['kind'] == 'ConfigMap'
+
+      dependency['metadata']['resourceVersion'] = existing.dig('metadata', 'resourceVersion')
+      @kubernetes_client.replace(namespace, dependency)
+    end
+
+    def validate_helm_dependency_ownership!(resource, release_name, namespace)
+      metadata = resource.fetch('metadata')
+      owned = metadata.dig('labels', 'app.kubernetes.io/managed-by') == 'Helm' &&
+        metadata.dig('annotations', 'meta.helm.sh/release-name') == release_name &&
+        metadata.dig('annotations', 'meta.helm.sh/release-namespace') == namespace
+      return if owned
+
+      raise InvalidRelease, "migration dependency #{metadata.fetch('name')} is not owned by Helm release #{release_name}"
+    end
+
+    def ensure_owned_resource(resource, operation, expected, release_name)
+      @kubernetes_client.create(resource.dig('metadata', 'namespace'), expected)
+    rescue CommandError => error
+      raise unless error.stderr.include?('AlreadyExists')
+
+      existing = @kubernetes_client.resource(
+        resource.dig('metadata', 'namespace'), expected.fetch('kind').downcase, expected.dig('metadata', 'name')
+      )
+      labels = existing.dig('metadata', 'labels') || {}
+      unless labels[OPERATION_LABEL] == operation.fetch('id') &&
+             labels[OWNER_LABEL] == resource.dig('metadata', 'uid') &&
+             labels[INSTANCE_LABEL] == release_name
+        raise InvalidRelease, "#{expected.fetch('kind')} #{expected.dig('metadata', 'name')} belongs to another release operation"
+      end
+    end
+
+    def owned_operation_resource(template, resource)
+      result = Marshal.load(Marshal.dump(template))
+      result['metadata'].delete('namespace')
+      result['metadata']['labels']['app.kubernetes.io/managed-by'] = 'foreman-release-controller'
+      result['metadata']['ownerReferences'] = [release_owner_reference(resource)]
+      result
     end
 
     def operation_resources(resource, operation, type, instance: application_release(resource))
@@ -596,15 +696,19 @@ module ForemanRelease
       annotations.delete_if { |key, _value| key.start_with?('helm.sh/hook') }
       annotations['foreman-kubernetes.io/verification-stage'] = stage
       job['metadata']['annotations'] = annotations
-      job['metadata']['ownerReferences'] = [{
+      job['metadata']['ownerReferences'] = [release_owner_reference(resource)]
+      job
+    end
+
+    def release_owner_reference(resource)
+      {
         'apiVersion' => resource.fetch('apiVersion'),
         'kind' => resource.fetch('kind'),
         'name' => resource.dig('metadata', 'name'),
         'uid' => resource.dig('metadata', 'uid'),
         'controller' => true,
         'blockOwnerDeletion' => true
-      }]
-      job
+      }
     end
 
     def bounded_name(raw)

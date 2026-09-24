@@ -48,7 +48,7 @@ class RecordingHelmRunner
 end
 
 class RuntimeKubernetesClient
-  attr_reader :created
+  attr_reader :created, :created_resources
   attr_accessor :application_values, :execution_values, :releases_list
 
   def initialize(application_values:, execution_values:)
@@ -56,6 +56,7 @@ class RuntimeKubernetesClient
     @execution_values = execution_values
     @resources = Hash.new { |hash, key| hash[key] = [] }
     @created = []
+    @created_resources = []
     @releases_list = []
   end
 
@@ -79,13 +80,48 @@ class RuntimeKubernetesClient
 
   def create(_namespace, resource)
     copy = Marshal.load(Marshal.dump(resource))
-    @resources['jobs'] << copy
-    @created << copy
+    type = resource_type(copy.fetch('kind'))
+    if @resources[type].any? { |item| item.dig('metadata', 'name') == copy.dig('metadata', 'name') }
+      raise ForemanRelease::CommandError.new(['kubectl', 'create'], 'AlreadyExists', 1)
+    end
+
+    copy['metadata']['resourceVersion'] ||= (@created_resources.length + 1).to_s
+    @resources[type] << copy
+    @created_resources << copy
+    @created << copy if type == 'jobs'
     copy
   end
 
-  def replace(type, resources)
-    @resources[type] = Marshal.load(Marshal.dump(resources))
+  def replace(type_or_namespace, resources_or_resource)
+    if resources_or_resource.is_a?(Array)
+      @resources[type_or_namespace] = Marshal.load(Marshal.dump(resources_or_resource))
+      return resources_or_resource
+    end
+
+    resource = Marshal.load(Marshal.dump(resources_or_resource))
+    type = resource_type(resource.fetch('kind'))
+    index = @resources[type].index { |item| item.dig('metadata', 'name') == resource.dig('metadata', 'name') }
+    raise 'replaced resource does not exist' unless index
+
+    resource['metadata']['resourceVersion'] = (Integer(resource.dig('metadata', 'resourceVersion')) + 1).to_s
+    @resources[type][index] = resource
+    resource
+  end
+
+  def resource(_namespace, type, name)
+    plural = type.end_with?('s') ? type : "#{type}s"
+    @resources[plural].find { |item| item.dig('metadata', 'name') == name } || raise('resource not found')
+  end
+
+  private
+
+  def resource_type(kind)
+    {
+      'ConfigMap' => 'configmaps',
+      'Job' => 'jobs',
+      'PersistentVolumeClaim' => 'persistentvolumeclaims',
+      'ServiceAccount' => 'serviceaccounts'
+    }.fetch(kind)
   end
 end
 
@@ -275,18 +311,46 @@ ensure
   kubernetes.application_values = original_values
 end
 
+application_render = runner.renders.fetch('foreman')
+desired_foreman_config = application_render.find do |item|
+  item['kind'] == 'ConfigMap' && item.dig('metadata', 'name').end_with?('-foreman-config')
+end
+existing_foreman_config = Marshal.load(Marshal.dump(desired_foreman_config))
+existing_foreman_config['metadata']['resourceVersion'] = '40'
+existing_foreman_config['metadata']['labels']['app.kubernetes.io/managed-by'] = 'Helm'
+existing_foreman_config['metadata']['annotations'] = {
+  'meta.helm.sh/release-name' => 'foreman',
+  'meta.helm.sh/release-namespace' => 'platform'
+}
+existing_foreman_config['data'] = {'stale' => 'configuration'}
+kubernetes.replace('configmaps', [existing_foreman_config])
+
 first_migration = adapter.ensure_migrations(resource, operation)
 raise 'initial migration reconciliation did not remain pending' unless first_migration.state == :pending
-upgrade = runner.calls.map(&:first).find { |command| command.first(2) == %w[helm upgrade] && command.include?('foreman') }
-raise 'application Helm release was not submitted' unless upgrade
-raise 'runtime adapter used blocking Helm wait' if upgrade.any? { |argument| argument.start_with?('--wait') }
-raise 'application operation ID was not passed to Helm' unless upgrade.include?("releaseOperation.id=#{operation.fetch('id')}")
-
-application_render = runner.renders.fetch('foreman')
-operation_jobs = application_render.select do |item|
-  item['kind'] == 'Job' && %w[candlepin-migrate pulp-migrate foreman-migrate pulp-registration].include?(item.dig('metadata', 'labels', 'app.kubernetes.io/component'))
+if runner.calls.map(&:first).any? { |command| command.first(2) == %w[helm upgrade] && command.include?('foreman') }
+  raise 'application workloads were submitted before migrations completed'
 end
-kubernetes.replace('jobs', operation_jobs.map { |job| complete_job(job) })
+migration_jobs = kubernetes.created.select do |item|
+  ForemanRelease::RuntimeAdapter::MIGRATION_COMPONENTS.include?(item.dig('metadata', 'labels', 'app.kubernetes.io/component'))
+end
+raise 'controller did not submit all migration Jobs directly' unless migration_jobs.length == 3
+unless migration_jobs.all? { |job| job.dig('metadata', 'ownerReferences', 0, 'uid') == resource.dig('metadata', 'uid') }
+  raise 'migration Jobs are not owned by the ForemanRelease'
+end
+prepared_kinds = kubernetes.created_resources.each_with_object(Hash.new(0)) do |item, counts|
+  counts[item['kind']] += 1
+end
+unless prepared_kinds.slice('ConfigMap', 'PersistentVolumeClaim', 'ServiceAccount') == {
+  'ConfigMap' => 1, 'PersistentVolumeClaim' => 1, 'ServiceAccount' => 1
+}
+  raise "migration prerequisites were not prepared: #{prepared_kinds.inspect}"
+end
+updated_foreman_config = kubernetes.resource('platform', 'configmap', desired_foreman_config.dig('metadata', 'name'))
+unless updated_foreman_config['data'] == desired_foreman_config['data']
+  raise 'existing migration ConfigMap was not updated before starting Jobs'
+end
+
+kubernetes.replace('jobs', migration_jobs.map { |job| complete_job(job) })
 migrations = adapter.ensure_migrations(resource, operation)
 raise 'completed migrations were not adopted' unless migrations.state == :succeeded
 raise 'migration Job names were not recorded' unless migrations.details.fetch(:migrationJobs).length == 3
@@ -295,8 +359,23 @@ runner.existing_releases = ['foreman']
 raise 'controller-owned Helm release required re-adoption' unless adapter.validate(resource, operation).state == :succeeded
 runner.existing_releases = []
 
+application_submission = adapter.ensure_application(resource, operation)
+raise 'application submission did not remain pending' unless application_submission.state == :pending
+upgrade = runner.calls.map(&:first).find { |command| command.first(2) == %w[helm upgrade] && command.include?('foreman') }
+raise 'application Helm release was not submitted after migrations' unless upgrade
+raise 'runtime adapter used blocking Helm wait' if upgrade.any? { |argument| argument.start_with?('--wait') }
+raise 'application operation ID was not passed to Helm' unless upgrade.include?("releaseOperation.id=#{operation.fetch('id')}")
+unless upgrade.include?('releaseOperation.skipMigrationJobs=true')
+  raise 'application rollout attempted to recreate controller-owned migration Jobs'
+end
+
+application_render = runner.renders.fetch('foreman')
 deployments = application_render.select { |item| item['kind'] == 'Deployment' }.map { |item| available_deployment(item) }
 kubernetes.replace('deployments', deployments)
+registration_jobs = application_render.select do |item|
+  item['kind'] == 'Job' && item.dig('metadata', 'labels', 'app.kubernetes.io/component') == 'pulp-registration'
+end
+kubernetes.replace('jobs', migration_jobs.map { |job| complete_job(job) } + registration_jobs.map { |job| complete_job(job) })
 application = adapter.ensure_application(resource, operation)
 raise "available application was not accepted: #{application.message}" unless application.state == :succeeded
 raise 'application Helm revision was not recorded' unless application.details == {applicationRevision: 2}
@@ -331,12 +410,18 @@ raise 'registration Job has the wrong component' unless registration_job.dig('me
                                                     'execution-proxy-registration'
 registration_script = registration_job.dig('spec', 'template', 'spec', 'containers', 0, 'command').join("\n")
 raise 'registration Job does not verify exact Foreman features' unless registration_script.include?('proxy.features.reload.pluck(:name).sort')
-raise 'application verification Jobs reused a name' unless kubernetes.created.map { |job| job.dig('metadata', 'name') }.uniq.length == 2
+verification_jobs = kubernetes.created.reject do |job|
+  ForemanRelease::RuntimeAdapter::MIGRATION_COMPONENTS.include?(job.dig('metadata', 'labels', 'app.kubernetes.io/component'))
+end
+raise 'application verification Jobs reused a name' unless verification_jobs.map { |job| job.dig('metadata', 'name') }.uniq.length == 2
 kubernetes.replace('jobs', kubernetes.resources('platform', 'jobs').map { |job| complete_job(job) })
 
 final_application_smoke = adapter.ensure_final_smoke(resource, operation)
 raise 'final application smoke Job was not submitted asynchronously' unless final_application_smoke.state == :pending
-raise 'verification Jobs did not receive distinct names' unless kubernetes.created.map { |job| job.dig('metadata', 'name') }.uniq.length == 3
+verification_jobs = kubernetes.created.reject do |job|
+  ForemanRelease::RuntimeAdapter::MIGRATION_COMPONENTS.include?(job.dig('metadata', 'labels', 'app.kubernetes.io/component'))
+end
+raise 'verification Jobs did not receive distinct names' unless verification_jobs.map { |job| job.dig('metadata', 'name') }.uniq.length == 3
 kubernetes.replace('jobs', kubernetes.resources('platform', 'jobs').map { |job| complete_job(job) })
 
 execution_smoke = adapter.ensure_final_smoke(resource, operation)
@@ -346,7 +431,10 @@ raise 'execution smoke Job has the wrong Helm instance' unless execution_job.dig
 raise 'execution smoke Job does not verify the proxy Service' unless execution_job.dig('spec', 'template', 'spec', 'containers', 0, 'env').any? do |entry|
   entry['name'] == 'PROXY_FEATURES_URL' && entry['value'] == 'https://execution-foreman-execution-proxy:8443/features'
 end
-raise 'four release verification Jobs did not receive distinct names' unless kubernetes.created.map { |job| job.dig('metadata', 'name') }.uniq.length == 4
+verification_jobs = kubernetes.created.reject do |job|
+  ForemanRelease::RuntimeAdapter::MIGRATION_COMPONENTS.include?(job.dig('metadata', 'labels', 'app.kubernetes.io/component'))
+end
+raise 'four release verification Jobs did not receive distinct names' unless verification_jobs.map { |job| job.dig('metadata', 'name') }.uniq.length == 4
 kubernetes.replace('jobs', kubernetes.resources('platform', 'jobs').map { |job| complete_job(job) })
 raise 'completed paired final smoke gate was not adopted' unless adapter.ensure_final_smoke(resource, operation).state == :succeeded
 

@@ -62,9 +62,13 @@ The adapter boundary now includes three concrete, tested primitives:
 blocking `--wait`. Validation pins SHA-256 fingerprints for both values Secret
 keys and both in-image profiles into the operation status, so a mutable Secret
 or a controller-image change cannot silently alter an in-flight release. It
-submits the application release once, adopts the operation-labelled migration
-and Pulp registration Jobs, observes every expected Deployment, then submits
-and adopts deterministic smoke-test Jobs. The execution-proxy release follows
+prepares the chart-owned ServiceAccount, PVC, and desired ConfigMaps, then
+creates three ForemanRelease-owned migration Jobs without changing any
+Deployment. Existing Pods mount those ConfigMaps through `subPath`, so they
+retain their old configuration inode during migrations. Only after all three
+Jobs succeed does it submit the application Helm revision with migration Jobs
+suppressed, observe every expected Deployment and Pulp registration Job, then
+submit deterministic smoke-test Jobs. The execution-proxy release follows
 the same operation identity and is applied only after the application smoke
 test succeeds. Once available, an idempotent Rails Job registers it without an
 API password and requires Foreman to associate exactly Ansible, Dynflow, and
@@ -82,9 +86,9 @@ without explicit CRUD coverage, while Pods remain read-only and cluster-scoped
 preflight access remains separately read-only.
 
 Operator-owned Jobs intentionally have no completion TTL. This preserves the
-result across a controller outage; a later Helm operation replaces the old
-revision resources. Jobs from the manual Helm workflow retain their one-hour
-TTL.
+result across a controller outage. They remain attached to the ForemanRelease
+for audit and restart adoption, while Jobs from the manual Helm workflow retain
+their one-hour TTL.
 
 `LeaseManager` implements both fencing boundaries. Controller candidates use
 the short-lived `foreman-release-controller-leader` Lease to elect one active

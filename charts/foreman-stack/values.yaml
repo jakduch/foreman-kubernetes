@@ -27,6 +27,7 @@ platform:
 releaseOperation:
   id: ""
   ownerUid: ""
+  skipMigrationJobs: false
 
 ingress:
   enabled: false

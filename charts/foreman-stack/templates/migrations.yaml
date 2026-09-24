@@ -1,4 +1,4 @@
-{{- if and .Values.migrations.enabled (not .Values.maintenance.enabled) }}
+{{- if and .Values.migrations.enabled (not .Values.maintenance.enabled) (not .Values.releaseOperation.skipMigrationJobs) }}
 apiVersion: batch/v1
 kind: Job
 metadata:

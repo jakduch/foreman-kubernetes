@@ -53,8 +53,10 @@ must provide the same layout or its own migration command.
 The Deployment deliberately retains the `Recreate` strategy. More than one
 replica protects request service from a pod or node failure during normal
 operation, but this first HA slice does not claim a zero-downtime schema
-upgrade. The future operator must finish the migration Job, verify the schema,
-and only then roll a new application revision.
+upgrade. `ForemanRelease` now creates and finishes the Candlepin migration Job
+before it submits the application Helm revision. Replacing `Recreate` with a
+rolling strategy still requires runtime proof that both adjacent Candlepin
+versions can safely serve during every supported schema transition.
 
 ## Values example
 

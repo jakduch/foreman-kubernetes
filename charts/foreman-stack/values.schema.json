@@ -41,7 +41,7 @@
     "releaseOperation": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "ownerUid"],
+      "required": ["id", "ownerUid", "skipMigrationJobs"],
       "properties": {
         "id": {
           "type": "string",
@@ -52,7 +52,8 @@
           "type": "string",
           "maxLength": 63,
           "pattern": "^$|^[a-z0-9]([a-z0-9._-]*[a-z0-9])?$"
-        }
+        },
+        "skipMigrationJobs": { "type": "boolean" }
       },
       "oneOf": [
         {
