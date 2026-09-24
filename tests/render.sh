@@ -175,6 +175,8 @@ ruby "${repo_root}/tests/dynflow-lifecycle-contract.rb" "${rendered}"
 ruby "${repo_root}/tests/backend-readiness-contract.rb" "${rendered}"
 ruby "${repo_root}/tests/candlepin-migration-barrier.rb" "${rendered}" true
 ruby "${repo_root}/tests/candlepin-migration-barrier.rb" "${rendered_no_migrations}" false
+ruby "${repo_root}/tests/recurring-tasks-migration-barrier.rb" "${rendered}" true
+ruby "${repo_root}/tests/recurring-tasks-migration-barrier.rb" "${rendered_no_migrations}" false
 ruby "${repo_root}/tests/foreman-shared-tmp-contract.rb" "${rendered}" true
 ruby "${repo_root}/tests/foreman-shared-tmp-contract.rb" "${rendered_s3}" false
 ruby "${repo_root}/tests/recovery-storage-contract.rb" "${rendered_backup}" true

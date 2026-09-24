@@ -39,6 +39,10 @@ spec:
             runAsUser: 994
             seccompProfile:
               type: RuntimeDefault
+          {{- if $root.Values.migrations.enabled }}
+          initContainers:
+            {{- include "foreman-stack.foremanMigrationWait" $root | nindent 12 }}
+          {{- end }}
           containers:
             - name: rake
               image: {{ include "foreman-stack.image" $root.Values.foreman.image }}

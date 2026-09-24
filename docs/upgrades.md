@@ -51,6 +51,9 @@ Foreman and Pulp processes use schema-checking init containers. Candlepin uses
 the same idempotent Liquibase update command in both its revision Job and a Pod
 init barrier. Whichever acquires Liquibase's database lock first performs the
 update; the other confirms it, and Tomcat cannot start before that succeeds.
+Foreman's recurring CronJobs use the Foreman schema barrier as well, so a task
+scheduled during an upgrade cannot start new application code against a schema
+that is still being migrated.
 
 Run a supported set with:
 
