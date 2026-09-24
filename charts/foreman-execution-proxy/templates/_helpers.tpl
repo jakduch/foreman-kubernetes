@@ -18,6 +18,10 @@ app.kubernetes.io/component: execution-proxy
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 app.kubernetes.io/part-of: foreman
 platform.theforeman.org/compatibility-set: {{ .Values.compatibilitySet | quote }}
+{{- with .Values.releaseOperation.id }}
+platform.theforeman.org/release-operation: {{ . | quote }}
+platform.theforeman.org/release-owner: {{ $.Values.releaseOperation.ownerUid | quote }}
+{{- end }}
 {{- end }}
 
 {{- define "foreman-execution-proxy.selectorLabels" -}}
@@ -29,6 +33,10 @@ app.kubernetes.io/component: execution-proxy
 {{- define "foreman-execution-proxy.podLabels" -}}
 {{ include "foreman-execution-proxy.selectorLabels" . }}
 platform.theforeman.org/compatibility-set: {{ .Values.compatibilitySet | quote }}
+{{- with .Values.releaseOperation.id }}
+platform.theforeman.org/release-operation: {{ . | quote }}
+platform.theforeman.org/release-owner: {{ $.Values.releaseOperation.ownerUid | quote }}
+{{- end }}
 {{- end }}
 
 {{- define "foreman-execution-proxy.serviceAccountName" -}}

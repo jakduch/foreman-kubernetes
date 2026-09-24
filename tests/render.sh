@@ -32,8 +32,9 @@ rendered_kind_backup="$(mktemp)"
 rendered_execution="$(mktemp)"
 rendered_execution_egress="$(mktemp)"
 rendered_execution_kind="$(mktemp)"
+rendered_execution_operation="$(mktemp)"
 rendered_execution_secret_rotation="$(mktemp)"
-trap 'rm -f "${rendered}" "${rendered_ingress}" "${rendered_ingress_overrides}" "${rendered_minimal_pulp_ingress}" "${rendered_backup}" "${rendered_restore}" "${rendered_egress}" "${rendered_egress_backup}" "${rendered_egress_backup_local}" "${rendered_singletons}" "${rendered_ha}" "${rendered_candlepin_port}" "${rendered_foreman_service_port}" "${rendered_foreman_secret_contract}" "${rendered_database_tls_disabled}" "${rendered_image_pull_secrets}" "${rendered_no_migrations}" "${rendered_release_operation}" "${rendered_secret_rotation}" "${rendered_s3}" "${rendered_s3_backup}" "${rendered_smtp}" "${rendered_smtp_backup}" "${rendered_kind}" "${rendered_kind_backup}" "${rendered_execution}" "${rendered_execution_egress}" "${rendered_execution_kind}" "${rendered_execution_secret_rotation}"' EXIT
+trap 'rm -f "${rendered}" "${rendered_ingress}" "${rendered_ingress_overrides}" "${rendered_minimal_pulp_ingress}" "${rendered_backup}" "${rendered_restore}" "${rendered_egress}" "${rendered_egress_backup}" "${rendered_egress_backup_local}" "${rendered_singletons}" "${rendered_ha}" "${rendered_candlepin_port}" "${rendered_foreman_service_port}" "${rendered_foreman_secret_contract}" "${rendered_database_tls_disabled}" "${rendered_image_pull_secrets}" "${rendered_no_migrations}" "${rendered_release_operation}" "${rendered_secret_rotation}" "${rendered_s3}" "${rendered_s3_backup}" "${rendered_smtp}" "${rendered_smtp_backup}" "${rendered_kind}" "${rendered_kind_backup}" "${rendered_execution}" "${rendered_execution_egress}" "${rendered_execution_kind}" "${rendered_execution_operation}" "${rendered_execution_secret_rotation}"' EXIT
 
 ruby "${repo_root}/tests/yaml-duplicates.rb"
 ruby "${repo_root}/tests/workflow-action-pins.rb" "${repo_root}/.github/workflows"
@@ -61,6 +62,10 @@ if helm lint "${execution_chart}" --set 'proxy.trsutedHosts[0]=foreman.example.t
   echo 'execution values schema accepted an unknown proxy key' >&2
   exit 1
 fi
+if helm lint "${execution_chart}" --set-string releaseOperation.id=orphan-operation >/dev/null 2>&1; then
+  echo 'execution operation ID was accepted without its ForemanRelease owner UID' >&2
+  exit 1
+fi
 if helm template execution "${execution_chart}" \
   --set terminationGracePeriodSeconds=30 \
   --set proxy.requestDrainSeconds=30 >/dev/null 2>&1; then
@@ -68,6 +73,9 @@ if helm template execution "${execution_chart}" \
   exit 1
 fi
 helm template execution "${execution_chart}" > "${rendered_execution}"
+helm template execution "${execution_chart}" \
+  --set-string releaseOperation.id=uid-123-generation-7 \
+  --set-string releaseOperation.ownerUid=12345678-1234-1234-1234-123456789abc > "${rendered_execution_operation}"
 helm template execution "${execution_chart}" \
   --set secretRolloutToken=rotated-credentials > "${rendered_execution_secret_rotation}"
 helm lint "${execution_chart}" --values "${repo_root}/examples/execution-proxy-values.yaml"
@@ -301,7 +309,12 @@ ruby "${repo_root}/tests/secret-rollout-contract.rb" "${rendered}" "${rendered_s
 ruby "${repo_root}/tests/kubernetes-invariants.rb" "${rendered_execution}"
 ruby "${repo_root}/tests/kubernetes-invariants.rb" "${rendered_execution_egress}"
 ruby "${repo_root}/tests/kubernetes-invariants.rb" "${rendered_execution_kind}"
+ruby "${repo_root}/tests/kubernetes-invariants.rb" "${rendered_execution_operation}"
 ruby "${repo_root}/tests/kubernetes-invariants.rb" "${rendered_execution_secret_rotation}"
+ruby "${repo_root}/tests/execution-release-operation-contract.rb" \
+  "${rendered_execution_operation}" \
+  uid-123-generation-7 \
+  12345678-1234-1234-1234-123456789abc
 ruby "${repo_root}/tests/secret-rollout-contract.rb" \
   "${rendered_execution}" "${rendered_execution_secret_rotation}"
 ruby -c "${execution_chart}/files/check-features.rb"

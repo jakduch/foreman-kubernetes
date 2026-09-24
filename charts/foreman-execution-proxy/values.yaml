@@ -6,6 +6,12 @@ imagePullSecrets: []
 # Guarded releases override this with the exact digest-pinned compatibility set.
 compatibilitySet: unqualified
 
+# Set together only by the ForemanRelease controller. These labels identify
+# the paired proxy rollout without becoming part of its immutable selector.
+releaseOperation:
+  id: ""
+  ownerUid: ""
+
 # Change after rotating a referenced TLS, SSH, or known-hosts Secret. Several
 # files use subPath or are copied into runtime storage during pod startup.
 secretRolloutToken: initial
