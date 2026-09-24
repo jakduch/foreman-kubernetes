@@ -106,6 +106,29 @@ services.each do |service|
   end
 end
 
+documents.select { |resource| resource['kind'] == 'NetworkPolicy' }.each do |policy|
+  next unless Array(policy.dig('spec', 'policyTypes')).include?('Ingress')
+
+  selector = policy.dig('spec', 'podSelector', 'matchLabels') || {}
+  selected_workloads = workloads.select do |workload|
+    namespace(workload) == namespace(policy) &&
+      labels_match?(selector, pod_template(workload).dig('metadata', 'labels') || {})
+  end
+  next if selected_workloads.empty?
+
+  available_ports = selected_workloads.flat_map do |workload|
+    Array(pod_template(workload).dig('spec', 'containers')).flat_map do |container|
+      Array(container['ports']).flat_map { |port| [port['name'], port['containerPort']] }.compact
+    end
+  end
+  Array(policy.dig('spec', 'ingress')).flat_map { |rule| Array(rule['ports']) }.each do |port|
+    target = port['port']
+    next if available_ports.include?(target)
+
+    errors << "#{identity(policy).join('/')} permits missing container port #{target}"
+  end
+end
+
 documents.select { |resource| resource['kind'] == 'Ingress' }.each do |ingress|
   ingress_name = identity(ingress).join('/')
   Array(ingress.dig('spec', 'rules')).each do |rule|
