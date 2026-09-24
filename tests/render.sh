@@ -11,13 +11,14 @@ rendered_restore="$(mktemp)"
 rendered_egress="$(mktemp)"
 rendered_singletons="$(mktemp)"
 rendered_ha="$(mktemp)"
+rendered_candlepin_port="$(mktemp)"
 rendered_s3="$(mktemp)"
 rendered_s3_backup="$(mktemp)"
 rendered_kind_backup="$(mktemp)"
 rendered_execution="$(mktemp)"
 rendered_execution_egress="$(mktemp)"
 rendered_execution_kind="$(mktemp)"
-trap 'rm -f "${rendered}" "${rendered_ingress}" "${rendered_backup}" "${rendered_restore}" "${rendered_egress}" "${rendered_singletons}" "${rendered_ha}" "${rendered_s3}" "${rendered_s3_backup}" "${rendered_kind_backup}" "${rendered_execution}" "${rendered_execution_egress}" "${rendered_execution_kind}"' EXIT
+trap 'rm -f "${rendered}" "${rendered_ingress}" "${rendered_backup}" "${rendered_restore}" "${rendered_egress}" "${rendered_singletons}" "${rendered_ha}" "${rendered_candlepin_port}" "${rendered_s3}" "${rendered_s3_backup}" "${rendered_kind_backup}" "${rendered_execution}" "${rendered_execution_egress}" "${rendered_execution_kind}"' EXIT
 
 ruby "${repo_root}/tests/yaml-duplicates.rb"
 ruby "${repo_root}/tests/operator-contract.rb"
@@ -74,6 +75,8 @@ helm template test "${chart}" \
 helm template test "${chart}" \
   --values "${repo_root}/tests/ha-values.yaml" > "${rendered_ha}"
 helm template test "${chart}" \
+  --set candlepin.service.port=24443 > "${rendered_candlepin_port}"
+helm template test "${chart}" \
   --values "${repo_root}/examples/pulp-s3-values.yaml" > "${rendered_s3}"
 helm template test "${chart}" \
   --values "${repo_root}/examples/pulp-s3-values.yaml" \
@@ -94,6 +97,7 @@ for manifest in \
   "${rendered_egress}" \
   "${rendered_singletons}" \
   "${rendered_ha}" \
+  "${rendered_candlepin_port}" \
   "${rendered_s3}" \
   "${rendered_backup}" \
   "${rendered_restore}" \
@@ -101,6 +105,8 @@ for manifest in \
   "${rendered_kind_backup}"; do
   ruby "${repo_root}/tests/kubernetes-invariants.rb" "${manifest}"
 done
+
+ruby "${repo_root}/tests/candlepin-port.rb" "${rendered_candlepin_port}" 24443
 
 ruby "${repo_root}/tests/kubernetes-invariants.rb" "${rendered_execution}"
 ruby "${repo_root}/tests/kubernetes-invariants.rb" "${rendered_execution_egress}"

@@ -76,7 +76,7 @@ spec:
             {{- end }}
           ports:
             - name: https
-              containerPort: 23443
+              containerPort: {{ .Values.candlepin.service.port }}
           volumeMounts:
             - name: candlepin-generated-config
               mountPath: /etc/candlepin/candlepin.conf
