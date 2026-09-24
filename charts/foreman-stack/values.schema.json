@@ -77,6 +77,15 @@
           }
         }
       }
+    },
+    "migrations": {
+      "type": "object",
+      "required": ["enabled", "checkIntervalSeconds", "activeDeadlineSeconds"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "checkIntervalSeconds": { "type": "integer", "minimum": 1, "maximum": 60 },
+        "activeDeadlineSeconds": { "type": "integer", "minimum": 60 }
+      }
     }
   },
   "definitions": {

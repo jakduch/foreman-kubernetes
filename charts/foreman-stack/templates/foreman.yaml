@@ -42,6 +42,10 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- if .Values.migrations.enabled }}
+      initContainers:
+        {{- include "foreman-stack.foremanMigrationWait" . | nindent 8 }}
+      {{- end }}
       containers:
         - name: foreman
           image: {{ include "foreman-stack.image" .Values.foreman.image }}

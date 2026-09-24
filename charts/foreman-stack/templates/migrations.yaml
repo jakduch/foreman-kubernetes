@@ -5,12 +5,9 @@ metadata:
   name: {{ include "foreman-stack.fullname" . }}-pulp-migrate-{{ .Release.Revision }}
   labels:
     {{- include "foreman-stack.componentLabels" (dict "root" . "component" "pulp-migrate") | nindent 4 }}
-  annotations:
-    helm.sh/hook: pre-install,pre-upgrade
-    helm.sh/hook-weight: "-20"
-    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
 spec:
   backoffLimit: 3
+  activeDeadlineSeconds: {{ .Values.migrations.activeDeadlineSeconds }}
   ttlSecondsAfterFinished: 3600
   template:
     metadata:
@@ -48,12 +45,9 @@ metadata:
   name: {{ include "foreman-stack.fullname" . }}-foreman-migrate-{{ .Release.Revision }}
   labels:
     {{- include "foreman-stack.componentLabels" (dict "root" . "component" "foreman-migrate") | nindent 4 }}
-  annotations:
-    helm.sh/hook: pre-install,pre-upgrade
-    helm.sh/hook-weight: "-10"
-    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
 spec:
   backoffLimit: 3
+  activeDeadlineSeconds: {{ .Values.migrations.activeDeadlineSeconds }}
   ttlSecondsAfterFinished: 3600
   template:
     metadata:
@@ -65,6 +59,8 @@ spec:
       serviceAccountName: {{ include "foreman-stack.serviceAccountName" . }}
       securityContext:
         fsGroup: 994
+      initContainers:
+        {{- include "foreman-stack.pulpMigrationWait" . | nindent 8 }}
       containers:
         - name: migrate
           image: {{ include "foreman-stack.image" .Values.foreman.image }}
@@ -82,4 +78,7 @@ spec:
             {{- include "foreman-stack.foremanVolumeMounts" . | nindent 12 }}
       volumes:
         {{- include "foreman-stack.foremanVolumes" . | nindent 8 }}
+        - name: pulp-config
+          secret:
+            secretName: {{ .Values.pulp.existingConfigSecret }}
 {{- end }}

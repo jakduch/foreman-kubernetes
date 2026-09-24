@@ -62,7 +62,7 @@ Pulp already exposes separate API, content, and worker commands. All three use t
 
 PostgreSQL, Valkey, object/shared storage, PKI, and Secrets are external contracts. This keeps the first application chart usable with existing operators and managed services.
 
-Pulp migrations run before Foreman migrations on install and upgrade. Both are Helm hook Jobs with bounded retries. Candlepin retains its upstream startup migration behavior while it is single-replica.
+Pulp and Foreman migrations are release-revision Jobs with bounded retries. The Foreman migration Job waits until Pulp reports no pending migrations, preserving their dependency order. Application pods use init containers to wait for their own schema, so Helm can create configuration, Jobs, and workloads in one release without a pre-install hook referencing a ConfigMap that does not exist yet. Candlepin retains its upstream startup migration behavior while it is single-replica.
 
 ## Network services
 

@@ -21,6 +21,13 @@ grep -q 'CANDLEPIN_AUTH_OAUTH_CONSUMER_KATELLO_SECRET' "${rendered}"
 grep -q 'JPA_CONFIG_HIBERNATE_CONNECTION_PASSWORD' "${rendered}"
 grep -q 'PULP_DATABASES__default__PASSWORD' "${rendered}"
 grep -q "ENV.fetch('CANDLEPIN_OAUTH_SECRET')" "${rendered}"
+grep -q 'name: wait-for-pulp-migrations' "${rendered}"
+grep -q 'name: wait-for-foreman-migrations' "${rendered}"
+
+if grep -q 'helm.sh/hook: pre-install' "${rendered}"; then
+  echo 'migration jobs must not run before their generated configuration exists' >&2
+  exit 1
+fi
 
 if grep -q 'CHANGE_ME' "${rendered}"; then
   echo 'rendered manifests must not contain example secret placeholders' >&2

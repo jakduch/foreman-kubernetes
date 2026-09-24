@@ -47,6 +47,14 @@ app.kubernetes.io/component: {{ .component }}
 {{- printf "%s-candlepin" (include "foreman-stack.fullname" .) }}
 {{- end }}
 
+{{- define "foreman-stack.pulpApiServiceName" -}}
+{{- printf "%s-pulp-api" (include "foreman-stack.fullname" .) }}
+{{- end }}
+
+{{- define "foreman-stack.pulpContentServiceName" -}}
+{{- printf "%s-pulp-content" (include "foreman-stack.fullname" .) }}
+{{- end }}
+
 {{- define "foreman-stack.foremanEnv" -}}
 - name: RAILS_ENV
   value: production
@@ -137,7 +145,7 @@ app.kubernetes.io/component: {{ .component }}
 - name: PULP_ANSIBLE_CONTENT_HOSTNAME
   value: {{ printf "%s/pulp/content" (trimSuffix "/" .Values.pulp.contentOrigin) | quote }}
 - name: PULP_SMART_PROXY_PULP_URL
-  value: {{ printf "http://%s-pulp-api:%v" (include "foreman-stack.fullname" .) .Values.pulp.api.port | quote }}
+  value: {{ printf "http://%s:%v" (include "foreman-stack.pulpApiServiceName" .) .Values.pulp.api.port | quote }}
 - name: PULP_ENABLED_PLUGINS
   value: {{ toJson .Values.pulp.enabledPlugins | quote }}
 - name: PULP_AUTHENTICATION_BACKENDS
@@ -150,6 +158,40 @@ app.kubernetes.io/component: {{ .component }}
   value: "true"
 - name: PULP_CACHE_ENABLED
   value: "true"
+{{- end }}
+
+{{- define "foreman-stack.foremanMigrationWait" -}}
+- name: wait-for-foreman-migrations
+  image: {{ include "foreman-stack.image" .Values.foreman.image }}
+  imagePullPolicy: {{ .Values.foreman.image.pullPolicy }}
+  command:
+    - /bin/bash
+    - -ec
+    - until bin/rails db:abort_if_pending_migrations; do sleep {{ .Values.migrations.checkIntervalSeconds }}; done
+  env:
+    {{- include "foreman-stack.foremanEnv" . | nindent 4 }}
+  envFrom:
+    - secretRef:
+        name: {{ .Values.foreman.existingEnvSecret }}
+  volumeMounts:
+    {{- include "foreman-stack.foremanVolumeMounts" . | nindent 4 }}
+{{- end }}
+
+{{- define "foreman-stack.pulpMigrationWait" -}}
+- name: wait-for-pulp-migrations
+  image: {{ include "foreman-stack.image" .Values.pulp.image }}
+  imagePullPolicy: {{ .Values.pulp.image.pullPolicy }}
+  command:
+    - /bin/bash
+    - -ec
+    - until pulpcore-manager migrate --check; do sleep {{ .Values.migrations.checkIntervalSeconds }}; done
+  env:
+    {{- include "foreman-stack.pulpEnv" . | nindent 4 }}
+  volumeMounts:
+    - name: pulp-config
+      mountPath: /etc/pulp/certs/database_fields.symmetric.key
+      subPath: database_fields.symmetric.key
+      readOnly: true
 {{- end }}
 
 {{- define "foreman-stack.topologySpread" -}}

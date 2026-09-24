@@ -130,6 +130,8 @@ pulp:
 
 migrations:
   enabled: true
+  checkIntervalSeconds: 5
+  activeDeadlineSeconds: 1800
 
 recurringTasks:
   enabled: true

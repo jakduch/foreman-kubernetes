@@ -31,6 +31,10 @@ spec:
       securityContext:
         fsGroup: 994
         fsGroupChangePolicy: OnRootMismatch
+      {{- if $root.Values.migrations.enabled }}
+      initContainers:
+        {{- include "foreman-stack.foremanMigrationWait" $root | nindent 8 }}
+      {{- end }}
       containers:
         - name: dynflow
           image: {{ include "foreman-stack.image" $root.Values.foreman.image }}

@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "foreman-stack.fullname" . }}-pulp-api
+  name: {{ include "foreman-stack.pulpApiServiceName" . }}
   labels:
     {{- include "foreman-stack.componentLabels" (dict "root" . "component" "pulp-api") | nindent 4 }}
 spec:
@@ -16,7 +16,7 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "foreman-stack.fullname" . }}-pulp-content
+  name: {{ include "foreman-stack.pulpContentServiceName" . }}
   labels:
     {{- include "foreman-stack.componentLabels" (dict "root" . "component" "pulp-content") | nindent 4 }}
 spec:
@@ -57,6 +57,10 @@ spec:
       securityContext:
         fsGroup: 700
         fsGroupChangePolicy: OnRootMismatch
+      {{- if $root.Values.migrations.enabled }}
+      initContainers:
+        {{- include "foreman-stack.pulpMigrationWait" $root | nindent 8 }}
+      {{- end }}
       containers:
         - name: pulp-{{ $service.name }}
           image: {{ include "foreman-stack.image" $root.Values.pulp.image }}
@@ -130,6 +134,10 @@ spec:
       securityContext:
         fsGroup: 700
         fsGroupChangePolicy: OnRootMismatch
+      {{- if .Values.migrations.enabled }}
+      initContainers:
+        {{- include "foreman-stack.pulpMigrationWait" . | nindent 8 }}
+      {{- end }}
       containers:
         - name: pulp-worker
           image: {{ include "foreman-stack.image" .Values.pulp.image }}
