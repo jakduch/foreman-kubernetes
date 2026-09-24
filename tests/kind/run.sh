@@ -19,16 +19,51 @@ application_secret_rollout_token=initial
 execution_secret_rollout_token=initial
 
 helm_apply() {
+  local operation_id
+  local migration_stage
+
+  if [[ " $* " == *' maintenance.enabled=true '* ]]; then
+    helm upgrade --install "${release}" "${repo_root}/charts/foreman-stack" \
+      --namespace "${namespace}" \
+      --values "${repo_root}/tests/kind/values.yaml" \
+      --values "${repo_root}/examples/execution-control-plane-values.yaml" \
+      --values "${image_profile}" \
+      --set-string secretRolloutToken="${application_secret_rollout_token}" \
+      --wait \
+      --wait-for-jobs \
+      --timeout 30m \
+      "$@"
+    return
+  fi
+
+  operation_id="kind-$(date -u +%Y%m%d%H%M%S)-$$-${RANDOM}"
+  migration_stage="$(helm template "${release}" "${repo_root}/charts/foreman-stack" \
+    --namespace "${namespace}" \
+    --values "${repo_root}/tests/kind/values.yaml" \
+    --values "${repo_root}/examples/execution-control-plane-values.yaml" \
+    --values "${image_profile}" \
+    --set-string secretRolloutToken="${application_secret_rollout_token}" \
+    "$@" \
+    --set-string "releaseOperation.id=${operation_id}" \
+    --set-string "releaseOperation.ownerUid=${operation_id}" | \
+    ruby "${repo_root}/scripts/render-migration-stage.rb" "${release}" "${namespace}")"
+  printf '%s\n' "${migration_stage}" | kubectl --namespace "${namespace}" apply --filename -
+  kubectl --namespace "${namespace}" wait \
+    --for=condition=complete job \
+    --selector="platform.theforeman.org/release-operation=${operation_id}" \
+    --timeout=30m
+
   helm upgrade --install "${release}" "${repo_root}/charts/foreman-stack" \
     --namespace "${namespace}" \
     --values "${repo_root}/tests/kind/values.yaml" \
     --values "${repo_root}/examples/execution-control-plane-values.yaml" \
     --values "${image_profile}" \
     --set-string secretRolloutToken="${application_secret_rollout_token}" \
+    "$@" \
+    --set releaseOperation.skipMigrationJobs=true \
     --wait \
     --wait-for-jobs \
-    --timeout 30m \
-    "$@"
+    --timeout 30m
 }
 
 helm_execution_apply() {
@@ -87,34 +122,18 @@ assert_pods_replaced() {
   done <<<"${previous_uids}"
 }
 
-assert_rollout_held() {
+assert_pods_unchanged() {
   local selector="$1"
   local previous_uids="$2"
   local current_uids
-  local current_uid
-  local new_uid_seen=false
-  local previous_uid
 
   current_uids="$(pod_uids "${selector}")"
   if [[ -z "${previous_uids}" || -z "${current_uids}" ]]; then
     echo "Cannot prove Pod retention for selector ${selector}" >&2
     exit 1
   fi
-  while IFS= read -r previous_uid; do
-    if ! grep -Fxq "${previous_uid}" <<<"${current_uids}"; then
-      echo "Pod ${previous_uid} for selector ${selector} was replaced before migrations succeeded" >&2
-      exit 1
-    fi
-  done <<<"${previous_uids}"
-
-  while IFS= read -r current_uid; do
-    if ! grep -Fxq "${current_uid}" <<<"${previous_uids}"; then
-      new_uid_seen=true
-      break
-    fi
-  done <<<"${current_uids}"
-  if [[ "${new_uid_seen}" != true ]]; then
-    echo "No migration-gated replacement Pod was created for selector ${selector}" >&2
+  if [[ "${current_uids}" != "${previous_uids}" ]]; then
+    echo "Pods for selector ${selector} changed before migrations succeeded" >&2
     exit 1
   fi
 }
@@ -461,11 +480,13 @@ assert_failed_migration_gate() {
   local dynflow_orchestrator_uids_before
   local dynflow_worker_uids_before
   local dynflow_hosts_queue_uids_before
+  local helm_revision_before
 
   foreman_uids_before="$(pod_uids 'app.kubernetes.io/component=foreman')"
   dynflow_orchestrator_uids_before="$(pod_uids 'app.kubernetes.io/component=dynflow-orchestrator')"
   dynflow_worker_uids_before="$(pod_uids 'app.kubernetes.io/component=dynflow-worker')"
   dynflow_hosts_queue_uids_before="$(pod_uids 'app.kubernetes.io/component=dynflow-worker-hosts-queue')"
+  helm_revision_before="$(helm status "${release}" --namespace "${namespace}" --output=json | jq --raw-output '.version')"
   start_execution_upgrade_job failed-migration-upgrade "${upgrade_state}"
 
   foreman_database_url_backup="$(kubectl --namespace "${namespace}" get secret \
@@ -488,7 +509,8 @@ assert_failed_migration_gate() {
   fi
 
   helm status "${release}" --namespace "${namespace}" --output=json | \
-    jq --exit-status '.info.status == "failed"' >/dev/null
+    jq --exit-status --argjson revision "${helm_revision_before}" \
+      '.info.status == "deployed" and .version == $revision' >/dev/null
   kubectl --namespace "${namespace}" get jobs \
     --selector=app.kubernetes.io/component=foreman-migrate \
     --output=json | jq --exit-status \
@@ -497,12 +519,12 @@ assert_failed_migration_gate() {
         any(.status.conditions[]?; .type == "Failed" and .status == "True"))' >/dev/null
   restore_foreman_database_url
 
-  assert_rollout_held 'app.kubernetes.io/component=foreman' "${foreman_uids_before}"
-  assert_rollout_held \
+  assert_pods_unchanged 'app.kubernetes.io/component=foreman' "${foreman_uids_before}"
+  assert_pods_unchanged \
     'app.kubernetes.io/component=dynflow-orchestrator' \
     "${dynflow_orchestrator_uids_before}"
-  assert_rollout_held 'app.kubernetes.io/component=dynflow-worker' "${dynflow_worker_uids_before}"
-  assert_rollout_held \
+  assert_pods_unchanged 'app.kubernetes.io/component=dynflow-worker' "${dynflow_worker_uids_before}"
+  assert_pods_unchanged \
     'app.kubernetes.io/component=dynflow-worker-hosts-queue' \
     "${dynflow_hosts_queue_uids_before}"
   assert_foreman_ready

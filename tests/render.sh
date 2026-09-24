@@ -61,6 +61,7 @@ ruby "${repo_root}/tests/operator-runtime-adapter.rb"
 ruby "${repo_root}/tests/values-schema-coverage.rb"
 ruby "${repo_root}/tests/recovery-image-contract.rb"
 ruby "${repo_root}/tests/operator-image-contract.rb"
+ruby "${repo_root}/tests/kind-release-sequencing.rb"
 
 helm lint "${chart}"
 if helm lint "${chart}" --set pulp.workres.replicas=2 >/dev/null 2>&1; then
@@ -559,7 +560,7 @@ grep -Fq 'finish_execution_upgrade_job proxy-upgrade' \
   "${repo_root}/tests/kind/run.sh"
 grep -Fq 'assert_pods_replaced' "${repo_root}/tests/kind/run.sh"
 grep -Fq 'assert_failed_migration_gate' "${repo_root}/tests/kind/run.sh"
-grep -Fq 'assert_rollout_held' "${repo_root}/tests/kind/run.sh"
+grep -Fq 'assert_pods_unchanged' "${repo_root}/tests/kind/run.sh"
 grep -Fq 'wrong-password@postgresql' "${repo_root}/tests/kind/run.sh"
 grep -Fq 'restore_foreman_database_url' "${repo_root}/tests/kind/run.sh"
 grep -Fq 'write_integration_evidence' "${repo_root}/tests/kind/run.sh"
