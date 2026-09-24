@@ -48,6 +48,7 @@ module ForemanRelease
     end
 
     def validate(resource, operation)
+      validate_release_ownership!(resource)
       context = resolve_context(resource)
       with_value_files(context) do |application_values, execution_values|
         lint_chart(@application_chart, application_values, context.profiles.application_path, resource, operation)
@@ -169,6 +170,20 @@ module ForemanRelease
     end
 
     private
+
+    def validate_release_ownership!(resource)
+      application = application_release(resource)
+      execution = execution_release(resource)
+      conflicting = @kubernetes_client.releases(resource.dig('metadata', 'namespace')).find do |candidate|
+        next if candidate.dig('metadata', 'uid') == resource.dig('metadata', 'uid')
+
+        application_release(candidate) == application || execution_release(candidate) == execution
+      end
+      return unless conflicting
+
+      raise InvalidRelease,
+            "ForemanRelease #{conflicting.dig('metadata', 'name')} already owns application #{application} or execution proxy #{execution}"
+    end
 
     def resolve_context(resource, operation = nil)
       profiles = @catalog.resolve(

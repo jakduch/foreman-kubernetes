@@ -45,13 +45,18 @@ end
 
 class RuntimeKubernetesClient
   attr_reader :created
-  attr_accessor :application_values, :execution_values
+  attr_accessor :application_values, :execution_values, :releases_list
 
   def initialize(application_values:, execution_values:)
     @application_values = application_values
     @execution_values = execution_values
     @resources = Hash.new { |hash, key| hash[key] = [] }
     @created = []
+    @releases_list = []
+  end
+
+  def releases(_namespace)
+    @releases_list
   end
 
   def secret_value(_namespace, name, _key)
@@ -159,6 +164,7 @@ resource = {
   }
 }
 operation = {'id' => '12345678-1234-1234-1234-123456789abc-g7'}
+kubernetes.releases_list = [resource]
 
 validation = adapter.validate(resource, operation)
 raise 'release validation failed' unless validation.state == :succeeded
@@ -166,6 +172,19 @@ raise 'validation did not pin all four release inputs' unless validation.details
 raise 'rendered cluster preflight was not executed' unless preflight.calls.length == 1 && preflight.calls.first.last == 'platform'
 operation.merge!(validation.details)
 raise 'Secret values were not written with mode 0600' unless runner.values_modes.all? { |mode| mode == 0o600 }
+
+conflict = Marshal.load(Marshal.dump(resource))
+conflict['metadata']['name'] = 'conflicting-release'
+conflict['metadata']['uid'] = '87654321-4321-4321-4321-cba987654321'
+kubernetes.releases_list = [resource, conflict]
+begin
+  adapter.validate(resource, operation)
+  raise 'two ForemanRelease objects were allowed to own the same Helm releases'
+rescue ForemanRelease::InvalidRelease => error
+  raise unless error.message.include?('conflicting-release already owns')
+ensure
+  kubernetes.releases_list = [resource]
+end
 
 original_values = kubernetes.application_values
 kubernetes.application_values = "#{original_values}\n# changed during release\n"

@@ -1,6 +1,5 @@
 # frozen_string_literal: true
 
-require 'digest'
 require 'json'
 require 'time'
 require_relative 'command_runner'
@@ -10,11 +9,17 @@ module ForemanRelease
   class LeaseLost < StandardError; end
 
   class LeaseManager
-    def initialize(runner: CommandRunner.new, duration_seconds: 120, clock: -> { Time.now.utc })
+    DEFAULT_NAME = 'foreman-kubernetes-release'
+
+    def initialize(runner: CommandRunner.new, duration_seconds: 120, lease_name: DEFAULT_NAME, clock: -> { Time.now.utc })
       raise ArgumentError, 'Lease duration must be at least 30 seconds' if duration_seconds < 30
+      unless lease_name.match?(/\A[a-z0-9]([-a-z0-9]*[a-z0-9])?\z/) && lease_name.length <= 63
+        raise ArgumentError, 'Lease name must be a valid DNS label no longer than 63 characters'
+      end
 
       @runner = runner
       @duration_seconds = duration_seconds
+      @lease_name = lease_name
       @clock = clock
     end
 
@@ -88,11 +93,8 @@ module ForemanRelease
       false
     end
 
-    def name(resource)
-      raw = "#{resource.dig('metadata', 'name')}-foreman-release"
-      return raw if raw.length <= 63
-
-      "#{raw[0, 54].sub(/-+\z/, '')}-#{Digest::SHA256.hexdigest(raw)[0, 8]}"
+    def name(_resource)
+      @lease_name
     end
 
     private

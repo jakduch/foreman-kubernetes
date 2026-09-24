@@ -51,14 +51,16 @@ result across a controller outage; a later Helm operation replaces the old
 revision resources. Jobs from the manual Helm workflow retain their one-hour
 TTL.
 
-`LeaseManager` now implements the Lease part of that boundary. Each
-ForemanRelease gets a deterministic namespaced Lease. The operation ID is its
-holder identity; the same operation adopts and renews it after controller
-restart, another live holder causes a requeue, and only an expired or explicitly
-released Lease can be claimed. Release is an optimistic `replace` that clears
-the holder instead of an unsafe unchecked delete. Every migration, rollout,
-and verification reconciliation renews the Lease, including a release paused
-at a safe boundary.
+`LeaseManager` now implements the Lease part of that boundary. Every controller
+operation and all guarded shell workflows use the same namespaced
+`foreman-kubernetes-release` Lease. The operation ID is its holder identity;
+the same operation adopts and renews it after controller restart, another live
+holder causes a requeue, and only an expired or explicitly released Lease can
+be claimed. Release is an optimistic `replace` that clears the holder instead
+of an unsafe unchecked delete. Every migration, rollout, and verification
+reconciliation renews the Lease, including a release paused at a safe boundary.
+Preflight also rejects another ForemanRelease that names either of the same
+Helm releases, preventing two CRs from taking turns mutating one release.
 
 `ForemanRelease` is namespaced because its Helm releases, values Secrets,
 migration Jobs, and status all belong to one application namespace. The

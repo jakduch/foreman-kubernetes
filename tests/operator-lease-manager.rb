@@ -118,10 +118,12 @@ rescue ForemanRelease::LeaseLost => error
   raise unless error.message.include?('expiration contract')
 end
 
-long_release = release
-long_release['metadata']['name'] = 'f' * 63
-name = manager.name(long_release)
-raise 'long Lease name is not bounded' if name.length > 63
-raise 'long Lease name has no stable hash' unless name.match?(/-[0-9a-f]{8}\z/)
+raise 'controller does not share the guarded workflow Lease' unless manager.name(release) == 'foreman-kubernetes-release'
+begin
+  ForemanRelease::LeaseManager.new(lease_name: 'Invalid_Name')
+  raise 'invalid shared Lease name was accepted'
+rescue ArgumentError => error
+  raise unless error.message.include?('valid DNS label')
+end
 
 puts 'ForemanRelease Lease acquisition, renewal, expiry, and safe release passed.'
