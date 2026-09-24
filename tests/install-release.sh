@@ -17,6 +17,7 @@ mkdir -p "${fake_bin}"
 : > "${application_values}"
 : > "${execution_values}"
 : > "${tool_log}"
+export RELEASE_HOLDER_ID=test-holder
 
 cat > "${fake_bin}/helm" <<'SCRIPT'
 #!/usr/bin/env bash
@@ -87,6 +88,19 @@ cat > "${fake_bin}/kubectl" <<'SCRIPT'
 #!/usr/bin/env bash
 set -euo pipefail
 printf 'kubectl %s\n' "$*" >> "${FAKE_TOOL_LOG}"
+if [[ -n "${FAKE_KUBECTL_FAIL_MATCH:-}" && "$*" == *"${FAKE_KUBECTL_FAIL_MATCH}"* ]]; then
+  exit 1
+fi
+if [[ "$*" == *'get lease foreman-kubernetes-release --output=jsonpath={.spec.holderIdentity}' ]]; then
+  printf '%s' "${FAKE_EXISTING_LEASE_HOLDER:-${RELEASE_HOLDER_ID:-test-holder}}"
+fi
+if [[ "$*" == *'get lease foreman-kubernetes-release --output=json' ]]; then
+  if [[ -n "${FAKE_EXISTING_LEASE_JSON:-}" ]]; then
+    printf '%s\n' "${FAKE_EXISTING_LEASE_JSON}"
+  else
+    printf '%s\n' '{"apiVersion":"coordination.k8s.io/v1","kind":"Lease","metadata":{"name":"foreman-kubernetes-release","namespace":"foreman","resourceVersion":"1"},"spec":{"holderIdentity":"other-install","leaseDurationSeconds":120,"renewTime":"2099-01-01T00:00:00Z"}}'
+  fi
+fi
 if [[ "$*" == *'get secret required-runtime'* ]]; then
   if [[ -z "${FAKE_SECRET_JSON:-}" ]]; then
     exit 1
@@ -117,6 +131,21 @@ if PATH="${fake_bin}:${PATH}" \
 fi
 if [[ -s "${tool_log}" ]]; then
   echo 'candidate gate invoked cluster tools before rejecting the release set' >&2
+  exit 1
+fi
+
+: > "${tool_log}"
+if PATH="${fake_bin}:${PATH}" \
+  FAKE_TOOL_LOG="${tool_log}" \
+  FAKE_KUBECTL_FAIL_MATCH='create --filename -' \
+  ALLOW_CANDIDATE=1 \
+  "${repo_root}/scripts/install-release.sh" \
+    "${application_values}" "${execution_values}" >/dev/null 2>&1; then
+  echo 'installation continued while another holder owned the release Lease' >&2
+  exit 1
+fi
+if grep -Fq 'helm ' "${tool_log}"; then
+  echo 'Helm was invoked before the release Lease was acquired' >&2
   exit 1
 fi
 

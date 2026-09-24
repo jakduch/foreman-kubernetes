@@ -16,12 +16,13 @@ The helper upgrades existing releases; it is not an installer. It requires:
   the environment-specific configuration and Secret references;
 - a `supported` entry in `compatibility/release-sets.json`.
 
-Before reading release health, the helper atomically creates the
-`foreman-kubernetes-upgrade-lock` ConfigMap in the target namespace. Another
+Before reading release health, the helper atomically acquires the namespaced
+`foreman-kubernetes-release` Lease shared with the install helper. Another
 invocation stops and reports its holder instead of racing Helm. The process
-removes only a lock that still carries its own holder identity. A normal failure
-or interrupt releases it; an untrappable process or host failure deliberately
-leaves a stale lock for an administrator to inspect before deleting it.
+renews the Lease throughout the operation and removes it only while it still
+carries its own holder identity. After an untrappable process or host failure,
+the Lease expires and the next helper claims it with an optimistic
+`resourceVersion` update; simultaneous takeovers cannot both succeed.
 
 Candidate sets are accepted only with `ALLOW_CANDIDATE=1`. This is intended for
 qualification environments and does not promote the set. Retired sets are
@@ -74,7 +75,10 @@ ALLOW_CANDIDATE=1 scripts/upgrade-release.sh \
 ```
 
 `APPLICATION_RELEASE`, `EXECUTION_RELEASE`, `UPGRADE_TIMEOUT`,
-`PREFLIGHT_TIMEOUT`, and `UPGRADE_LOCK_NAME` may override their defaults.
+`PREFLIGHT_TIMEOUT`, `RELEASE_LEASE_NAME`, `RELEASE_HOLDER_ID`,
+`RELEASE_LEASE_DURATION_SECONDS`, and
+`RELEASE_LEASE_RENEW_INTERVAL_SECONDS` may override their defaults. The
+renew interval must remain shorter than the duration.
 
 Before the first Helm upgrade, the helper inspects the complete render of both
 releases. It verifies every referenced named or default StorageClass,
@@ -115,10 +119,10 @@ complete pinned amd64 drill runs.
 
 ## Future operator boundary
 
-The ConfigMap lock serializes invocations of this helper, but it cannot prevent
-a second administrator from bypassing it with raw Helm, publish component
-health as durable status, or decide whether a failed schema migration is safe
-to retry. A future controller should replace it with a renewable Lease plus
-explicit phase/status conditions, migration Job ownership, and roll-forward
-recovery. It must retain the rule that database rollback is a separate recovery
-action, not a side effect of reverting Deployments.
+The renewable Lease serializes the supported install and upgrade helpers, but
+it cannot prevent a second administrator from bypassing it with raw Helm,
+publish component health as durable status, or decide whether a failed schema
+migration is safe to retry. A future controller should adopt the same Lease
+contract and add explicit phase/status conditions, migration Job ownership,
+and roll-forward recovery. It must retain the rule that database rollback is a
+separate recovery action, not a side effect of reverting Deployments.

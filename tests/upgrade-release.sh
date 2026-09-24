@@ -16,6 +16,7 @@ trap cleanup EXIT
 mkdir -p "${fake_bin}"
 : > "${application_values}"
 : > "${execution_values}"
+export RELEASE_HOLDER_ID=test-holder
 
 cat > "${fake_bin}/helm" <<'SCRIPT'
 #!/usr/bin/env bash
@@ -79,8 +80,15 @@ printf 'kubectl %s\n' "$*" >> "${FAKE_TOOL_LOG}"
 if [[ -n "${FAKE_KUBECTL_FAIL_MATCH:-}" && "$*" == *"${FAKE_KUBECTL_FAIL_MATCH}"* ]]; then
   exit 1
 fi
-if [[ "$*" == *'get configmap foreman-kubernetes-upgrade-lock'* ]]; then
-  printf '%s' "${FAKE_EXISTING_LOCK_HOLDER:-${UPGRADE_HOLDER_ID:-test-holder}}"
+if [[ "$*" == *'get lease foreman-kubernetes-release --output=jsonpath={.spec.holderIdentity}' ]]; then
+  printf '%s' "${FAKE_EXISTING_LEASE_HOLDER:-${RELEASE_HOLDER_ID:-test-holder}}"
+fi
+if [[ "$*" == *'get lease foreman-kubernetes-release --output=json' ]]; then
+  if [[ -n "${FAKE_EXISTING_LEASE_JSON:-}" ]]; then
+    printf '%s\n' "${FAKE_EXISTING_LEASE_JSON}"
+  else
+    printf '%s\n' '{"apiVersion":"coordination.k8s.io/v1","kind":"Lease","metadata":{"name":"foreman-kubernetes-release","namespace":"foreman","resourceVersion":"1"},"spec":{"holderIdentity":"other-upgrade","leaseDurationSeconds":120,"renewTime":"2099-01-01T00:00:00Z"}}'
+  fi
 fi
 if [[ "$*" == *'get secret required-runtime'* ]]; then
   if [[ -z "${FAKE_SECRET_JSON:-}" ]]; then
@@ -107,10 +115,8 @@ fi
 : > "${tool_log}"
 if PATH="${fake_bin}:${PATH}" \
   FAKE_TOOL_LOG="${tool_log}" \
-  FAKE_KUBECTL_FAIL_MATCH='create configmap foreman-kubernetes-upgrade-lock' \
-  FAKE_EXISTING_LOCK_HOLDER=other-upgrade \
+  FAKE_KUBECTL_FAIL_MATCH='create --filename -' \
   ALLOW_CANDIDATE=1 \
-  UPGRADE_HOLDER_ID=test-holder \
   "${repo_root}/scripts/upgrade-release.sh" \
     "${application_values}" "${execution_values}" >/dev/null 2>&1; then
   echo 'upgrade continued while another holder owned the namespace lock' >&2
@@ -125,13 +131,27 @@ fi
 
 PATH="${fake_bin}:${PATH}" \
   FAKE_TOOL_LOG="${tool_log}" \
+  FAKE_KUBECTL_FAIL_MATCH='create --filename -' \
+  FAKE_EXISTING_LEASE_JSON='{"apiVersion":"coordination.k8s.io/v1","kind":"Lease","metadata":{"name":"foreman-kubernetes-release","namespace":"foreman","resourceVersion":"7"},"spec":{"holderIdentity":"dead-upgrade","leaseDurationSeconds":30,"renewTime":"2000-01-01T00:00:00Z"}}' \
   ALLOW_CANDIDATE=1 \
-  UPGRADE_HOLDER_ID=test-holder \
+  "${repo_root}/scripts/upgrade-release.sh" \
+    "${application_values}" "${execution_values}" >/dev/null
+if ! grep -Fq 'kubectl --namespace foreman replace --filename -' "${tool_log}"; then
+  echo 'expired release Lease was not claimed with an optimistic replace' >&2
+  exit 1
+fi
+
+: > "${tool_log}"
+
+PATH="${fake_bin}:${PATH}" \
+  FAKE_TOOL_LOG="${tool_log}" \
+  ALLOW_CANDIDATE=1 \
   "${repo_root}/scripts/upgrade-release.sh" \
     "${application_values}" "${execution_values}" >/dev/null
 
 cat > "${temporary_directory}/expected.log" <<EOF
-kubectl --namespace foreman create configmap foreman-kubernetes-upgrade-lock --from-literal=holder=test-holder --from-literal=compatibility-set=nightly-candidate-2026-09-24
+kubectl get namespace foreman
+kubectl --namespace foreman create --filename -
 helm status foreman --namespace foreman
 helm status execution --namespace foreman
 kubectl --namespace foreman wait --for=condition=Ready pod --selector=app.kubernetes.io/instance=execution,app.kubernetes.io/component=execution-proxy --timeout=10m
@@ -148,8 +168,8 @@ helm test foreman --namespace foreman --logs --timeout 10m
 helm upgrade execution ${repo_root}/charts/foreman-execution-proxy --namespace foreman --values ${execution_values} --values ${repo_root}/profiles/execution-proxy-nightly-candidate-2026-09-24.yaml --wait --timeout 30m
 kubectl --namespace foreman wait --for=condition=Ready pod --selector=app.kubernetes.io/instance=execution,app.kubernetes.io/component=execution-proxy --timeout=10m
 helm test foreman --namespace foreman --logs --timeout 10m
-kubectl --namespace foreman get configmap foreman-kubernetes-upgrade-lock --output=jsonpath={.data.holder}
-kubectl --namespace foreman delete configmap foreman-kubernetes-upgrade-lock --wait=true
+kubectl --namespace foreman get lease foreman-kubernetes-release --output=jsonpath={.spec.holderIdentity}
+kubectl --namespace foreman delete lease foreman-kubernetes-release --wait=true
 EOF
 diff -u "${temporary_directory}/expected.log" "${tool_log}"
 
@@ -158,7 +178,6 @@ if PATH="${fake_bin}:${PATH}" \
   FAKE_TOOL_LOG="${tool_log}" \
   FAKE_HELM_FAIL_MATCH='upgrade foreman ' \
   ALLOW_CANDIDATE=1 \
-  UPGRADE_HOLDER_ID=test-holder \
   "${repo_root}/scripts/upgrade-release.sh" \
     "${application_values}" "${execution_values}" >/dev/null 2>&1; then
   echo 'failed application upgrade unexpectedly succeeded' >&2
@@ -177,7 +196,6 @@ if PATH="${fake_bin}:${PATH}" \
   FAKE_HELM_FAIL_ON_MATCH=2 \
   FAKE_HELM_MATCH_COUNT_FILE="${temporary_directory}/match-count" \
   ALLOW_CANDIDATE=1 \
-  UPGRADE_HOLDER_ID=test-holder \
   "${repo_root}/scripts/upgrade-release.sh" \
     "${application_values}" "${execution_values}" >/dev/null 2>&1; then
   echo 'failed post-upgrade application smoke test unexpectedly succeeded' >&2
@@ -193,7 +211,6 @@ if PATH="${fake_bin}:${PATH}" \
   FAKE_TOOL_LOG="${tool_log}" \
   FAKE_FOREMAN_DEPLOYMENT=0 \
   ALLOW_CANDIDATE=1 \
-  UPGRADE_HOLDER_ID=test-holder \
   "${repo_root}/scripts/upgrade-release.sh" \
     "${application_values}" "${execution_values}" >/dev/null 2>&1; then
   echo 'maintenance-mode render was accepted by the normal upgrade helper' >&2
@@ -209,7 +226,6 @@ if PATH="${fake_bin}:${PATH}" \
   FAKE_TOOL_LOG="${tool_log}" \
   FAKE_RENDER_SECRET=1 \
   ALLOW_CANDIDATE=1 \
-  UPGRADE_HOLDER_ID=test-holder \
   "${repo_root}/scripts/upgrade-release.sh" \
     "${application_values}" "${execution_values}" >/dev/null 2>&1; then
   echo 'upgrade accepted a missing externally managed Secret' >&2
@@ -226,7 +242,6 @@ if PATH="${fake_bin}:${PATH}" \
   FAKE_RENDER_SECRET=1 \
   FAKE_SECRET_JSON='{"data":{"username":"dXNlcg=="}}' \
   ALLOW_CANDIDATE=1 \
-  UPGRADE_HOLDER_ID=test-holder \
   "${repo_root}/scripts/upgrade-release.sh" \
     "${application_values}" "${execution_values}" >/dev/null 2>&1; then
   echo 'upgrade accepted an externally managed Secret without its required key' >&2

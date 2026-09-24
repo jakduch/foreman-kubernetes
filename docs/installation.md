@@ -13,6 +13,7 @@ mix image profiles from different sets.
 - DNS names and TLS material for the Foreman and Pulp endpoints;
 - the namespace and every Secret referenced by the selected values;
 - Helm, kubectl, jq, Ruby, and access to the digest-pinned images.
+- permission to create, read, update, and delete a namespaced Kubernetes Lease;
 - When ingress is enabled, an IngressClass backed by
   `k8s.io/ingress-nginx`; the install and upgrade helpers verify the
   controller because the client-certificate bridge uses ingress-nginx
@@ -61,22 +62,30 @@ ALLOW_CANDIDATE=1 scripts/install-release.sh \
 the retained amd64 integration qualification. Do not use it as a substitute
 for that qualification on a production cluster.
 
-The installer performs these gates before changing the cluster:
+The installer performs these gates before changing application resources:
 
 1. it resolves the requested compatibility set and rejects retired or
    unapproved candidate sets;
-2. it refuses to overwrite an existing Helm release;
-3. it renders and lints both charts with deployment values followed by the
+2. it acquires the same renewable release Lease used by upgrades, so two
+   install/upgrade helpers cannot race each other; a crashed holder becomes
+   reclaimable after the Lease expires;
+3. it refuses to overwrite an existing Helm release;
+4. it renders and lints both charts with deployment values followed by the
    authoritative digest-pinned image profiles;
-4. it verifies every referenced IngressClass, named or default StorageClass,
+5. it verifies every referenced IngressClass, named or default StorageClass,
    required resource Metrics API, external PVC, and external ServiceAccount;
-5. it discovers every non-optional, externally managed Secret used by a Pod
+6. it discovers every non-optional, externally managed Secret used by a Pod
    template and verifies both the Secret and each explicitly referenced key;
-6. it rejects maintenance-only renders that omit normal migration workloads.
+7. it rejects maintenance-only renders that omit normal migration workloads.
 
 It then waits for application migrations and Pulp registration, runs the
 application smoke test, installs the execution proxy, waits for its Pod, and
 runs the application smoke test once more.
+
+`RELEASE_LEASE_NAME`, `RELEASE_HOLDER_ID`,
+`RELEASE_LEASE_DURATION_SECONDS`, and
+`RELEASE_LEASE_RENEW_INTERVAL_SECONDS` may override the Lease defaults. The
+renew interval must remain shorter than the duration.
 
 ## Failure boundary
 

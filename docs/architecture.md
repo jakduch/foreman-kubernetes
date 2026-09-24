@@ -233,8 +233,9 @@ upstream `HALT` mode and refuses to become healthy while its Liquibase Job has
 pending work. If chart migrations are disabled, Candlepin falls back to its
 upstream `MANAGE` startup behavior and the schema restricts it to one replica.
 
-The future controller's namespaced API and release-phase contract are defined
-in [`operator/`](../operator/README.md). They make Lease acquisition,
+The install and upgrade helpers already share and renew a namespaced Lease.
+The future controller's API and release-phase contract are defined in
+[`operator/`](../operator/README.md). They make controller-side Lease adoption,
 migration-before-rollout ordering, blocked retries, and the no-database-rollback
 boundary machine-testable without claiming that a controller is running yet.
 

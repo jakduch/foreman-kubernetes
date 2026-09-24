@@ -19,37 +19,27 @@ compatibility_set="${COMPATIBILITY_SET:-}"
 allow_candidate="${ALLOW_CANDIDATE:-0}"
 wait_timeout="${UPGRADE_TIMEOUT:-30m}"
 preflight_timeout="${PREFLIGHT_TIMEOUT:-10m}"
-upgrade_lock_name="${UPGRADE_LOCK_NAME:-foreman-kubernetes-upgrade-lock}"
-upgrade_holder_id="${UPGRADE_HOLDER_ID:-${HOSTNAME:-upgrade-host}-$$}"
-upgrade_lock_acquired=false
+release_lease_name="${RELEASE_LEASE_NAME:-foreman-kubernetes-release}"
+release_holder_id="${RELEASE_HOLDER_ID:-${HOSTNAME:-upgrade-host}-upgrade-$$}"
+release_lease_duration_seconds="${RELEASE_LEASE_DURATION_SECONDS:-120}"
+release_lease_renew_interval_seconds="${RELEASE_LEASE_RENEW_INTERVAL_SECONDS:-30}"
+release_lease_acquired=false
+release_lease_renewal_pid=''
 
 fail() {
   echo "$1" >&2
   exit 1
 }
 
-release_upgrade_lock() {
-  local current_holder
-
-  [[ "${upgrade_lock_acquired}" == true ]] || return 0
-  current_holder="$(kubectl --namespace "${namespace}" get configmap \
-    "${upgrade_lock_name}" --output=jsonpath='{.data.holder}' 2>/dev/null || true)"
-  if [[ "${current_holder}" == "${upgrade_holder_id}" ]]; then
-    kubectl --namespace "${namespace}" delete configmap \
-      "${upgrade_lock_name}" --wait=true >/dev/null
-  else
-    echo "upgrade lock holder changed to ${current_holder:-unknown}; leaving the lock untouched" >&2
-  fi
-}
-
 cleanup() {
   local exit_status=$?
 
   set +e
-  release_upgrade_lock
+  release_operation_lease "${namespace}" "${release_lease_name}" "${release_holder_id}"
   return "${exit_status}"
 }
 trap cleanup EXIT
+trap 'fail "release Lease renewal failed; the upgrade was stopped"' TERM
 
 for command_name in helm jq kubectl grep ruby; do
   command -v "${command_name}" >/dev/null 2>&1 || fail "${command_name} is required"
@@ -62,6 +52,8 @@ case "${allow_candidate}" in
   0 | 1) ;;
   *) fail 'ALLOW_CANDIDATE must be 0 or 1' ;;
 esac
+validate_release_lease_configuration "${release_lease_duration_seconds}" \
+  "${release_lease_renew_interval_seconds}" || exit 1
 
 if [[ -z "${compatibility_set}" ]]; then
   compatibility_set="$(jq --exit-status --raw-output '.default' \
@@ -92,14 +84,14 @@ execution_profile="${repo_root}/$(jq --exit-status --raw-output \
 [[ -f "${application_profile}" ]] || fail "application profile does not exist: ${application_profile}"
 [[ -f "${execution_profile}" ]] || fail "execution profile does not exist: ${execution_profile}"
 
-if ! kubectl --namespace "${namespace}" create configmap "${upgrade_lock_name}" \
-  --from-literal="holder=${upgrade_holder_id}" \
-  --from-literal="compatibility-set=${compatibility_set}" >/dev/null; then
-  existing_holder="$(kubectl --namespace "${namespace}" get configmap \
-    "${upgrade_lock_name}" --output=jsonpath='{.data.holder}' 2>/dev/null || true)"
-  fail "upgrade lock ${upgrade_lock_name} is already held by ${existing_holder:-unknown}"
-fi
-upgrade_lock_acquired=true
+kubectl get namespace "${namespace}" >/dev/null || \
+  fail "namespace ${namespace} does not exist"
+acquire_release_lease "${namespace}" "${release_lease_name}" \
+  "${release_holder_id}" "${release_lease_duration_seconds}" upgrade \
+  "${compatibility_set}" || fail 'another release operation is active or its Lease cannot be claimed safely'
+start_release_lease_renewal "${namespace}" "${release_lease_name}" \
+  "${release_holder_id}" "${release_lease_duration_seconds}" \
+  "${release_lease_renew_interval_seconds}"
 
 echo "Preflight: checking current ${application_release} and ${execution_release} releases"
 helm status "${application_release}" --namespace "${namespace}" >/dev/null
