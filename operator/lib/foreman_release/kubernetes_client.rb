@@ -38,6 +38,32 @@ module ForemanRelease
       raise ArgumentError, "Secret #{namespace}/#{name} key #{key} is not valid base64"
     end
 
+    def resources(namespace, type, labels: {})
+      command = [
+        'kubectl', '--namespace', namespace, 'get', type, '--output=json'
+      ]
+      unless labels.empty?
+        selector = labels.sort.map { |key, value| "#{key}=#{value}" }.join(',')
+        command.insert(-1, '--selector', selector)
+      end
+      JSON.parse(@runner.run(*command)).fetch('items')
+    end
+
+    def resource(namespace, type, name)
+      response = @runner.run(
+        'kubectl', '--namespace', namespace, 'get', type, name, '--output=json'
+      )
+      JSON.parse(response)
+    end
+
+    def create(namespace, resource)
+      response = @runner.run(
+        'kubectl', '--namespace', namespace, 'create', '--filename=-', '--output=json',
+        stdin_data: JSON.generate(resource)
+      )
+      JSON.parse(response)
+    end
+
     def write_status(resource, status)
       metadata = resource.fetch('metadata')
       resource_version = metadata.fetch('resourceVersion')

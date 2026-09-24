@@ -43,6 +43,11 @@ raise 'conditions must be keyed by type' unless conditions.fetch('x-kubernetes-l
 condition_required = conditions.dig('items', 'required')
 raise 'conditions must identify their observed generation' unless condition_required.include?('observedGeneration')
 
+operation = status_schema.dig('properties', 'operation', 'properties')
+%w[applicationValuesSha256 executionProxyValuesSha256 applicationProfileSha256 executionProxyProfileSha256].each do |digest|
+  raise "operation status does not retain #{digest}" unless operation.dig(digest, 'pattern') == '^[0-9a-f]{64}$'
+end
+
 phases = status_schema.dig('properties', 'phase', 'enum')
 raise 'unsupported release state-machine schema' unless state_machine.fetch('schemaVersion') == 1
 raise 'state-machine initial phase is not in the CRD' unless phases.include?(state_machine.fetch('initialPhase'))

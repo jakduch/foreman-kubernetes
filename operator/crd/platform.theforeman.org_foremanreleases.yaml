@@ -166,6 +166,18 @@ spec:
                       type: integer
                       format: int64
                       minimum: 1
+                    applicationValuesSha256:
+                      type: string
+                      pattern: ^[0-9a-f]{64}$
+                    executionProxyValuesSha256:
+                      type: string
+                      pattern: ^[0-9a-f]{64}$
+                    applicationProfileSha256:
+                      type: string
+                      pattern: ^[0-9a-f]{64}$
+                    executionProxyProfileSha256:
+                      type: string
+                      pattern: ^[0-9a-f]{64}$
                 conditions:
                   type: array
                   x-kubernetes-list-type: map

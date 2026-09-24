@@ -28,8 +28,20 @@ The adapter boundary now includes three concrete, tested primitives:
   placing their contents in command arguments, and updates the status
   subresource with a JSON Patch `resourceVersion` precondition.
 
-The remaining runtime adapter must turn the reconciliation port calls into
-Helm, Lease, Job-adoption, rollout, and smoke-test observations.
+`RuntimeAdapter` binds those primitives to Helm and Kubernetes without a
+blocking `--wait`. Validation pins SHA-256 fingerprints for both values Secret
+keys and both in-image profiles into the operation status, so a mutable Secret
+or a controller-image change cannot silently alter an in-flight release. It
+submits the application release once, adopts the operation-labelled migration
+and Pulp registration Jobs, observes every expected Deployment, then submits
+and adopts deterministic smoke-test Jobs. The execution-proxy release follows
+the same operation identity and is applied only after the application smoke
+test succeeds.
+
+Operator-owned Jobs intentionally have no completion TTL. This preserves the
+result across a controller outage; a later Helm operation replaces the old
+revision resources. Jobs from the manual Helm workflow retain their one-hour
+TTL.
 
 `LeaseManager` now implements the Lease part of that boundary. Each
 ForemanRelease gets a deterministic namespaced Lease. The operation ID is its
@@ -98,6 +110,6 @@ The CRD and state graph are statically validated by `tests/operator-contract.rb`
 blocked retry, busy Lease, invalid transition, conditions, and operation
 replacement behavior. `tests/operator-reconciler.rb` simulates a controller
 restart during migration, safe-boundary pause, a failed validation, and an
-explicit retry. A complete Kubernetes adapter, controller image, RBAC,
-Helm phase execution, and cluster integration tests are still required before
-installing the CRD in a cluster.
+explicit retry. The runtime adapter is covered with command-level simulations,
+but a controller process, RBAC, image, cluster preflight integration, and real
+cluster tests are still required before installing the CRD in a cluster.

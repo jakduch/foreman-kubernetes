@@ -64,4 +64,20 @@ rescue KeyError
   nil
 end
 
+resource_runner = FakeRunner.new(
+  JSON.generate('items' => [{'metadata' => {'name' => 'migration'}}]),
+  JSON.generate('metadata' => {'name' => 'migration'}),
+  JSON.generate('metadata' => {'name' => 'smoke'})
+)
+resource_client = ForemanRelease::KubernetesClient.new(runner: resource_runner)
+listed = resource_client.resources('platform', 'jobs', labels: {'operation' => 'release-1', 'owner' => 'uid-1'})
+raise 'generic resource list was not decoded' unless listed.dig(0, 'metadata', 'name') == 'migration'
+selector_command = resource_runner.calls.first.first
+selector = selector_command.fetch(selector_command.index('--selector') + 1)
+raise 'resource labels are not deterministic' unless selector == 'operation=release-1,owner=uid-1'
+raise 'single resource was not decoded' unless resource_client.resource('platform', 'job', 'migration').dig('metadata', 'name') == 'migration'
+created = resource_client.create('platform', {'apiVersion' => 'batch/v1', 'kind' => 'Job', 'metadata' => {'name' => 'smoke'}})
+raise 'created resource was not decoded' unless created.dig('metadata', 'name') == 'smoke'
+raise 'resource create did not use stdin' unless resource_runner.calls.last.last.include?('"kind":"Job"')
+
 puts 'Kubernetes client protects status concurrency and keeps values in same-namespace Secrets.'
