@@ -55,6 +55,30 @@ app.kubernetes.io/component: {{ .component }}
 {{- printf "%s-pulp-content" (include "foreman-stack.fullname" .) }}
 {{- end }}
 
+{{- define "foreman-stack.pulpControlProxyServiceName" -}}
+{{- printf "%s-pulp-control" (include "foreman-stack.fullname" .) }}
+{{- end }}
+
+{{- define "foreman-stack.pulpControlProxyUrl" -}}
+{{- printf "https://%s" (include "foreman-stack.pulpControlProxyServiceName" .) }}
+{{- end }}
+
+{{- define "foreman-stack.pulpSmartProxyUrl" -}}
+{{- printf "%s/pulp/api/v3/smart_proxy" (include "foreman-stack.pulpControlProxyUrl" .) }}
+{{- end }}
+
+{{- define "foreman-stack.pulpSmartProxyName" -}}
+{{- default (printf "%s-pulp" .Values.platform.fqdn) .Values.pulp.controlProxy.registration.name }}
+{{- end }}
+
+{{- define "foreman-stack.pulpContentHeadersName" -}}
+{{- printf "%s-pulp-content-headers" (include "foreman-stack.fullname" .) }}
+{{- end }}
+
+{{- define "foreman-stack.pulpPublicApiHeadersName" -}}
+{{- printf "%s-pulp-public-api-headers" (include "foreman-stack.fullname" .) }}
+{{- end }}
+
 {{- define "foreman-stack.foremanEnv" -}}
 - name: RAILS_ENV
   value: production
@@ -145,7 +169,11 @@ app.kubernetes.io/component: {{ .component }}
 - name: PULP_ANSIBLE_CONTENT_HOSTNAME
   value: {{ printf "%s/pulp/content" (trimSuffix "/" .Values.pulp.contentOrigin) | quote }}
 - name: PULP_SMART_PROXY_PULP_URL
-  value: {{ printf "http://%s:%v" (include "foreman-stack.pulpApiServiceName" .) .Values.pulp.api.port | quote }}
+  value: {{ include "foreman-stack.pulpControlProxyUrl" . | quote }}
+- name: PULP_SMART_PROXY_RHSM_URL
+  value: {{ printf "%s/rhsm" (trimSuffix "/" .Values.platform.externalUrl) | quote }}
+- name: PULP_SMART_PROXY_MIRROR
+  value: "false"
 - name: PULP_ENABLED_PLUGINS
   value: {{ toJson .Values.pulp.enabledPlugins | quote }}
 - name: PULP_AUTHENTICATION_BACKENDS

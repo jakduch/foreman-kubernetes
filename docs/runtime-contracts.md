@@ -41,6 +41,11 @@ The chart consequently enforces exactly one Candlepin replica in phase 1.
 - API defaults to port 24817 and content to port 24816 in the current foremanctl contract.
 - Migration command: `pulpcore-manager migrate --noinput`.
 - Every role requires a shared database, Valkey, symmetric key, and content storage.
+- The `pulp_smart_proxy` plugin exposes Foreman-compatible feature discovery below `/pulp/api/v3/smart_proxy` and advertises `PULP_SMART_PROXY_PULP_URL` as Katello's API base URL.
+- Katello currently builds generated Pulp clients from the advertised URL's scheme and hostname, without retaining a non-default port. The internal control Service therefore exposes HTTPS on port 443 while its unprivileged proxy container listens on 8443.
+- Pulp remote-user authentication reads `HTTP_REMOTE_USER`; the chart sets it only behind a private mTLS proxy after validating the client certificate common name.
+- Pulp Certguard reads a URL-escaped PEM certificate from `X-CLIENT-CERT` for protected content downloads.
+- The Pulp Smart Proxy advertises the public Foreman `/rhsm` URL separately from its private API URL, so host registration never receives a cluster-internal Service hostname.
 
 ## Secret keys expected by the chart
 
@@ -79,3 +84,12 @@ The chart generates `candlepin.conf`, `server.xml`, `tomcat.conf`, `logging.prop
 ### `pulp-runtime` and `pulp-config`
 
 `pulp-runtime` contains `database-password` and `django-secret-key`. `pulp-config` contains `database_fields.symmetric.key`. The chart generates all non-secret Dynaconf environment values, including database host, Valkey URL, content origin, and enabled plugins.
+
+### Edge and Pulp control certificates
+
+- `pulp-control-proxy-certificates` contains `tls.crt`, `tls.key`, and `ca.crt`.
+- The server certificate must cover the chart's Pulp control Service DNS name. Katello validates it with `foreman-certificates/ca.crt` and authenticates with `client_cert.pem` plus `client_key.pem`.
+- The ingress TLS Secrets use the standard `tls.crt` and `tls.key` keys.
+- `ingress-client-ca` contains `ca.crt` used by ingress-nginx to verify optional client certificates before replacing the upstream certificate headers.
+
+The default trusted common name for the Pulp control plane is `platform.fqdn`; additional names must be listed explicitly in `pulp.controlProxy.trustedClientCommonNames`.

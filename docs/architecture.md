@@ -13,6 +13,8 @@ flowchart LR
   Foreman --> Candlepin[Candlepin\nindependent image]
   Foreman --> PulpAPI[Pulp API replicas]
   Edge --> PulpContent[Pulp content replicas]
+  Foreman --> PulpControl[Pulp mTLS control proxy]
+  PulpControl --> PulpAPI
 
   Orchestrator[Dynflow orchestrator\nexactly one] --> Valkey
   Worker[Dynflow workers] --> Valkey
@@ -57,6 +59,19 @@ Future HA requires a shared Artemis service, stable unique node names, Quartz JD
 ### Pulp
 
 Pulp already exposes separate API, content, and worker commands. All three use the same database, Valkey, symmetric key, and content storage. The chart requires ReadWriteMany storage so replicas on different nodes see identical content.
+
+Katello discovers Pulp through the `pulp_smart_proxy` endpoint served by Pulp itself. The chart therefore does not add an unrelated Foreman Smart Proxy pod. Instead, a private two-replica NGINX control service requires a trusted client certificate, restricts accepted certificate common names, and injects `REMOTE-USER: admin` before forwarding to Pulp API. A revision Job idempotently registers that endpoint in Foreman after migrations complete.
+
+### Public edge
+
+The optional ingress profile targets ingress-nginx and uses two hostnames:
+
+- the Foreman hostname sends every path to Foreman and passes verified optional client-certificate headers required by Katello registration;
+- the content hostname publishes Pulp content, container, Ansible Galaxy, static asset, and registry paths, but not the administrative `/pulp/api/v3` path.
+
+Pulp certificate guards require the URL-escaped client PEM in `X-CLIENT-CERT`. A dedicated ingress header ConfigMap derives it from NGINX's verified `$ssl_client_escaped_cert` value. The administrative Pulp API remains cluster-internal behind the stricter mTLS control service.
+
+Ingress NetworkPolicies make that header trust boundary enforceable. Pulp API accepts traffic only from the mTLS control proxy and the selected ingress controller; the public API-path ingress explicitly removes `REMOTE-USER` and certificate headers. Pulp content and Foreman accept ingress traffic only from the selected controller. Deployments using a differently labelled controller must override `networkPolicy.ingressController`.
 
 ## State and upgrades
 

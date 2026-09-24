@@ -2,10 +2,10 @@
 
 ## Next vertical slice
 
-1. Add an ingress profile that preserves client-certificate headers and separates the Foreman UI/API route from Pulp content routes.
-2. Add upgrade smoke tests using disposable PostgreSQL, Valkey, and RWX-compatible storage in a local Kubernetes cluster.
-3. Add backup and restore Jobs for all three databases, Pulp content, PKI, and configuration Secrets.
-4. Add NetworkPolicies, security contexts, PodDisruptionBudgets, and topology constraints per component.
+1. Add upgrade smoke tests using disposable PostgreSQL, Valkey, and RWX-compatible storage in a local Kubernetes cluster.
+2. Add backup and restore Jobs for all three databases, Pulp content, PKI, and configuration Secrets.
+3. Complete the remaining workload security contexts, disruption budgets, and narrowly scoped egress policies.
+4. Add optional public routes for additional Pulp plugins only when their route and authentication contracts are covered by tests.
 
 ## Candlepin HA track
 

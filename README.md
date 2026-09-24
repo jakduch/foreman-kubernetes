@@ -16,6 +16,8 @@ The initial Helm chart is under [`charts/foreman-stack`](charts/foreman-stack). 
 - one Dynflow orchestrator and independently scalable worker Deployments;
 - a single-replica Candlepin Deployment with its native status probe;
 - separate Pulp API, content, and worker Deployments backed by shared RWX storage;
+- a private, mutually authenticated Pulp control endpoint and automatic registration of Pulp in Foreman;
+- an optional ingress-nginx profile for Foreman and public Pulp content;
 - ordered Pulp and Foreman migration Jobs;
 - Foreman recurring tasks as non-overlapping CronJobs.
 
@@ -23,7 +25,7 @@ The initial Helm chart is under [`charts/foreman-stack`](charts/foreman-stack). 
 
 This is an implementation scaffold, not yet a production release. It deliberately requires external PostgreSQL and Valkey services and pre-created Kubernetes Secrets. Those stateful dependencies need their own HA, backup, and lifecycle policy rather than being hidden inside an application chart.
 
-The chart generates the non-secret Foreman, Katello, Dynflow, Candlepin, Tomcat, and Pulp configuration from typed values. Existing Secrets are now limited to credentials, encryption material, and certificates.
+The chart generates the non-secret Foreman, Katello, Dynflow, Candlepin, Tomcat, Pulp, and internal NGINX configuration from typed values. Existing Secrets are limited to credentials, encryption material, and certificates. The Pulp administrative API is not published by the ingress profile; Katello reaches it through a private mTLS endpoint that only maps approved client-certificate common names to Pulp's remote `admin` user.
 
 The chart currently prevents more than one Candlepin replica. The current Candlepin defaults use an embedded Artemis broker, and its Quartz configuration is not clustered. Scaling that Deployment before both concerns are addressed would create isolated queues and competing schedulers.
 

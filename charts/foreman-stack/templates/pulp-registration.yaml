@@ -1,0 +1,69 @@
+{{- if .Values.pulp.controlProxy.registration.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "foreman-stack.fullname" . }}-pulp-register-{{ .Release.Revision }}
+  labels:
+    {{- include "foreman-stack.componentLabels" (dict "root" . "component" "pulp-registration") | nindent 4 }}
+spec:
+  backoffLimit: 3
+  activeDeadlineSeconds: {{ .Values.migrations.activeDeadlineSeconds }}
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: pulp-registration
+    spec:
+      restartPolicy: OnFailure
+      serviceAccountName: {{ include "foreman-stack.serviceAccountName" . }}
+      securityContext:
+        fsGroup: 994
+      {{- if .Values.migrations.enabled }}
+      initContainers:
+        {{- include "foreman-stack.foremanMigrationWait" . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: register
+          image: {{ include "foreman-stack.image" .Values.foreman.image }}
+          imagePullPolicy: {{ .Values.foreman.image.pullPolicy }}
+          command:
+            - /bin/bash
+            - -ec
+            - |
+              attempt=1
+              until bin/rails runner '
+                name = ENV.fetch("PULP_PROXY_NAME")
+                url = ENV.fetch("PULP_PROXY_URL")
+                proxy = SmartProxy.unscoped.find_by(url: url) || SmartProxy.unscoped.find_or_initialize_by(name: name)
+                proxy.name = name if proxy.new_record?
+                proxy.url = url
+                abort(proxy.errors.full_messages.to_sentence) unless proxy.save
+                abort("Pulp proxy did not report the Pulpcore feature") unless proxy.has_feature?("Pulpcore")
+              '
+              do
+                if [ "${attempt}" -ge "${PULP_PROXY_RETRY_ATTEMPTS}" ]; then
+                  echo "Unable to register Pulp after ${attempt} attempts" >&2
+                  exit 1
+                fi
+                attempt=$((attempt + 1))
+                sleep "${PULP_PROXY_RETRY_INTERVAL}"
+              done
+          env:
+            {{- include "foreman-stack.foremanEnv" . | nindent 12 }}
+            - name: PULP_PROXY_NAME
+              value: {{ include "foreman-stack.pulpSmartProxyName" . | quote }}
+            - name: PULP_PROXY_URL
+              value: {{ include "foreman-stack.pulpSmartProxyUrl" . | quote }}
+            - name: PULP_PROXY_RETRY_ATTEMPTS
+              value: {{ .Values.pulp.controlProxy.registration.retryAttempts | quote }}
+            - name: PULP_PROXY_RETRY_INTERVAL
+              value: {{ .Values.pulp.controlProxy.registration.retryIntervalSeconds | quote }}
+          envFrom:
+            - secretRef:
+                name: {{ .Values.foreman.existingEnvSecret }}
+          volumeMounts:
+            {{- include "foreman-stack.foremanVolumeMounts" . | nindent 12 }}
+      volumes:
+        {{- include "foreman-stack.foremanVolumes" . | nindent 8 }}
+{{- end }}

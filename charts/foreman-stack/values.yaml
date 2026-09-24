@@ -10,6 +10,20 @@ platform:
   aliases: []
   trustedProxies: []
 
+ingress:
+  enabled: false
+  className: nginx
+  foreman:
+    host: foreman.example.test
+    tlsSecret: foreman-ingress-tls
+    clientCaSecret: ingress-client-ca
+    annotations: {}
+  pulpContent:
+    host: content.example.test
+    tlsSecret: pulp-content-ingress-tls
+    clientCaSecret: ingress-client-ca
+    annotations: {}
+
 valkey:
   host: valkey.example.test
   port: 6379
@@ -106,6 +120,28 @@ pulp:
     - pulp_file
     - pulp_rpm
     - pulp_smart_proxy
+  controlProxy:
+    image:
+      repository: nginxinc/nginx-unprivileged
+      tag: stable-alpine
+      pullPolicy: IfNotPresent
+    replicas: 2
+    port: 8443
+    service:
+      port: 443
+    existingCertificateSecret: pulp-control-proxy-certificates
+    trustedClientCommonNames: []
+    registration:
+      enabled: true
+      name: ""
+      retryAttempts: 120
+      retryIntervalSeconds: 5
+    resources:
+      requests:
+        cpu: 25m
+        memory: 32Mi
+      limits:
+        memory: 128Mi
   api:
     replicas: 2
     port: 24817
@@ -151,6 +187,16 @@ recurringTasks:
 
 podDisruptionBudget:
   enabled: true
+
+networkPolicy:
+  enabled: true
+  ingressController:
+    namespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: ingress-nginx
+    podSelector:
+      matchLabels:
+        app.kubernetes.io/component: controller
 
 affinity:
   spreadAcrossNodes: true

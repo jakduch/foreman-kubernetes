@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft-07/schema#",
   "type": "object",
-  "required": ["platform", "valkey", "sharedSecret", "foreman", "candlepin", "pulp"],
+  "required": ["platform", "ingress", "valkey", "sharedSecret", "foreman", "candlepin", "pulp", "networkPolicy"],
   "properties": {
     "platform": {
       "type": "object",
@@ -10,6 +10,16 @@
         "fqdn": { "type": "string", "minLength": 1 },
         "domain": { "type": "string", "minLength": 1 },
         "externalUrl": { "type": "string", "pattern": "^https://" }
+      }
+    },
+    "ingress": {
+      "type": "object",
+      "required": ["enabled", "className", "foreman", "pulpContent"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "className": { "type": "string", "minLength": 1 },
+        "foreman": { "$ref": "#/definitions/ingressEndpoint" },
+        "pulpContent": { "$ref": "#/definitions/ingressEndpoint" }
       }
     },
     "valkey": {
@@ -63,12 +73,46 @@
     },
     "pulp": {
       "type": "object",
-      "required": ["existingRuntimeSecret", "existingConfigSecret", "database", "contentOrigin"],
+      "required": ["existingRuntimeSecret", "existingConfigSecret", "database", "contentOrigin", "controlProxy"],
       "properties": {
         "existingRuntimeSecret": { "type": "string", "minLength": 1 },
         "existingConfigSecret": { "type": "string", "minLength": 1 },
         "database": { "$ref": "#/definitions/database" },
         "contentOrigin": { "type": "string", "pattern": "^https?://" },
+        "controlProxy": {
+          "type": "object",
+          "required": ["replicas", "port", "service", "existingCertificateSecret", "registration"],
+          "properties": {
+            "replicas": { "type": "integer", "minimum": 2 },
+            "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+            "service": {
+              "type": "object",
+              "required": ["port"],
+              "properties": {
+                "port": {
+                  "const": 443,
+                  "description": "Katello derives Pulp API clients from scheme and host, so the control Service must use the HTTPS default port."
+                }
+              }
+            },
+            "existingCertificateSecret": { "type": "string", "minLength": 1 },
+            "trustedClientCommonNames": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 },
+              "uniqueItems": true
+            },
+            "registration": {
+              "type": "object",
+              "required": ["enabled", "retryAttempts", "retryIntervalSeconds"],
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "name": { "type": "string" },
+                "retryAttempts": { "type": "integer", "minimum": 1 },
+                "retryIntervalSeconds": { "type": "integer", "minimum": 1, "maximum": 60 }
+              }
+            }
+          }
+        },
         "storage": {
           "type": "object",
           "properties": {
@@ -86,9 +130,34 @@
         "checkIntervalSeconds": { "type": "integer", "minimum": 1, "maximum": 60 },
         "activeDeadlineSeconds": { "type": "integer", "minimum": 60 }
       }
+    },
+    "networkPolicy": {
+      "type": "object",
+      "required": ["enabled", "ingressController"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "ingressController": {
+          "type": "object",
+          "required": ["namespaceSelector", "podSelector"],
+          "properties": {
+            "namespaceSelector": { "type": "object" },
+            "podSelector": { "type": "object" }
+          }
+        }
+      }
     }
   },
   "definitions": {
+    "ingressEndpoint": {
+      "type": "object",
+      "required": ["host", "tlsSecret", "clientCaSecret"],
+      "properties": {
+        "host": { "type": "string", "minLength": 1 },
+        "tlsSecret": { "type": "string", "minLength": 1 },
+        "clientCaSecret": { "type": "string", "minLength": 1 },
+        "annotations": { "type": "object", "additionalProperties": { "type": "string" } }
+      }
+    },
     "database": {
       "type": "object",
       "required": ["host", "port", "name", "user", "sslMode"],

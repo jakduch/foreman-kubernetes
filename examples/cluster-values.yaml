@@ -1,3 +1,15 @@
+ingress:
+  enabled: true
+  className: nginx
+  foreman:
+    host: foreman.example.test
+    tlsSecret: foreman-ingress-tls
+    clientCaSecret: ingress-client-ca
+  pulpContent:
+    host: content.example.test
+    tlsSecret: pulp-content-ingress-tls
+    clientCaSecret: ingress-client-ca
+
 foreman:
   image:
     tag: nightly
