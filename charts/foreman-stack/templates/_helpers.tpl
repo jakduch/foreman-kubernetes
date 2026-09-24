@@ -130,6 +130,8 @@ runAsGroup: {{ . }}
 {{- end }}
 
 {{- define "foreman-stack.foremanVolumeMounts" -}}
+- name: foreman-tmp
+  mountPath: /usr/share/foreman/tmp
 - name: foreman-generated-config
   mountPath: /etc/foreman/settings.yaml
   subPath: settings.yaml
@@ -153,6 +155,9 @@ runAsGroup: {{ . }}
 {{- end }}
 
 {{- define "foreman-stack.foremanVolumes" -}}
+- name: foreman-tmp
+  persistentVolumeClaim:
+    claimName: {{ default (printf "%s-foreman-tmp" (include "foreman-stack.fullname" .)) .Values.foreman.sharedTmp.existingClaim }}
 - name: foreman-generated-config
   configMap:
     name: {{ include "foreman-stack.foremanConfigName" . }}

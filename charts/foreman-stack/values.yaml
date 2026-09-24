@@ -85,6 +85,14 @@ foreman:
         memory: 512Mi
       limits:
         memory: 2Gi
+  sharedTmp:
+    # Katello hands uploaded manifests and repository files from web requests
+    # to Dynflow workers by path, so every Foreman-derived pod needs this RWX
+    # filesystem even though its contents are operationally temporary.
+    existingClaim: ""
+    storageClass: ""
+    accessMode: ReadWriteMany
+    size: 20Gi
   resources:
     requests:
       cpu: 500m

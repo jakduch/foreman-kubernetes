@@ -64,6 +64,9 @@ Foreman-derived process and runs it in one dedicated `Recreate` Deployment.
 That process publishes a local heartbeat only while Katello reports its event
 poller as running; readiness and liveness use the heartbeat, while event status
 continues to be shared with web pods through the configured Redis Rails cache.
+Katello also passes some uploads and manifests to Dynflow by a path below
+`Rails.root/tmp`; the chart mounts one RWX claim there for every Foreman-derived
+process so an asynchronous step can run on a different pod.
 
 ## Candlepin image
 

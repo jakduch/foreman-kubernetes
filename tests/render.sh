@@ -113,6 +113,8 @@ done
 ruby "${repo_root}/tests/candlepin-port.rb" "${rendered_candlepin_port}" 24443
 ruby "${repo_root}/tests/pulp-process-contract.rb" "${rendered}"
 ruby "${repo_root}/tests/katello-event-daemon-contract.rb" "${rendered_egress}"
+ruby "${repo_root}/tests/foreman-shared-tmp-contract.rb" "${rendered}" true
+ruby "${repo_root}/tests/foreman-shared-tmp-contract.rb" "${rendered_s3}" false
 
 ruby "${repo_root}/tests/kubernetes-invariants.rb" "${rendered_execution}"
 ruby "${repo_root}/tests/kubernetes-invariants.rb" "${rendered_execution_egress}"
@@ -393,10 +395,6 @@ if [[ "$(grep -c '^kind: PodDisruptionBudget$' "${rendered_ha}")" -ne 7 ]]; then
   exit 1
 fi
 
-if grep -q '^kind: PersistentVolumeClaim$' "${rendered_s3}"; then
-  echo 'object-backed Pulp must not render a shared content claim' >&2
-  exit 1
-fi
 grep -q 'name: PULP_STORAGES__default__BACKEND' "${rendered_s3}"
 grep -q 'value: storages.backends.s3.S3Storage' "${rendered_s3}"
 grep -q 'name: PULP_STORAGES__default__OPTIONS__bucket_name' "${rendered_s3}"

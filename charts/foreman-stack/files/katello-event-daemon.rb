@@ -4,6 +4,8 @@ heartbeat_path = ENV.fetch('KATELLO_EVENT_DAEMON_HEARTBEAT')
 heartbeat_interval = Integer(ENV.fetch('KATELLO_EVENT_DAEMON_HEARTBEAT_INTERVAL'), 10)
 
 FileUtils.rm_f(heartbeat_path)
+FileUtils.rm_f(Katello::EventDaemon::Runner.pid_file)
+FileUtils.rm_f(Katello::EventDaemon::Runner.lock_file)
 Katello::EventDaemon::Runner.start
 
 at_exit { FileUtils.rm_f(heartbeat_path) }

@@ -151,6 +151,14 @@ Foreman-derived workloads therefore default the daemon off; the dedicated pod
 is the only process that enables it and publishes a local health heartbeat.
 Events remain durable in PostgreSQL while that pod is unavailable.
 
+Foreman web, Dynflow, event, migration, registration, and cron processes share
+an RWX volume at `/usr/share/foreman/tmp`. Katello passes uploaded repository
+files and subscription manifests between web requests and asynchronous Dynflow
+steps by filesystem path, so pod-local temporary storage would make those
+workflows nondeterministically fail. This volume is an operational hand-off
+area, not authoritative backup state; maintenance must drain active tasks
+before backup or restore.
+
 The chart also exposes an opt-in-on-invocation Helm test. Its short-lived,
 unprivileged Job calls the Foreman/Katello aggregate health endpoint and the
 Candlepin and Pulp status endpoints through the same NetworkPolicy boundary as

@@ -51,7 +51,7 @@
     },
     "foreman": {
       "type": "object",
-      "required": ["existingEnvSecret", "databaseUrlSecretKey", "existingCertificateSecret", "enabledPlugins", "pluginPolicy", "katelloEventDaemon"],
+      "required": ["existingEnvSecret", "databaseUrlSecretKey", "existingCertificateSecret", "enabledPlugins", "pluginPolicy", "katelloEventDaemon", "sharedTmp"],
       "properties": {
         "replicas": { "type": "integer", "minimum": 1 },
         "autoscaling": { "$ref": "#/definitions/autoscaling" },
@@ -105,6 +105,16 @@
             "heartbeatIntervalSeconds": { "type": "integer", "minimum": 1 },
             "heartbeatStaleSeconds": { "type": "integer", "minimum": 2 },
             "resources": { "type": "object" }
+          }
+        },
+        "sharedTmp": {
+          "type": "object",
+          "required": ["existingClaim", "storageClass", "accessMode", "size"],
+          "properties": {
+            "existingClaim": { "type": "string" },
+            "storageClass": { "type": "string" },
+            "accessMode": { "const": "ReadWriteMany" },
+            "size": { "type": "string", "minLength": 1 }
           }
         }
       }
