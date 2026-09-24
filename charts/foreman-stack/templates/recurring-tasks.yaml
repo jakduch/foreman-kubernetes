@@ -49,9 +49,6 @@ spec:
                 - {{ $task.rakeTask }}
               env:
                 {{- include "foreman-stack.foremanEnv" $root | nindent 16 }}
-              envFrom:
-                - secretRef:
-                    name: {{ $root.Values.foreman.existingEnvSecret }}
               resources:
                 {{- toYaml $root.Values.foreman.resources | nindent 16 }}
               volumeMounts:

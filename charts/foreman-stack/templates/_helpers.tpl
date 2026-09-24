@@ -118,6 +118,16 @@ runAsGroup: {{ . }}
   value: {{ .Values.foreman.puma.threadsMin | quote }}
 - name: FOREMAN_PUMA_THREADS_MAX
   value: {{ .Values.foreman.puma.threadsMax | quote }}
+- name: DATABASE_URL
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Values.foreman.existingEnvSecret }}
+      key: {{ .Values.foreman.databaseUrlSecretKey }}
+- name: ENCRYPTION_KEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Values.foreman.existingEnvSecret }}
+      key: {{ .Values.foreman.encryptionKeySecretKey }}
 - name: DYNFLOW_REDIS_URL
   value: {{ printf "redis://%s:%v/%v" .Values.valkey.host .Values.valkey.port .Values.valkey.dynflowDatabase | quote }}
 - name: REDIS_PROVIDER
@@ -127,6 +137,19 @@ runAsGroup: {{ . }}
     secretKeyRef:
       name: {{ .Values.sharedSecret.name }}
       key: {{ .Values.sharedSecret.candlepinOAuthSecretKey }}
+{{- end }}
+
+{{- define "foreman-stack.foremanSeedEnv" -}}
+- name: SEED_ADMIN_USER
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Values.foreman.existingEnvSecret }}
+      key: {{ .Values.foreman.seedAdminUserSecretKey }}
+- name: SEED_ADMIN_PASSWORD
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Values.foreman.existingEnvSecret }}
+      key: {{ .Values.foreman.seedAdminPasswordSecretKey }}
 {{- end }}
 
 {{- define "foreman-stack.foremanVolumeMounts" -}}
@@ -350,9 +373,6 @@ runAsGroup: {{ . }}
     - until bin/rails db:abort_if_pending_migrations; do sleep {{ .Values.migrations.checkIntervalSeconds }}; done
   env:
     {{- include "foreman-stack.foremanEnv" . | nindent 4 }}
-  envFrom:
-    - secretRef:
-        name: {{ .Values.foreman.existingEnvSecret }}
   resources:
     {{- toYaml .Values.foreman.resources | nindent 4 }}
   volumeMounts:

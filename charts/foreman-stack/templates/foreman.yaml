@@ -67,9 +67,6 @@ spec:
               containerPort: 3000
           env:
             {{- include "foreman-stack.foremanEnv" . | nindent 12 }}
-          envFrom:
-            - secretRef:
-                name: {{ .Values.foreman.existingEnvSecret }}
           volumeMounts:
             {{- include "foreman-stack.foremanVolumeMounts" . | nindent 12 }}
             {{- include "foreman-stack.foremanAvatarVolumeMount" . | nindent 12 }}

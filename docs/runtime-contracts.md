@@ -126,6 +126,10 @@ pending.
 - `SEED_ADMIN_USER`
 - `SEED_ADMIN_PASSWORD`
 
+All four key names are configurable. Runtime processes receive only the
+database URL and encryption key; the two seed credentials are exposed only to
+the Foreman migration-and-seed Job.
+
 ### `foreman-shared`
 
 - `candlepin-oauth-secret`

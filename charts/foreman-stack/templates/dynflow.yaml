@@ -62,9 +62,6 @@ spec:
             - /etc/foreman/dynflow/runtime.yml
           env:
             {{- include "foreman-stack.foremanEnv" $root | nindent 12 }}
-          envFrom:
-            - secretRef:
-                name: {{ $root.Values.foreman.existingEnvSecret }}
           volumeMounts:
             {{- include "foreman-stack.foremanVolumeMounts" $root | nindent 12 }}
             - name: foreman-generated-config

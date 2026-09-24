@@ -60,9 +60,6 @@ spec:
               value: /tmp/katello-event-daemon-heartbeat
             - name: KATELLO_EVENT_DAEMON_HEARTBEAT_INTERVAL
               value: {{ .Values.foreman.katelloEventDaemon.heartbeatIntervalSeconds | quote }}
-          envFrom:
-            - secretRef:
-                name: {{ .Values.foreman.existingEnvSecret }}
           volumeMounts:
             {{- include "foreman-stack.foremanVolumeMounts" . | nindent 12 }}
             - name: foreman-generated-config

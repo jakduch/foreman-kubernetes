@@ -64,6 +64,9 @@ foreman:
     port: 3000
   existingEnvSecret: foreman-runtime
   databaseUrlSecretKey: DATABASE_URL
+  encryptionKeySecretKey: ENCRYPTION_KEY
+  seedAdminUserSecretKey: SEED_ADMIN_USER
+  seedAdminPasswordSecretKey: SEED_ADMIN_PASSWORD
   existingCertificateSecret: foreman-certificates
   enabledPlugins:
     - foreman-tasks

@@ -68,9 +68,6 @@ spec:
               value: {{ .Values.pulp.controlProxy.registration.retryAttempts | quote }}
             - name: PULP_PROXY_RETRY_INTERVAL
               value: {{ .Values.pulp.controlProxy.registration.retryIntervalSeconds | quote }}
-          envFrom:
-            - secretRef:
-                name: {{ .Values.foreman.existingEnvSecret }}
           resources:
             {{- toYaml .Values.foreman.resources | nindent 12 }}
           volumeMounts:
