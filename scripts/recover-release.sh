@@ -123,6 +123,19 @@ start_release_lease_renewal "${namespace}" "${release_lease_name}" \
   "${release_holder_id}" "${release_lease_duration_seconds}" \
   "${release_lease_renew_interval_seconds}"
 
+application_installed_set="$(helm get values "${application_release}" \
+  --namespace "${namespace}" --all --output=json | \
+  jq --exit-status --raw-output '.platform.compatibilitySet | select(type == "string" and length > 0)')" || \
+  fail "cannot determine the installed compatibility set for ${application_release}"
+execution_installed_set="$(helm get values "${execution_release}" \
+  --namespace "${namespace}" --all --output=json | \
+  jq --exit-status --raw-output '.compatibilitySet | select(type == "string" and length > 0)')" || \
+  fail "cannot determine the installed compatibility set for ${execution_release}"
+if [[ "${application_installed_set}" != "${compatibility_set}" || \
+      "${execution_installed_set}" != "${compatibility_set}" ]]; then
+  fail "recovery requires application and execution proxy on ${compatibility_set}; found ${application_installed_set} and ${execution_installed_set}"
+fi
+
 helm status "${application_release}" --namespace "${namespace}" >/dev/null
 helm status "${execution_release}" --namespace "${namespace}" >/dev/null
 

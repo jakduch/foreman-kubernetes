@@ -125,7 +125,10 @@ INITIALIZE_REPOSITORY=1 \
 The helper resolves the same compatibility set as installation and upgrades,
 acquires their shared renewable Lease, checks the current application and
 execution proxy, and validates every recovery dependency before changing the
-release. It then removes the database-writing Deployments and recurring tasks.
+release. Both installed Helm releases must identify the selected compatibility
+set in their computed values. Recovery refuses a split or differently labelled
+pair instead of storing data under the wrong release identity. It then removes
+the database-writing Deployments and recurring tasks.
 The Job independently verifies that their pods are gone before reading any
 state. It fails instead of taking an online, potentially inconsistent copy.
 After success, the helper restores the normal digest-pinned revision and runs

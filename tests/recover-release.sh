@@ -26,6 +26,14 @@ printf 'helm %s\n' "$*" >> "${FAKE_TOOL_LOG}"
 if [[ "${FAKE_RECOVERY_UPGRADE_FAIL:-0}" == 1 && "$1" == upgrade && "$*" == *'backup.enabled=true'* ]]; then
   exit 1
 fi
+case "$*" in
+  'get values foreman --namespace foreman --all --output=json')
+    printf '{"platform":{"compatibilitySet":"%s"}}\n' "${FAKE_APPLICATION_SET:-nightly-candidate-2026-09-24}"
+    ;;
+  'get values execution --namespace foreman --all --output=json')
+    printf '{"compatibilitySet":"%s"}\n' "${FAKE_EXECUTION_SET:-nightly-candidate-2026-09-24}"
+    ;;
+esac
 if [[ "$1" == template && "$2" == foreman ]]; then
   if [[ "$*" == *'maintenance.enabled=true'* ]]; then
     printf '%s\n' 'apiVersion: batch/v1' 'kind: Job' 'metadata:' '  name: recovery'
@@ -55,6 +63,21 @@ if PATH="${fake_bin}:${PATH}" \
 fi
 if [[ -s "${tool_log}" ]]; then
   echo 'candidate gate invoked cluster tools before rejecting recovery' >&2
+  exit 1
+fi
+
+: > "${tool_log}"
+if PATH="${fake_bin}:${PATH}" \
+  FAKE_TOOL_LOG="${tool_log}" \
+  FAKE_EXECUTION_SET='previous-set' \
+  ALLOW_CANDIDATE=1 \
+  "${repo_root}/scripts/recover-release.sh" backup \
+    "${application_values}" "${execution_values}" request-0 >/dev/null 2>&1; then
+  echo 'recovery accepted application and execution proxy from different compatibility sets' >&2
+  exit 1
+fi
+if grep -Fq 'helm upgrade ' "${tool_log}"; then
+  echo 'recovery mutation started after installed-set validation failed' >&2
   exit 1
 fi
 
