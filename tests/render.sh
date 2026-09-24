@@ -14,6 +14,8 @@ rendered_s3="$(mktemp)"
 rendered_s3_backup="$(mktemp)"
 trap 'rm -f "${rendered}" "${rendered_ingress}" "${rendered_backup}" "${rendered_restore}" "${rendered_egress}" "${rendered_singletons}" "${rendered_ha}" "${rendered_s3}" "${rendered_s3_backup}"' EXIT
 
+ruby "${repo_root}/tests/yaml-duplicates.rb"
+
 helm lint "${chart}"
 helm template test "${chart}" > "${rendered}"
 helm lint "${chart}" --values "${repo_root}/examples/cluster-values.yaml"
