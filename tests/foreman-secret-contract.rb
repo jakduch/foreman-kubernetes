@@ -3,8 +3,8 @@
 
 require 'yaml'
 
-manifest_path, secret_name, database_key, encryption_key, seed_user_key, seed_password_key = ARGV
-abort 'usage: foreman-secret-contract.rb MANIFEST SECRET DATABASE_KEY ENCRYPTION_KEY SEED_USER_KEY SEED_PASSWORD_KEY' unless seed_password_key
+manifest_path, secret_name, database_key, encryption_key, secret_key_base, seed_user_key, seed_password_key = ARGV
+abort 'usage: foreman-secret-contract.rb MANIFEST SECRET DATABASE_KEY ENCRYPTION_KEY SECRET_KEY_BASE SEED_USER_KEY SEED_PASSWORD_KEY' unless seed_password_key
 
 def pod_spec(document)
   case document['kind']
@@ -43,7 +43,8 @@ YAML.load_stream(File.read(manifest_path)).compact.each do |document|
       env_by_name = environment.to_h { |entry| [entry['name'], entry] }
       expected_runtime = {
         'DATABASE_URL' => database_key,
-        'ENCRYPTION_KEY' => encryption_key
+        'ENCRYPTION_KEY' => encryption_key,
+        'SECRET_KEY_BASE' => secret_key_base
       }
       expected_runtime.each do |name, key|
         actual = secret_reference(env_by_name.fetch(name, {}))

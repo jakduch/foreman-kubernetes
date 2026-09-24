@@ -127,6 +127,7 @@ helm template test "${chart}" \
 helm template test "${chart}" \
   --set foreman.databaseUrlSecretKey=custom-database-url \
   --set foreman.encryptionKeySecretKey=custom-encryption-key \
+  --set foreman.secretKeyBaseSecretKey=custom-secret-key-base \
   --set foreman.seedAdminUserSecretKey=custom-seed-user \
   --set foreman.seedAdminPasswordSecretKey=custom-seed-password > "${rendered_foreman_secret_contract}"
 helm template test "${chart}" \
@@ -196,6 +197,7 @@ ruby "${repo_root}/tests/foreman-secret-contract.rb" \
   foreman-runtime \
   custom-database-url \
   custom-encryption-key \
+  custom-secret-key-base \
   custom-seed-user \
   custom-seed-password
 ruby "${repo_root}/tests/image-pull-secrets-contract.rb" \

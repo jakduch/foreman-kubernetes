@@ -85,6 +85,7 @@ foreman:
   existingEnvSecret: foreman-runtime
   databaseUrlSecretKey: DATABASE_URL
   encryptionKeySecretKey: ENCRYPTION_KEY
+  secretKeyBaseSecretKey: SECRET_KEY_BASE
   seedAdminUserSecretKey: SEED_ADMIN_USER
   seedAdminPasswordSecretKey: SEED_ADMIN_PASSWORD
   existingCertificateSecret: foreman-certificates

@@ -99,7 +99,7 @@
     "foreman": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["image", "replicas", "autoscaling", "service", "existingEnvSecret", "databaseUrlSecretKey", "encryptionKeySecretKey", "seedAdminUserSecretKey", "seedAdminPasswordSecretKey", "existingCertificateSecret", "existingDatabaseCaSecret", "database", "enabledPlugins", "pluginPolicy", "puma", "databasePools", "dynflow", "katelloEventDaemon", "sharedTmp", "avatarStorage", "resources"],
+      "required": ["image", "replicas", "autoscaling", "service", "existingEnvSecret", "databaseUrlSecretKey", "encryptionKeySecretKey", "secretKeyBaseSecretKey", "seedAdminUserSecretKey", "seedAdminPasswordSecretKey", "existingCertificateSecret", "existingDatabaseCaSecret", "database", "enabledPlugins", "pluginPolicy", "puma", "databasePools", "dynflow", "katelloEventDaemon", "sharedTmp", "avatarStorage", "resources"],
       "properties": {
         "image": { "$ref": "#/definitions/image" },
         "replicas": { "type": "integer", "minimum": 1 },
@@ -108,6 +108,7 @@
         "existingEnvSecret": { "type": "string", "minLength": 1 },
         "databaseUrlSecretKey": { "type": "string", "minLength": 1 },
         "encryptionKeySecretKey": { "type": "string", "minLength": 1 },
+        "secretKeyBaseSecretKey": { "type": "string", "minLength": 1 },
         "seedAdminUserSecretKey": { "type": "string", "minLength": 1 },
         "seedAdminPasswordSecretKey": { "type": "string", "minLength": 1 },
         "existingCertificateSecret": { "type": "string", "minLength": 1 },

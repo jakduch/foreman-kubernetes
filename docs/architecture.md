@@ -135,6 +135,13 @@ the budget of the component whose code they execute. Recovery has its own
 budget because its database dumps and Restic workload differ from the running
 services.
 
+Every Foreman-derived Rails process receives the same `SECRET_KEY_BASE` from a
+Secret. The platform does not rely on Foreman's fallback that creates
+`tmp/secret_token`: that file-based fallback can race when several Pods start
+together and changes after a clean-volume recovery. The Secret is included in
+the recovery escrow, while its value never enters a ConfigMap or rendered Helm
+manifest.
+
 Ingress isolation is enabled by default. Egress isolation is opt-in because
 standard Kubernetes NetworkPolicy cannot select DNS names. When enabled, the
 operator must identify PostgreSQL and Valkey by namespace/pod selectors or

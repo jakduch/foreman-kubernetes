@@ -149,12 +149,17 @@ pending.
 
 - `DATABASE_URL`
 - `ENCRYPTION_KEY`
+- `SECRET_KEY_BASE`
 - `SEED_ADMIN_USER`
 - `SEED_ADMIN_PASSWORD`
 
-All four key names are configurable. Runtime processes receive only the
-database URL and encryption key; the two seed credentials are exposed only to
-the Foreman migration-and-seed Job.
+All five key names are configurable. Runtime processes receive the database
+URL, encryption key, and Rails signing key; the two seed credentials are
+exposed only to the Foreman migration-and-seed Job. `SECRET_KEY_BASE` must be
+long, random, shared by every Rails process, and retained across disaster
+recovery. Providing it explicitly prevents Foreman from generating
+`tmp/secret_token` independently during concurrent starts and keeps sessions
+and other signed data valid across Pods.
 
 `foreman-database-ca` contains `db-ca.crt`. The production default verifies
 both the PostgreSQL certificate chain and the hostname for web, Dynflow,

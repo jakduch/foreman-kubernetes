@@ -65,12 +65,14 @@ if [[ ! -s "${workdir}/ca.crt" ]]; then
 fi
 
 encryption_key="$(openssl rand -hex 16)"
+secret_key_base="$(openssl rand -hex 64)"
 django_secret="$(openssl rand -hex 32)"
 symmetric_key="$(openssl rand -base64 32 | tr -d '\n')"
 
 kubectl --namespace "${namespace}" create secret generic foreman-runtime \
   --from-literal=DATABASE_URL='postgresql://foreman:foreman-test@postgresql:5432/foreman' \
   --from-literal=ENCRYPTION_KEY="${encryption_key}" \
+  --from-literal=SECRET_KEY_BASE="${secret_key_base}" \
   --from-literal=SEED_ADMIN_USER=admin \
   --from-literal=SEED_ADMIN_PASSWORD=foreman-test \
   --dry-run=client -o yaml | kubectl apply -f -

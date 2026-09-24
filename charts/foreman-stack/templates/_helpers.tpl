@@ -209,6 +209,11 @@ server {
     secretKeyRef:
       name: {{ .Values.foreman.existingEnvSecret }}
       key: {{ .Values.foreman.encryptionKeySecretKey }}
+- name: SECRET_KEY_BASE
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Values.foreman.existingEnvSecret }}
+      key: {{ .Values.foreman.secretKeyBaseSecretKey }}
 - name: DYNFLOW_REDIS_URL
   value: {{ printf "%s://$(VALKEY_DYNFLOW_URI_AUTH)%s:%v/%v" (include "foreman-stack.valkeyScheme" .) .Values.valkey.dynflow.host .Values.valkey.dynflow.port .Values.valkey.dynflow.database | quote }}
 - name: REDIS_PROVIDER
