@@ -1,0 +1,24 @@
+# Overlay on top of cluster-values.yaml after provisioning an external Artemis
+# service and adding artemis-broker-url to the candlepin-runtime Secret.
+candlepin:
+  replicas: 2
+  highAvailability:
+    enabled: true
+    brokerUrlSecretKey: artemis-broker-url
+    existingBrokerTlsSecret: candlepin-artemis-tls
+    quartz:
+      instanceName: ForemanCandlepinCluster
+      clusterCheckinInterval: 15000
+
+# Standard NetworkPolicy cannot resolve the Artemis hostname. When restricted
+# egress is enabled, replace this documentation CIDR with a stable broker CIDR
+# or with namespace and pod selectors.
+networkPolicy:
+  egress:
+    external:
+      candlepin:
+        peers:
+          - ipBlock:
+              cidr: 192.0.2.12/32
+        ports:
+          - 61616

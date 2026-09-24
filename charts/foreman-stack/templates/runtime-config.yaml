@@ -71,18 +71,28 @@ metadata:
   labels:
     {{- include "foreman-stack.componentLabels" (dict "root" . "component" "candlepin-config") | nindent 4 }}
 data:
+  candlepin-migrate.sh: |
+{{ .Files.Get "files/candlepin-migrate.sh" | indent 4 }}
   candlepin.conf: |
     candlepin.consumer_system_name_pattern=.+
     candlepin.environment_content_filtering=true
     candlepin.auth.basic.enable=false
     candlepin.auth.trusted.enable=false
-    candlepin.db.database_manage_on_startup=Manage
+    candlepin.db.database_manage_on_startup={{ ternary "HALT" "Manage" .Values.migrations.enabled }}
     candlepin.auth.oauth.enable=true
     candlepin.auth.oauth.consumer.katello.secret=overridden-by-environment
     module.config.adapter_module=org.candlepin.katello.KatelloModule
     candlepin.ca_key=/etc/candlepin/certs/candlepin-ca.key
     candlepin.ca_cert=/etc/candlepin/certs/candlepin-ca.crt
     candlepin.async.jobs.ExpiredPoolsCleanupJob.schedule=0 0 0 * * ?
+    {{- if .Values.candlepin.highAvailability.enabled }}
+    candlepin.audit.hornetq.embedded=false
+    candlepin.messaging.activemq.embedded.enabled=false
+    org.quartz.scheduler.instanceName={{ .Values.candlepin.highAvailability.quartz.instanceName }}
+    org.quartz.scheduler.instanceId=AUTO
+    org.quartz.jobStore.isClustered=true
+    org.quartz.jobStore.clusterCheckinInterval={{ .Values.candlepin.highAvailability.quartz.clusterCheckinInterval }}
+    {{- end }}
     jpa.config.hibernate.dialect=org.hibernate.dialect.PostgreSQLDialect
     jpa.config.hibernate.hbm2ddl.auto=validate
     jpa.config.hibernate.connection.username={{ .Values.candlepin.database.user }}

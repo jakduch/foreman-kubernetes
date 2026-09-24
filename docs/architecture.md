@@ -32,6 +32,7 @@ flowchart LR
   PulpContent --> RWX
   PulpWorker --> RWX
   Candlepin --> DB
+  Candlepin --> Artemis[(External Artemis)]
 ```
 
 ## Workload decisions
@@ -54,9 +55,15 @@ This preserves the upstream Redis lock and single-orchestrator contract instead 
 
 ### Candlepin
 
-Candlepin is a separate Deployment and Service. Phase 1 uses `Recreate` and one replica because startup currently manages database migrations, Artemis is embedded by default, and Quartz clustering is not enabled in the foremanctl configuration.
+Candlepin is a separate Deployment and Service. It defaults to one replica. HA
+is accepted only when an external Artemis URL is supplied from a Secret,
+embedded messaging is disabled, Quartz's JDBC store is clustered with unique
+automatic instance IDs, and chart-owned Liquibase migrations are enabled.
 
-Future HA requires a shared Artemis service, stable unique node names, Quartz JDBC clustering, and a migration/scheduler ownership decision. Until those changes are verified upstream, accepting `replicas > 1` would be misleading.
+The HA mode protects normal request processing from a pod or node failure. Its
+Deployment still uses `Recreate`: migration-before-rollout ordering needs an
+operator before the project can claim zero-downtime application/schema
+upgrades. The detailed contract is in [`candlepin-ha.md`](candlepin-ha.md).
 
 ### Pulp
 
@@ -102,15 +109,16 @@ CIDRs and list every PostgreSQL listener port in
 `networkPolicy.egress.database.ports`. Separate policies then allow only DNS,
 declared database and Valkey
 ports, required in-release service calls, and explicitly declared Foreman or
-Pulp external destinations. This avoids pretending that a hostname in the
-application configuration can be safely converted into an IP policy by Helm.
+Pulp external destinations. Candlepin HA additionally requires an explicit
+Artemis destination. This avoids pretending that a hostname in application
+configuration can be safely converted into an IP policy by Helm.
 
-Disruption budgets protect redundant Foreman, Pulp, Pulp control, and Dynflow
-worker pools. They are rendered from the minimum replica count, including the
-HPA minimum, and are omitted when a workload is configured as a singleton. No
-budget is created for Candlepin or the Dynflow orchestrator: a
-`minAvailable: 1` budget on a singleton would block voluntary node drains
-without providing actual availability.
+Disruption budgets protect redundant Foreman, Candlepin, Pulp, Pulp control,
+and Dynflow worker pools. They are rendered from the minimum replica count,
+including the HPA minimum, and are omitted when a workload is configured as a
+singleton. No budget is created for the Dynflow orchestrator or default
+single-replica Candlepin: a `minAvailable: 1` budget on a singleton would block
+voluntary node drains without providing actual availability.
 
 HTTP readiness checks keep dependency-aware endpoints out of traffic while
 separate TCP startup and liveness checks answer a narrower question: whether
@@ -120,9 +128,17 @@ application process and amplify the outage into a restart loop.
 
 ## State and upgrades
 
-PostgreSQL, Valkey, object/shared storage, PKI, and Secrets are external contracts. This keeps the first application chart usable with existing operators and managed services.
+PostgreSQL, Valkey, object/shared storage, PKI, Secrets, and the optional
+Candlepin Artemis broker are external contracts. This keeps the application
+chart usable with existing operators and managed services.
 
-Pulp and Foreman migrations are release-revision Jobs with bounded retries. The Foreman migration Job waits until Pulp reports no pending migrations, preserving their dependency order. Application pods use init containers to wait for their own schema, so Helm can create configuration, Jobs, and workloads in one release without a pre-install hook referencing a ConfigMap that does not exist yet. Candlepin retains its upstream startup migration behavior while it is single-replica.
+Candlepin, Pulp, and Foreman migrations are release-revision Jobs with bounded
+retries. The Foreman migration Job waits until Pulp reports no pending
+migrations, preserving their dependency order. Foreman and Pulp application
+pods use init containers to wait for their own schema. Candlepin uses its
+upstream `HALT` mode and refuses to become healthy while its Liquibase Job has
+pending work. If chart migrations are disabled, Candlepin falls back to its
+upstream `MANAGE` startup behavior and the schema restricts it to one replica.
 
 Maintenance-gated recovery Jobs stop all database writers before making a
 logical dump of each database and an encrypted Restic snapshot of Pulp storage

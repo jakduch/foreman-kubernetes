@@ -1,0 +1,23 @@
+candlepin:
+  replicas: 2
+  highAvailability:
+    enabled: true
+    brokerUrlSecretKey: artemis-broker-url
+    existingBrokerTlsSecret: candlepin-artemis-tls
+
+networkPolicy:
+  egress:
+    enabled: true
+    database:
+      peers:
+        - ipBlock:
+            cidr: 192.0.2.10/32
+    valkey:
+      peers:
+        - ipBlock:
+            cidr: 192.0.2.11/32
+    external:
+      candlepin:
+        peers:
+          - ipBlock:
+              cidr: 192.0.2.12/32

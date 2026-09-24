@@ -35,7 +35,7 @@ spec:
         app.kubernetes.io/instance: {{ .Release.Name }}
         app.kubernetes.io/component: candlepin
       annotations:
-        checksum/config: {{ toJson (dict "database" .Values.candlepin.database "java" .Values.candlepin.java "service" .Values.candlepin.service) | sha256sum }}
+        checksum/config: {{ toJson (dict "database" .Values.candlepin.database "highAvailability" .Values.candlepin.highAvailability "java" .Values.candlepin.java "migrations" .Values.migrations.enabled "service" .Values.candlepin.service) | sha256sum }}
     spec:
       serviceAccountName: {{ include "foreman-stack.serviceAccountName" . }}
       automountServiceAccountToken: false
@@ -67,6 +67,13 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.candlepin.existingRuntimeSecret }}
                   key: {{ .Values.candlepin.databasePasswordSecretKey }}
+            {{- if .Values.candlepin.highAvailability.enabled }}
+            - name: CANDLEPIN_AUDIT_HORNETQ_BROKER_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.candlepin.existingRuntimeSecret }}
+                  key: {{ .Values.candlepin.highAvailability.brokerUrlSecretKey }}
+            {{- end }}
           ports:
             - name: https
               containerPort: 23443
@@ -113,6 +120,11 @@ spec:
               subPath: db-ca.crt
               readOnly: true
             {{- end }}
+            {{- if .Values.candlepin.highAvailability.existingBrokerTlsSecret }}
+            - name: candlepin-broker-tls
+              mountPath: /etc/candlepin/artemis
+              readOnly: true
+            {{- end }}
           startupProbe:
             tcpSocket:
               port: https
@@ -149,4 +161,23 @@ spec:
           secret:
             secretName: {{ .Values.candlepin.existingDatabaseCaSecret }}
         {{- end }}
+        {{- if .Values.candlepin.highAvailability.existingBrokerTlsSecret }}
+        - name: candlepin-broker-tls
+          secret:
+            secretName: {{ .Values.candlepin.highAvailability.existingBrokerTlsSecret }}
+        {{- end }}
+      {{- include "foreman-stack.topologySpread" (dict "Values" .Values "Release" .Release "component" "candlepin") | nindent 6 }}
+{{- if and .Values.podDisruptionBudget.enabled (gt (int .Values.candlepin.replicas) 1) }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "foreman-stack.fullname" . }}-candlepin
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: candlepin
+{{- end }}
 {{- end }}

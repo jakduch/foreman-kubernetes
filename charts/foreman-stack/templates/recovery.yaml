@@ -17,6 +17,9 @@
 {{- if .Values.candlepin.existingDatabaseCaSecret }}
 {{- $secretNames = append $secretNames .Values.candlepin.existingDatabaseCaSecret }}
 {{- end }}
+{{- if .Values.candlepin.highAvailability.existingBrokerTlsSecret }}
+{{- $secretNames = append $secretNames .Values.candlepin.highAvailability.existingBrokerTlsSecret }}
+{{- end }}
 {{- if .Values.pulp.existingDatabaseCaSecret }}
 {{- $secretNames = append $secretNames .Values.pulp.existingDatabaseCaSecret }}
 {{- end }}

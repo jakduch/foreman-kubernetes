@@ -14,12 +14,12 @@ The initial Helm chart is under [`charts/foreman-stack`](charts/foreman-stack). 
 
 - a scalable Foreman web Deployment;
 - one Dynflow orchestrator and independently scalable worker Deployments;
-- a single-replica Candlepin Deployment with its native status probe;
+- a Candlepin Deployment with an opt-in external-Artemis and clustered-Quartz HA mode;
 - separate Pulp API, content, and worker Deployments backed by shared RWX storage;
 - a private, mutually authenticated Pulp control endpoint and automatic registration of Pulp in Foreman;
 - an optional ingress-nginx profile for Foreman and public Pulp content;
 - independent optional HPAs for Foreman web, Pulp API, and Pulp content replicas;
-- ordered Pulp and Foreman migration Jobs;
+- separate Candlepin, Pulp, and Foreman migration Jobs;
 - Foreman recurring tasks as non-overlapping CronJobs.
 - maintenance-gated, encrypted backup and restore Jobs covering all three
   PostgreSQL databases, Pulp content, and application Secrets.
@@ -32,7 +32,10 @@ This is an implementation scaffold, not yet a production release. It deliberatel
 
 The chart generates the non-secret Foreman, Katello, Dynflow, Candlepin, Tomcat, Pulp, and internal NGINX configuration from typed values. Existing Secrets are limited to credentials, encryption material, and certificates. The Pulp administrative API is not published by the ingress profile; Katello reaches it through a private mTLS endpoint that only maps approved client-certificate common names to Pulp's remote `admin` user.
 
-The chart currently prevents more than one Candlepin replica. The current Candlepin defaults use an embedded Artemis broker, and its Quartz configuration is not clustered. Scaling that Deployment before both concerns are addressed would create isolated queues and competing schedulers.
+The default remains one Candlepin replica. More replicas require the explicit
+HA contract: external Artemis, clustered JDBC Quartz, and chart-owned Liquibase
+migrations. The Deployment still uses `Recreate`, so runtime pod failure is
+covered but zero-downtime schema upgrades are not yet claimed.
 
 ## Render the chart
 
@@ -41,6 +44,10 @@ helm lint charts/foreman-stack
 helm template foreman charts/foreman-stack \
   --values examples/cluster-values.yaml
 ```
+
+The Candlepin HA contract is available as a separate overlay in
+[`examples/candlepin-ha-values.yaml`](examples/candlepin-ha-values.yaml); it
+requires an operator-supplied external Artemis service and Secrets.
 
 The example Secrets contain placeholders only. Populate them outside Git before installing:
 
@@ -66,6 +73,7 @@ credential, and recovery-drill contracts.
 - [`docs/runtime-contracts.md`](docs/runtime-contracts.md) records the verified upstream runtime contracts and current scaling limits.
 - [`docs/compatibility.md`](docs/compatibility.md) records digest-pinned image candidates and their test status.
 - [`docs/disaster-recovery.md`](docs/disaster-recovery.md) defines portable recovery sets and the destructive restore gate.
+- [`docs/candlepin-ha.md`](docs/candlepin-ha.md) defines the external broker, clustered scheduler, and migration boundary.
 - [`docs/roadmap.md`](docs/roadmap.md) lists the next implementation slices.
 
 ## Upstream source snapshots reviewed

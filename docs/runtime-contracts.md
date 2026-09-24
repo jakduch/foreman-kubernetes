@@ -36,8 +36,18 @@ Katello extends Foreman's ping response. Its checks expect:
 - Runs database management during application startup by default.
 - Uses a JDBC Quartz job store, but the current deployed configuration does not enable `org.quartz.jobStore.isClustered`.
 - Uses an embedded Artemis broker by default (`vm://0`). Multiple replicas would not share that queue.
+- The Foreman RPM image contains Liquibase, the expanded Candlepin webapp, and
+  `/usr/share/candlepin/liquibase.sh`; the chart migration wrapper uses that
+  image-specific layout.
+- The external broker client reads
+  `candlepin.audit.hornetq.broker_url`. Its session factory does not expose
+  separate username/password settings and logs the configured URL.
 
-The chart consequently enforces exactly one Candlepin replica in phase 1.
+The chart permits multiple replicas only through the explicit HA contract. It
+disables the embedded broker, uses the external URL from a Secret, clusters
+Quartz with an automatically unique instance ID, and transfers schema
+ownership to a revision Job. Full image-level integration proof is still
+pending.
 
 ## Pulp image
 
@@ -78,14 +88,15 @@ The chart generates `settings.yaml`, `katello.yaml`, and all three Dynflow queue
 
 ### `candlepin-runtime` and `candlepin-certificates`
 
-- `candlepin-runtime`: `database-password`
+- `candlepin-runtime`: `database-password`; in HA mode it also contains the
+  configured `artemis-broker-url` key.
 - `candlepin-certificates`:
   - `candlepin-ca.crt`
   - `candlepin-ca.key`
   - `tomcat.crt`
   - `tomcat.key`
 
-The chart generates `candlepin.conf`, `server.xml`, `tomcat.conf`, `logging.properties`, and `logback.xml`. SmallRye environment overrides supply the database and OAuth secrets with a higher priority than the generated properties file. A separate optional Secret supplies `db-ca.crt` when database certificate validation is enabled.
+The chart generates `candlepin.conf`, `server.xml`, `tomcat.conf`, `logging.properties`, and `logback.xml`. SmallRye environment overrides supply the database and OAuth secrets with a higher priority than the generated properties file. A separate optional Secret supplies `db-ca.crt` when database certificate validation is enabled. HA deployments may additionally mount a broker TLS Secret at `/etc/candlepin/artemis`; its filenames are referenced from the secret broker URL rather than copied into generated configuration.
 
 ### `pulp-runtime` and `pulp-config`
 

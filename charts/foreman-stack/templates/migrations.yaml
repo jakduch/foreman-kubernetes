@@ -2,6 +2,73 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
+  name: {{ include "foreman-stack.fullname" . }}-candlepin-migrate-{{ .Release.Revision }}
+  labels:
+    {{- include "foreman-stack.componentLabels" (dict "root" . "component" "candlepin-migrate") | nindent 4 }}
+spec:
+  backoffLimit: 3
+  activeDeadlineSeconds: {{ .Values.migrations.activeDeadlineSeconds }}
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: candlepin-migrate
+    spec:
+      restartPolicy: OnFailure
+      serviceAccountName: {{ include "foreman-stack.serviceAccountName" . }}
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: migrate
+          image: {{ include "foreman-stack.image" .Values.candlepin.image }}
+          imagePullPolicy: {{ .Values.candlepin.image.pullPolicy }}
+          securityContext:
+            {{- include "foreman-stack.restrictedContainerSecurityContext" (dict) | nindent 12 }}
+          command:
+            - /bin/bash
+            - /opt/foreman-kubernetes/candlepin-migrate.sh
+          env:
+            - name: CANDLEPIN_DATABASE_URL
+              value: jdbc:postgresql://{{ .Values.candlepin.database.host }}:{{ .Values.candlepin.database.port }}/{{ .Values.candlepin.database.name }}?sslmode={{ .Values.candlepin.database.sslMode }}{{ if .Values.candlepin.existingDatabaseCaSecret }}&sslrootcert=/etc/candlepin/certs/db-ca.crt{{ end }}
+            - name: CANDLEPIN_DATABASE_USER
+              value: {{ .Values.candlepin.database.user | quote }}
+            - name: LIQUIBASE_COMMAND_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.candlepin.existingRuntimeSecret }}
+                  key: {{ .Values.candlepin.databasePasswordSecretKey }}
+          volumeMounts:
+            - name: candlepin-generated-config
+              mountPath: /opt/foreman-kubernetes/candlepin-migrate.sh
+              subPath: candlepin-migrate.sh
+              readOnly: true
+            {{- if .Values.candlepin.existingDatabaseCaSecret }}
+            - name: candlepin-database-ca
+              mountPath: /etc/candlepin/certs/db-ca.crt
+              subPath: db-ca.crt
+              readOnly: true
+            {{- end }}
+      volumes:
+        - name: candlepin-generated-config
+          configMap:
+            name: {{ include "foreman-stack.candlepinConfigName" . }}
+            items:
+              - key: candlepin-migrate.sh
+                path: candlepin-migrate.sh
+                mode: 0555
+        {{- if .Values.candlepin.existingDatabaseCaSecret }}
+        - name: candlepin-database-ca
+          secret:
+            secretName: {{ .Values.candlepin.existingDatabaseCaSecret }}
+        {{- end }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
   name: {{ include "foreman-stack.fullname" . }}-pulp-migrate-{{ .Release.Revision }}
   labels:
     {{- include "foreman-stack.componentLabels" (dict "root" . "component" "pulp-migrate") | nindent 4 }}

@@ -11,6 +11,10 @@
 {{- $dns := .Values.networkPolicy.egress.dns }}
 {{- $foremanExternal := .Values.networkPolicy.egress.external.foreman }}
 {{- $pulpExternal := .Values.networkPolicy.egress.external.pulp }}
+{{- $candlepinExternal := .Values.networkPolicy.egress.external.candlepin }}
+{{- if and .Values.candlepin.highAvailability.enabled (eq (len $candlepinExternal.peers) 0) }}
+{{- fail "networkPolicy.egress.external.candlepin.peers must identify the external Artemis broker when Candlepin HA is enabled" }}
+{{- end }}
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -140,9 +144,15 @@ metadata:
     {{- include "foreman-stack.componentLabels" (dict "root" . "component" "candlepin-egress") | nindent 4 }}
 spec:
   podSelector:
-    matchLabels:
-      app.kubernetes.io/instance: {{ .Release.Name }}
-      app.kubernetes.io/component: candlepin
+    matchExpressions:
+      - key: app.kubernetes.io/instance
+        operator: In
+        values: [{{ .Release.Name | quote }}]
+      - key: app.kubernetes.io/component
+        operator: In
+        values:
+          - candlepin
+          - candlepin-migrate
   policyTypes:
     - Egress
   egress:
@@ -160,6 +170,15 @@ spec:
         - protocol: TCP
           port: {{ . }}
         {{- end }}
+    {{- if and .Values.candlepin.highAvailability.enabled (gt (len $candlepinExternal.peers) 0) }}
+    - to:
+        {{- toYaml $candlepinExternal.peers | nindent 8 }}
+      ports:
+        {{- range $candlepinExternal.ports }}
+        - protocol: TCP
+          port: {{ . }}
+        {{- end }}
+    {{- end }}
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy

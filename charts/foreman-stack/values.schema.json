@@ -60,16 +60,33 @@
     },
     "candlepin": {
       "type": "object",
-      "required": ["existingRuntimeSecret", "existingCertificateSecret", "database"],
+      "required": ["replicas", "existingRuntimeSecret", "existingCertificateSecret", "existingDatabaseCaSecret", "highAvailability", "database"],
       "properties": {
         "replicas": {
           "type": "integer",
           "minimum": 1,
-          "maximum": 1,
-          "description": "Candlepin remains single-replica until external Artemis and Quartz clustering are configured."
+          "description": "Multiple replicas require the explicit high-availability contract."
         },
         "existingRuntimeSecret": { "type": "string", "minLength": 1 },
         "existingCertificateSecret": { "type": "string", "minLength": 1 },
+        "existingDatabaseCaSecret": { "type": "string" },
+        "highAvailability": {
+          "type": "object",
+          "required": ["enabled", "brokerUrlSecretKey", "existingBrokerTlsSecret", "quartz"],
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "brokerUrlSecretKey": { "type": "string", "minLength": 1 },
+            "existingBrokerTlsSecret": { "type": "string" },
+            "quartz": {
+              "type": "object",
+              "required": ["instanceName", "clusterCheckinInterval"],
+              "properties": {
+                "instanceName": { "type": "string", "minLength": 1 },
+                "clusterCheckinInterval": { "type": "integer", "minimum": 1000 }
+              }
+            }
+          }
+        },
         "database": { "$ref": "#/definitions/database" }
       }
     },
@@ -190,10 +207,11 @@
             },
             "external": {
               "type": "object",
-              "required": ["foreman", "pulp"],
+              "required": ["foreman", "pulp", "candlepin"],
               "properties": {
                 "foreman": { "$ref": "#/definitions/networkPolicyDestination" },
-                "pulp": { "$ref": "#/definitions/networkPolicyDestination" }
+                "pulp": { "$ref": "#/definitions/networkPolicyDestination" },
+                "candlepin": { "$ref": "#/definitions/networkPolicyDestination" }
               }
             }
           }
@@ -271,6 +289,30 @@
     }
   },
   "allOf": [
+    {
+      "if": {
+        "properties": {
+          "candlepin": {
+            "properties": {
+              "highAvailability": {
+                "properties": { "enabled": { "const": true } }
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "candlepin": { "properties": { "replicas": { "minimum": 2 } } },
+          "migrations": { "properties": { "enabled": { "const": true } } }
+        }
+      },
+      "else": {
+        "properties": {
+          "candlepin": { "properties": { "replicas": { "maximum": 1 } } }
+        }
+      }
+    },
     {
       "not": {
         "properties": {

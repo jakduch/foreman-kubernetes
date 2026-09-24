@@ -79,12 +79,26 @@ candlepin:
     repository: quay.io/foreman/candlepin
     tag: foreman-nightly
     pullPolicy: IfNotPresent
-  # Phase 1 deliberately permits one replica only. See docs/runtime-contracts.md.
+  # More than one replica requires highAvailability.enabled and an external
+  # Artemis broker. Upgrades remain Recreate until the operator track owns
+  # migration-before-rollout ordering.
   replicas: 1
   existingRuntimeSecret: candlepin-runtime
   databasePasswordSecretKey: database-password
   existingCertificateSecret: candlepin-certificates
   existingDatabaseCaSecret: ""
+  highAvailability:
+    enabled: false
+    # The runtime Secret key contains the complete Artemis core client URL.
+    # Prefer certificate authentication: the current Candlepin client does not
+    # expose separate broker credentials and logs the URL during initialization.
+    brokerUrlSecretKey: artemis-broker-url
+    # Mounted read-only at /etc/candlepin/artemis when set. The broker URL may
+    # reference trust/key stores from this Secret.
+    existingBrokerTlsSecret: ""
+    quartz:
+      instanceName: ForemanCandlepinCluster
+      clusterCheckinInterval: 15000
   database:
     host: postgres.example.test
     port: 5432
@@ -242,6 +256,10 @@ networkPolicy:
         ports:
           - 80
           - 443
+      candlepin:
+        peers: []
+        ports:
+          - 61616
 
 affinity:
   spreadAcrossNodes: true

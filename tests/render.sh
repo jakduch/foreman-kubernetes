@@ -9,7 +9,8 @@ rendered_backup="$(mktemp)"
 rendered_restore="$(mktemp)"
 rendered_egress="$(mktemp)"
 rendered_singletons="$(mktemp)"
-trap 'rm -f "${rendered}" "${rendered_ingress}" "${rendered_backup}" "${rendered_restore}" "${rendered_egress}" "${rendered_singletons}"' EXIT
+rendered_ha="$(mktemp)"
+trap 'rm -f "${rendered}" "${rendered_ingress}" "${rendered_backup}" "${rendered_restore}" "${rendered_egress}" "${rendered_singletons}" "${rendered_ha}"' EXIT
 
 helm lint "${chart}"
 helm template test "${chart}" > "${rendered}"
@@ -18,6 +19,10 @@ helm template test "${chart}" --values "${repo_root}/examples/cluster-values.yam
 helm lint "${chart}" --values "${repo_root}/tests/kind/values.yaml"
 helm lint "${chart}" --values "${repo_root}/profiles/nightly-candidate-2026-09-23.yaml"
 helm lint "${chart}" --values "${repo_root}/tests/egress-values.yaml"
+helm lint "${chart}" --values "${repo_root}/tests/ha-values.yaml"
+helm lint "${chart}" \
+  --values "${repo_root}/examples/cluster-values.yaml" \
+  --values "${repo_root}/examples/candlepin-ha-values.yaml"
 helm template foreman "${chart}" \
   --values "${repo_root}/tests/kind/values.yaml" \
   --values "${repo_root}/profiles/nightly-candidate-2026-09-23.yaml" >/dev/null
@@ -33,6 +38,8 @@ helm template test "${chart}" \
 helm template test "${chart}" \
   --values "${repo_root}/tests/egress-values.yaml" > "${rendered_egress}"
 helm template test "${chart}" \
+  --values "${repo_root}/tests/ha-values.yaml" > "${rendered_ha}"
+helm template test "${chart}" \
   --set foreman.replicas=1 \
   --set foreman.dynflow.workers=1 \
   --set foreman.dynflow.hostsQueueWorkers=1 \
@@ -44,7 +51,8 @@ shellcheck -x \
   -P "${chart}/files" \
   "${chart}/files/recovery-common.sh" \
   "${chart}/files/backup.sh" \
-  "${chart}/files/restore.sh"
+  "${chart}/files/restore.sh" \
+  "${chart}/files/candlepin-migrate.sh"
 
 grep -q 'name: test-foreman-stack-foreman' "${rendered}"
 grep -q 'name: test-foreman-stack-candlepin' "${rendered}"
@@ -58,6 +66,9 @@ grep -q 'PULP_DATABASES__default__PASSWORD' "${rendered}"
 grep -q "ENV.fetch('CANDLEPIN_OAUTH_SECRET')" "${rendered}"
 grep -q 'name: wait-for-pulp-migrations' "${rendered}"
 grep -q 'name: wait-for-foreman-migrations' "${rendered}"
+grep -q 'name: test-foreman-stack-candlepin-migrate-1' "${rendered}"
+grep -q 'candlepin.db.database_manage_on_startup=HALT' "${rendered}"
+grep -q 'name: LIQUIBASE_COMMAND_PASSWORD' "${rendered}"
 grep -q 'name: test-foreman-stack-pulp-control' "${rendered}"
 grep -q 'PULP_PROXY_URL' "${rendered}"
 grep -q 'PULP_SMART_PROXY_RHSM_URL' "${rendered}"
@@ -119,6 +130,21 @@ grep -q 'cidr: 192.0.2.11/32' "${rendered_egress}"
 grep -q 'cidr: 198.51.100.0/24' "${rendered_egress}"
 grep -q 'cidr: 203.0.113.0/24' "${rendered_egress}"
 
+grep -q '^  replicas: 2$' "${rendered_ha}"
+grep -q 'candlepin.audit.hornetq.embedded=false' "${rendered_ha}"
+grep -q 'candlepin.messaging.activemq.embedded.enabled=false' "${rendered_ha}"
+grep -q 'org.quartz.scheduler.instanceId=AUTO' "${rendered_ha}"
+grep -q 'org.quartz.jobStore.isClustered=true' "${rendered_ha}"
+grep -q 'org.quartz.jobStore.clusterCheckinInterval=15000' "${rendered_ha}"
+grep -q 'name: CANDLEPIN_AUDIT_HORNETQ_BROKER_URL' "${rendered_ha}"
+grep -q 'key: artemis-broker-url' "${rendered_ha}"
+grep -q 'secretName: candlepin-artemis-tls' "${rendered_ha}"
+grep -q 'cidr: 192.0.2.12/32' "${rendered_ha}"
+if [[ "$(grep -c '^kind: PodDisruptionBudget$' "${rendered_ha}")" -ne 7 ]]; then
+  echo 'expected a Candlepin disruption budget only in the redundant HA profile' >&2
+  exit 1
+fi
+
 grep -q 'app.kubernetes.io/component: recovery-backup' "${rendered_backup}"
 grep -q 'name: BACKUP_REQUEST_ID' "${rendered_backup}"
 grep -q 'name: RESTIC_CACHE_DIR' "${rendered_backup}"
@@ -153,7 +179,41 @@ if grep -q 'CHANGE_ME' "${rendered}"; then
 fi
 
 if helm template test "${chart}" --set candlepin.replicas=2 >/dev/null 2>&1; then
-  echo 'expected candlepin.replicas=2 to be rejected by the schema' >&2
+  echo 'expected multiple Candlepin replicas without the HA contract to be rejected' >&2
+  exit 1
+fi
+
+if helm template test "${chart}" \
+  --values "${repo_root}/tests/ha-values.yaml" \
+  --set migrations.enabled=false >/dev/null 2>&1; then
+  echo 'expected Candlepin HA without migration ownership to be rejected' >&2
+  exit 1
+fi
+
+if helm template test "${chart}" \
+  --values "${repo_root}/tests/egress-values.yaml" \
+  --set candlepin.replicas=2 \
+  --set candlepin.highAvailability.enabled=true >/dev/null 2>&1; then
+  echo 'expected restricted Candlepin HA without an Artemis egress peer to be rejected' >&2
+  exit 1
+fi
+
+if helm template test "${chart}" \
+  --set candlepin.highAvailability.enabled=true >/dev/null 2>&1; then
+  echo 'expected Candlepin HA with only one replica to be rejected' >&2
+  exit 1
+fi
+
+if ! helm template test "${chart}" \
+  --set migrations.enabled=false | grep -q 'candlepin.db.database_manage_on_startup=Manage'; then
+  echo 'Candlepin must retain upstream startup migration ownership when chart migrations are disabled' >&2
+  exit 1
+fi
+
+
+if helm template test "${chart}" \
+  --set migrations.enabled=false | grep -q 'name: test-foreman-stack-candlepin-migrate-1'; then
+  echo 'Candlepin migration resources must be omitted when chart migrations are disabled' >&2
   exit 1
 fi
 

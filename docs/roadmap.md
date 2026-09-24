@@ -26,11 +26,23 @@
 
 ## Candlepin HA track
 
-1. Configure a shared external Artemis broker.
-2. Enable and test Quartz JDBC clustering with stable per-pod instance IDs.
-3. Separate database migration ownership from normal application startup.
-4. Prove job delivery, scheduler failover, and rolling upgrade behavior.
-5. Only then remove the schema limit of one Candlepin replica.
+Implemented in the chart, pending amd64 integration proof:
+
+- external Artemis URL and optional TLS material come from Secrets;
+- embedded Artemis is disabled in HA mode;
+- Quartz JDBC clustering uses a common name and automatic unique instance IDs;
+- a dedicated Liquibase Job owns database changes while application pods use
+  `HALT`;
+- replicas greater than one require the full HA and migration contract;
+- topology spread and a disruption budget protect redundant pods.
+
+Still required:
+
+1. Prove one-time Artemis job delivery and reconnect behavior.
+2. Prove Quartz trigger failover by terminating the active scheduler pod.
+3. Exercise failed and successful migrations against the pinned image set.
+4. Move migration-before-rollout sequencing into the operator, then replace
+   `Recreate` with a proven rolling strategy.
 
 ## Operator track
 
