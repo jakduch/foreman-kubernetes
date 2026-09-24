@@ -178,21 +178,25 @@
         },
         "api": {
           "type": "object",
-          "required": ["replicas", "port", "gunicornWorkers", "autoscaling"],
+          "required": ["replicas", "port", "gunicornWorkers", "gunicornTimeoutSeconds", "gunicornMaxRequests", "gunicornMaxRequestsJitter", "autoscaling"],
           "properties": {
             "replicas": { "type": "integer", "minimum": 1 },
             "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
             "gunicornWorkers": { "type": "integer", "minimum": 1 },
+            "gunicornTimeoutSeconds": { "type": "integer", "minimum": 1 },
+            "gunicornMaxRequests": { "type": "integer", "minimum": 1 },
+            "gunicornMaxRequestsJitter": { "type": "integer", "minimum": 0 },
             "autoscaling": { "$ref": "#/definitions/autoscaling" }
           }
         },
         "content": {
           "type": "object",
-          "required": ["replicas", "port", "gunicornWorkers", "autoscaling"],
+          "required": ["replicas", "port", "gunicornWorkers", "gunicornTimeoutSeconds", "autoscaling"],
           "properties": {
             "replicas": { "type": "integer", "minimum": 1 },
             "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
             "gunicornWorkers": { "type": "integer", "minimum": 1 },
+            "gunicornTimeoutSeconds": { "type": "integer", "minimum": 1 },
             "autoscaling": { "$ref": "#/definitions/autoscaling" }
           }
         },

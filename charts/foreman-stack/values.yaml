@@ -181,6 +181,11 @@ pulp:
     replicas: 2
     port: 24817
     gunicornWorkers: 2
+    # Keep these aligned with the official image wrapper. The chart invokes
+    # pulpcore-api directly so it can bind a configurable port.
+    gunicornTimeoutSeconds: 90
+    gunicornMaxRequests: 800
+    gunicornMaxRequestsJitter: 100
     autoscaling:
       enabled: false
       minReplicas: 2
@@ -190,6 +195,7 @@ pulp:
     replicas: 2
     port: 24816
     gunicornWorkers: 2
+    gunicornTimeoutSeconds: 90
     autoscaling:
       enabled: false
       minReplicas: 2

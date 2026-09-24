@@ -84,6 +84,10 @@ pending.
 - Declares the `pulp` user and group as UID/GID 700 and ends its image build
   with `USER pulp:pulp`.
 - Provides separate `pulpcore-api`, `pulpcore-content`, and `pulpcore-worker` executables.
+- The image wrappers give API/content requests a 90-second Gunicorn timeout and
+  recycle API workers after a jittered number of requests. Because the chart
+  invokes the underlying executables directly to retain configurable bind
+  ports, it supplies those same settings explicitly through Helm values.
 - API defaults to port 24817 and content to port 24816 in the current foremanctl contract.
 - Migration command: `pulpcore-manager migrate --noinput`.
 - Every role requires a shared database, Valkey, symmetric key, and content

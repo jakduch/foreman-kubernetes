@@ -30,8 +30,8 @@ spec:
 {{- if not .Values.maintenance.enabled }}
 {{- $root := . }}
 {{- $services := list
-  (dict "name" "api" "replicas" .Values.pulp.api.replicas "port" .Values.pulp.api.port "workers" .Values.pulp.api.gunicornWorkers "autoscaling" .Values.pulp.api.autoscaling)
-  (dict "name" "content" "replicas" .Values.pulp.content.replicas "port" .Values.pulp.content.port "workers" .Values.pulp.content.gunicornWorkers "autoscaling" .Values.pulp.content.autoscaling)
+  (dict "name" "api" "replicas" .Values.pulp.api.replicas "port" .Values.pulp.api.port "workers" .Values.pulp.api.gunicornWorkers "timeout" .Values.pulp.api.gunicornTimeoutSeconds "maxRequests" .Values.pulp.api.gunicornMaxRequests "maxRequestsJitter" .Values.pulp.api.gunicornMaxRequestsJitter "autoscaling" .Values.pulp.api.autoscaling)
+  (dict "name" "content" "replicas" .Values.pulp.content.replicas "port" .Values.pulp.content.port "workers" .Values.pulp.content.gunicornWorkers "timeout" .Values.pulp.content.gunicornTimeoutSeconds "autoscaling" .Values.pulp.content.autoscaling)
 -}}
 {{- range $service := $services }}
 ---
@@ -83,6 +83,14 @@ spec:
             - 0.0.0.0:{{ $service.port }}
             - --workers
             - {{ $service.workers | quote }}
+            - --timeout
+            - {{ $service.timeout | quote }}
+            {{- if eq $service.name "api" }}
+            - --max-requests
+            - {{ $service.maxRequests | quote }}
+            - --max-requests-jitter
+            - {{ $service.maxRequestsJitter | quote }}
+            {{- end }}
             - --access-logfile
             - "-"
             - --log-level

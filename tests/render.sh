@@ -107,6 +107,7 @@ for manifest in \
 done
 
 ruby "${repo_root}/tests/candlepin-port.rb" "${rendered_candlepin_port}" 24443
+ruby "${repo_root}/tests/pulp-process-contract.rb" "${rendered}"
 
 ruby "${repo_root}/tests/kubernetes-invariants.rb" "${rendered_execution}"
 ruby "${repo_root}/tests/kubernetes-invariants.rb" "${rendered_execution_egress}"
