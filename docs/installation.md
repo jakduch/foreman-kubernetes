@@ -33,6 +33,13 @@ Dynflow `*-uri-auth` Secret values are URI userinfo including the trailing
 `@`; percent-encode reserved characters before storing them. Pulp uses the
 separate raw `pulp-password` value for its default Valkey ACL user.
 
+Foreman email is opt-in. Set `foreman.email.enabled=true`, configure the relay
+under `foreman.email.smtp`, and create the selected two-key Secret when SMTP
+authentication is used. The chart enables automatic STARTTLS and certificate
+peer verification; use a relay with a certificate trusted by the Foreman
+image. When egress isolation is enabled, declare only that relay and its actual
+port under `networkPolicy.egress.external.smtp`.
+
 ## Guarded first installation
 
 Create the namespace and Secrets first:

@@ -99,7 +99,7 @@
     "foreman": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["image", "replicas", "autoscaling", "service", "existingEnvSecret", "databaseUrlSecretKey", "encryptionKeySecretKey", "secretKeyBaseSecretKey", "seedAdminUserSecretKey", "seedAdminPasswordSecretKey", "existingCertificateSecret", "existingDatabaseCaSecret", "database", "enabledPlugins", "pluginPolicy", "puma", "databasePools", "dynflow", "katelloEventDaemon", "sharedTmp", "avatarStorage", "resources"],
+      "required": ["image", "replicas", "autoscaling", "service", "existingEnvSecret", "databaseUrlSecretKey", "encryptionKeySecretKey", "secretKeyBaseSecretKey", "seedAdminUserSecretKey", "seedAdminPasswordSecretKey", "existingCertificateSecret", "existingDatabaseCaSecret", "database", "email", "enabledPlugins", "pluginPolicy", "puma", "databasePools", "dynflow", "katelloEventDaemon", "sharedTmp", "avatarStorage", "resources"],
       "properties": {
         "image": { "$ref": "#/definitions/image" },
         "replicas": { "type": "integer", "minimum": 1 },
@@ -114,6 +114,30 @@
         "existingCertificateSecret": { "type": "string", "minLength": 1 },
         "existingDatabaseCaSecret": { "type": "string" },
         "database": { "$ref": "#/definitions/databaseTls" },
+        "email": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["enabled", "replyAddress", "subjectPrefix", "smtp"],
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "replyAddress": { "type": "string", "minLength": 1 },
+            "subjectPrefix": { "type": "string", "maxLength": 255 },
+            "smtp": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["address", "port", "domain", "authentication", "existingSecret", "usernameSecretKey", "passwordSecretKey"],
+              "properties": {
+                "address": { "type": "string" },
+                "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+                "domain": { "type": "string" },
+                "authentication": { "enum": ["none", "plain", "login", "cram_md5"] },
+                "existingSecret": { "type": "string" },
+                "usernameSecretKey": { "type": "string", "minLength": 1 },
+                "passwordSecretKey": { "type": "string", "minLength": 1 }
+              }
+            }
+          }
+        },
         "enabledPlugins": {
           "type": "array",
           "minItems": 2,
@@ -518,11 +542,12 @@
             },
             "external": {
               "type": "object",
-              "required": ["foreman", "pulp", "candlepin"],
+              "required": ["foreman", "pulp", "candlepin", "smtp"],
               "properties": {
                 "foreman": { "$ref": "#/definitions/networkPolicyDestination" },
                 "pulp": { "$ref": "#/definitions/networkPolicyDestination" },
-                "candlepin": { "$ref": "#/definitions/networkPolicyDestination" }
+                "candlepin": { "$ref": "#/definitions/networkPolicyDestination" },
+                "smtp": { "$ref": "#/definitions/networkPolicyDestination" }
               }
             }
           }

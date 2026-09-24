@@ -223,6 +223,18 @@ server {
     secretKeyRef:
       name: {{ .Values.sharedSecret.name }}
       key: {{ .Values.sharedSecret.candlepinOAuthSecretKey }}
+{{- if and .Values.foreman.email.enabled (ne .Values.foreman.email.smtp.authentication "none") }}
+- name: FOREMAN_SMTP_USERNAME
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Values.foreman.email.smtp.existingSecret }}
+      key: {{ .Values.foreman.email.smtp.usernameSecretKey }}
+- name: FOREMAN_SMTP_PASSWORD
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Values.foreman.email.smtp.existingSecret }}
+      key: {{ .Values.foreman.email.smtp.passwordSecretKey }}
+{{- end }}
 {{- end }}
 
 {{- define "foreman-stack.foremanSeedEnv" -}}

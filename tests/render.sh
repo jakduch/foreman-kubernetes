@@ -24,13 +24,15 @@ rendered_no_migrations="$(mktemp)"
 rendered_secret_rotation="$(mktemp)"
 rendered_s3="$(mktemp)"
 rendered_s3_backup="$(mktemp)"
+rendered_smtp="$(mktemp)"
+rendered_smtp_backup="$(mktemp)"
 rendered_kind="$(mktemp)"
 rendered_kind_backup="$(mktemp)"
 rendered_execution="$(mktemp)"
 rendered_execution_egress="$(mktemp)"
 rendered_execution_kind="$(mktemp)"
 rendered_execution_secret_rotation="$(mktemp)"
-trap 'rm -f "${rendered}" "${rendered_ingress}" "${rendered_ingress_overrides}" "${rendered_minimal_pulp_ingress}" "${rendered_backup}" "${rendered_restore}" "${rendered_egress}" "${rendered_egress_backup}" "${rendered_egress_backup_local}" "${rendered_singletons}" "${rendered_ha}" "${rendered_candlepin_port}" "${rendered_foreman_service_port}" "${rendered_foreman_secret_contract}" "${rendered_database_tls_disabled}" "${rendered_image_pull_secrets}" "${rendered_no_migrations}" "${rendered_secret_rotation}" "${rendered_s3}" "${rendered_s3_backup}" "${rendered_kind}" "${rendered_kind_backup}" "${rendered_execution}" "${rendered_execution_egress}" "${rendered_execution_kind}" "${rendered_execution_secret_rotation}"' EXIT
+trap 'rm -f "${rendered}" "${rendered_ingress}" "${rendered_ingress_overrides}" "${rendered_minimal_pulp_ingress}" "${rendered_backup}" "${rendered_restore}" "${rendered_egress}" "${rendered_egress_backup}" "${rendered_egress_backup_local}" "${rendered_singletons}" "${rendered_ha}" "${rendered_candlepin_port}" "${rendered_foreman_service_port}" "${rendered_foreman_secret_contract}" "${rendered_database_tls_disabled}" "${rendered_image_pull_secrets}" "${rendered_no_migrations}" "${rendered_secret_rotation}" "${rendered_s3}" "${rendered_s3_backup}" "${rendered_smtp}" "${rendered_smtp_backup}" "${rendered_kind}" "${rendered_kind_backup}" "${rendered_execution}" "${rendered_execution_egress}" "${rendered_execution_kind}" "${rendered_execution_secret_rotation}"' EXIT
 
 ruby "${repo_root}/tests/yaml-duplicates.rb"
 ruby "${repo_root}/tests/operator-contract.rb"
@@ -82,6 +84,9 @@ helm lint "${chart}" --values "${repo_root}/profiles/nightly-candidate-2026-09-2
 helm lint "${chart}" --values "${repo_root}/tests/egress-values.yaml"
 helm lint "${chart}" --values "${repo_root}/tests/ha-values.yaml"
 helm lint "${chart}" --values "${repo_root}/examples/pulp-s3-values.yaml"
+helm lint "${chart}" \
+  --values "${repo_root}/tests/egress-values.yaml" \
+  --values "${repo_root}/tests/smtp-values.yaml"
 helm lint "${chart}" \
   --values "${repo_root}/examples/cluster-values.yaml" \
   --values "${repo_root}/examples/candlepin-ha-values.yaml"
@@ -151,6 +156,15 @@ helm template test "${chart}" \
   --set backup.enabled=true \
   --set backup.requestId=20260924-s3 > "${rendered_s3_backup}"
 helm template test "${chart}" \
+  --values "${repo_root}/tests/egress-values.yaml" \
+  --values "${repo_root}/tests/smtp-values.yaml" > "${rendered_smtp}"
+helm template test "${chart}" \
+  --values "${repo_root}/tests/egress-values.yaml" \
+  --values "${repo_root}/tests/smtp-values.yaml" \
+  --set maintenance.enabled=true \
+  --set backup.enabled=true \
+  --set backup.requestId=smtp-escrow > "${rendered_smtp_backup}"
+helm template test "${chart}" \
   --set foreman.replicas=1 \
   --set foreman.dynflow.workers=1 \
   --set foreman.dynflow.hostsQueueWorkers=1 \
@@ -171,6 +185,7 @@ for manifest in \
   "${rendered_no_migrations}" \
   "${rendered_secret_rotation}" \
   "${rendered_s3}" \
+  "${rendered_smtp}" \
   "${rendered_backup}" \
   "${rendered_restore}" \
   "${rendered_s3_backup}" \
@@ -224,6 +239,7 @@ ruby "${repo_root}/tests/disruption-budget-contract.rb" "${rendered}"
 ruby "${repo_root}/tests/rollout-strategy-contract.rb" "${rendered}"
 ruby "${repo_root}/tests/topology-spread-contract.rb" "${rendered}" ScheduleAnyway
 ruby "${repo_root}/tests/topology-spread-contract.rb" "${rendered_ingress}" DoNotSchedule
+ruby "${repo_root}/tests/smtp-contract.rb" "${rendered_smtp}" "${rendered_smtp_backup}"
 ruby "${repo_root}/tests/recovery-storage-contract.rb" "${rendered_backup}" true
 ruby "${repo_root}/tests/recovery-storage-contract.rb" "${rendered_restore}" true
 ruby "${repo_root}/tests/recovery-storage-contract.rb" "${rendered_s3_backup}" false
@@ -792,6 +808,33 @@ fi
 if helm template test "${chart}" \
   --set networkPolicy.egress.enabled=true >/dev/null 2>&1; then
   echo 'expected restricted egress without database and Valkey peers to be rejected' >&2
+  exit 1
+fi
+
+if helm template test "${chart}" \
+  --set foreman.email.enabled=true >/dev/null 2>&1; then
+  echo 'expected enabled email without an SMTP address to be rejected' >&2
+  exit 1
+fi
+
+helm template test "${chart}" \
+  --set foreman.email.enabled=true \
+  --set foreman.email.smtp.address=smtp.example.test \
+  --set foreman.email.smtp.authentication=none >/dev/null
+
+if helm template test "${chart}" \
+  --set foreman.email.enabled=true \
+  --set foreman.email.smtp.address=smtp.example.test \
+  --set foreman.email.smtp.authentication=login >/dev/null 2>&1; then
+  echo 'expected authenticated SMTP without a Secret to be rejected' >&2
+  exit 1
+fi
+
+if helm template test "${chart}" \
+  --values "${repo_root}/tests/egress-values.yaml" \
+  --values "${repo_root}/tests/smtp-values.yaml" \
+  --set-json 'networkPolicy.egress.external.smtp.peers=[]' >/dev/null 2>&1; then
+  echo 'expected restricted email without an SMTP relay peer to be rejected' >&2
   exit 1
 fi
 

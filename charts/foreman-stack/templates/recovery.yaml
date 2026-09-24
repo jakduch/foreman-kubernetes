@@ -18,6 +18,9 @@
 {{- if .Values.valkey.tls.enabled }}
 {{- $secretNames = append $secretNames .Values.valkey.tls.existingCaSecret }}
 {{- end }}
+{{- if and .Values.foreman.email.enabled (ne .Values.foreman.email.smtp.authentication "none") }}
+{{- $secretNames = append $secretNames .Values.foreman.email.smtp.existingSecret }}
+{{- end }}
 {{- if .Values.foreman.existingDatabaseCaSecret }}
 {{- $secretNames = append $secretNames .Values.foreman.existingDatabaseCaSecret }}
 {{- end }}

@@ -94,6 +94,18 @@ foreman:
     # Injected through libpq so web, workers, migrations, and recovery all use
     # the same certificate-verification policy.
     sslMode: verify-full
+  email:
+    enabled: false
+    replyAddress: foreman-noreply@example.test
+    subjectPrefix: "[foreman]"
+    smtp:
+      address: ""
+      port: 587
+      domain: ""
+      authentication: none
+      existingSecret: ""
+      usernameSecretKey: username
+      passwordSecretKey: password
   enabledPlugins:
     - foreman-tasks
     - katello
@@ -420,6 +432,12 @@ networkPolicy:
         peers: []
         ports:
           - 61616
+      smtp:
+        peers: []
+        ports:
+          - 25
+          - 465
+          - 587
 
 affinity:
   spreadAcrossNodes: true

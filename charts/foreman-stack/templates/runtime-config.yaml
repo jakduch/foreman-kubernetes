@@ -14,6 +14,12 @@
 {{- if and (not .Values.valkey.tls.enabled) .Values.valkey.tls.existingCaSecret -}}
 {{- fail "valkey.tls.existingCaSecret must be empty when Valkey TLS is disabled" -}}
 {{- end -}}
+{{- if and .Values.foreman.email.enabled (not .Values.foreman.email.smtp.address) -}}
+{{- fail "foreman.email.smtp.address is required when email is enabled" -}}
+{{- end -}}
+{{- if and .Values.foreman.email.enabled (ne .Values.foreman.email.smtp.authentication "none") (not .Values.foreman.email.smtp.existingSecret) -}}
+{{- fail "foreman.email.smtp.existingSecret is required when SMTP authentication is enabled" -}}
+{{- end -}}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -58,6 +64,21 @@ data:
           :ca_file: /etc/foreman/certs/valkey-ca.crt
           :verify_mode: 1
         {{- end }}
+    {{- if .Values.foreman.email.enabled }}
+    :delivery_method: smtp
+    :email_reply_address: {{ .Values.foreman.email.replyAddress | quote }}
+    :email_subject_prefix: {{ .Values.foreman.email.subjectPrefix | quote }}
+    :smtp_enable_starttls_auto: true
+    :smtp_openssl_verify_mode: peer
+    :smtp_address: {{ .Values.foreman.email.smtp.address | quote }}
+    :smtp_port: {{ .Values.foreman.email.smtp.port }}
+    :smtp_domain: {{ .Values.foreman.email.smtp.domain | quote }}
+    {{- if ne .Values.foreman.email.smtp.authentication "none" }}
+    :smtp_authentication: {{ .Values.foreman.email.smtp.authentication | quote }}
+    :smtp_user_name: <%= ENV.fetch('FOREMAN_SMTP_USERNAME') %>
+    :smtp_password: <%= ENV.fetch('FOREMAN_SMTP_PASSWORD') %>
+    {{- end }}
+    {{- end }}
   katello.yaml: |
     ---
     :katello:

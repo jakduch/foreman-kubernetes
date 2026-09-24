@@ -161,6 +161,14 @@ recovery. Providing it explicitly prevents Foreman from generating
 `tmp/secret_token` independently during concurrent starts and keeps sessions
 and other signed data valid across Pods.
 
+When `foreman.email.enabled` is set, the chart overrides Foreman's database
+email settings with an SMTP-only configuration in `settings.yaml`. STARTTLS is
+enabled with OpenSSL peer verification. Authenticated SMTP reads only the
+selected username and password keys from `foreman.email.smtp.existingSecret`;
+the whole Secret is never imported into a process environment. With restricted
+egress, the relay must also be declared under
+`networkPolicy.egress.external.smtp`.
+
 `foreman-database-ca` contains `db-ca.crt`. The production default verifies
 both the PostgreSQL certificate chain and the hostname for web, Dynflow,
 recurring tasks, migrations, backup, and restore. A development profile that
