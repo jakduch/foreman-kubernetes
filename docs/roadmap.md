@@ -98,6 +98,12 @@ Still required:
 
 ## Operator track
 
+The namespaced `ForemanRelease` CRD and machine-readable lifecycle graph now
+define phase ordering, status conditions, same-namespace values references,
+pause semantics, explicit blocked retries, and the no-database-rollback rule.
+Their structural contract is covered by static tests, but no controller is
+running yet.
+
 After the Helm lifecycle and runtime contracts are proven, add a small Go operator that:
 
 - validates compatible Foreman/Katello/Candlepin/Pulp version sets;

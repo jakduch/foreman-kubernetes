@@ -123,6 +123,7 @@ credential, and recovery-drill contracts.
 - [`docs/candlepin-ha.md`](docs/candlepin-ha.md) defines the external broker, clustered scheduler, and migration boundary.
 - [`docs/pulp-object-storage.md`](docs/pulp-object-storage.md) defines the optional S3-compatible artifact backend and its recovery boundary.
 - [`docs/roadmap.md`](docs/roadmap.md) lists the next implementation slices.
+- [`operator/README.md`](operator/README.md) defines the future controller API, phase ownership, and failure/retry contract.
 
 ## Upstream source snapshots reviewed
 

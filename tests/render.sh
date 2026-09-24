@@ -20,6 +20,7 @@ rendered_execution_kind="$(mktemp)"
 trap 'rm -f "${rendered}" "${rendered_ingress}" "${rendered_backup}" "${rendered_restore}" "${rendered_egress}" "${rendered_singletons}" "${rendered_ha}" "${rendered_s3}" "${rendered_s3_backup}" "${rendered_kind_backup}" "${rendered_execution}" "${rendered_execution_egress}" "${rendered_execution_kind}"' EXIT
 
 ruby "${repo_root}/tests/yaml-duplicates.rb"
+ruby "${repo_root}/tests/operator-contract.rb"
 
 helm lint "${chart}"
 helm template test "${chart}" > "${rendered}"
@@ -193,6 +194,7 @@ ruby "${repo_root}/tests/release-sets.rb"
 ruby -c "${repo_root}/scripts/write-integration-evidence.rb"
 ruby -c "${repo_root}/scripts/promote-release-set.rb"
 ruby -c "${repo_root}/tests/integration-evidence.rb"
+ruby -c "${repo_root}/tests/operator-contract.rb"
 ruby "${repo_root}/tests/integration-evidence.rb"
 "${repo_root}/tests/upgrade-release.sh"
 

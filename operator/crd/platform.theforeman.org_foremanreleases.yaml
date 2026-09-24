@@ -1,0 +1,204 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: foremanreleases.platform.theforeman.org
+spec:
+  group: platform.theforeman.org
+  scope: Namespaced
+  names:
+    kind: ForemanRelease
+    listKind: ForemanReleaseList
+    plural: foremanreleases
+    singular: foremanrelease
+    shortNames:
+      - frelease
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: Phase
+          type: string
+          jsonPath: .status.phase
+        - name: Current set
+          type: string
+          jsonPath: .status.currentSet
+        - name: Target set
+          type: string
+          jsonPath: .status.targetSet
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+      schema:
+        openAPIV3Schema:
+          type: object
+          required:
+            - spec
+          properties:
+            spec:
+              type: object
+              required:
+                - compatibilitySet
+                - application
+                - executionProxy
+              properties:
+                compatibilitySet:
+                  type: string
+                  minLength: 1
+                  maxLength: 128
+                  pattern: ^[a-z0-9][a-z0-9._-]*$
+                allowCandidate:
+                  type: boolean
+                  default: false
+                  description: Permit an explicitly selected candidate set. Retired sets remain forbidden.
+                paused:
+                  type: boolean
+                  default: false
+                  description: Prevent the controller from starting another phase; an active migration or rollout is observed to completion.
+                retryToken:
+                  type: string
+                  maxLength: 128
+                  description: Change this value to explicitly retry a Blocked release after correcting its cause.
+                failurePolicy:
+                  type: object
+                  default:
+                    afterMigration: Halt
+                  properties:
+                    afterMigration:
+                      type: string
+                      enum:
+                        - Halt
+                      default: Halt
+                      description: Database migrations are never rolled back by the release controller.
+                application:
+                  type: object
+                  required:
+                    - valuesSecretRef
+                  properties:
+                    releaseName:
+                      type: string
+                      default: foreman
+                      minLength: 1
+                      maxLength: 53
+                      pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                    valuesSecretRef:
+                      type: object
+                      required:
+                        - name
+                        - key
+                      properties:
+                        name:
+                          type: string
+                          minLength: 1
+                        key:
+                          type: string
+                          minLength: 1
+                executionProxy:
+                  type: object
+                  required:
+                    - valuesSecretRef
+                  properties:
+                    releaseName:
+                      type: string
+                      default: execution
+                      minLength: 1
+                      maxLength: 53
+                      pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                    valuesSecretRef:
+                      type: object
+                      required:
+                        - name
+                        - key
+                      properties:
+                        name:
+                          type: string
+                          minLength: 1
+                        key:
+                          type: string
+                          minLength: 1
+            status:
+              type: object
+              properties:
+                observedGeneration:
+                  type: integer
+                  format: int64
+                  minimum: 0
+                phase:
+                  type: string
+                  enum:
+                    - Pending
+                    - Preflight
+                    - AcquiringLock
+                    - Migrating
+                    - RollingApplication
+                    - VerifyingApplication
+                    - RollingProxy
+                    - Verifying
+                    - Ready
+                    - Blocked
+                currentSet:
+                  type: string
+                targetSet:
+                  type: string
+                lastSuccessfulSet:
+                  type: string
+                observedRetryToken:
+                  type: string
+                operation:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                    startedAt:
+                      type: string
+                      format: date-time
+                    migrationJobs:
+                      type: array
+                      items:
+                        type: string
+                    applicationRevision:
+                      type: integer
+                      format: int64
+                      minimum: 1
+                    executionProxyRevision:
+                      type: integer
+                      format: int64
+                      minimum: 1
+                conditions:
+                  type: array
+                  x-kubernetes-list-type: map
+                  x-kubernetes-list-map-keys:
+                    - type
+                  items:
+                    type: object
+                    required:
+                      - type
+                      - status
+                      - reason
+                      - message
+                      - lastTransitionTime
+                      - observedGeneration
+                    properties:
+                      type:
+                        type: string
+                      status:
+                        type: string
+                        enum:
+                          - "True"
+                          - "False"
+                          - Unknown
+                      observedGeneration:
+                        type: integer
+                        format: int64
+                      reason:
+                        type: string
+                        minLength: 1
+                        maxLength: 1024
+                      message:
+                        type: string
+                        maxLength: 32768
+                      lastTransitionTime:
+                        type: string
+                        format: date-time
