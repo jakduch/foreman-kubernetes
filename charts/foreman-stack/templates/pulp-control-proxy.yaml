@@ -43,9 +43,7 @@ spec:
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: {{ include "foreman-stack.name" . }}
-        app.kubernetes.io/instance: {{ .Release.Name }}
-        app.kubernetes.io/component: pulp-control-proxy
+        {{- include "foreman-stack.podLabels" (dict "root" . "component" "pulp-control-proxy") | nindent 8 }}
       annotations:
         checksum/config: {{ include "foreman-stack.pulpControlProxyConfig" . | sha256sum }}
         checksum/secrets: {{ .Values.secretRolloutToken | sha256sum }}

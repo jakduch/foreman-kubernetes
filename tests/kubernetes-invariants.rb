@@ -44,6 +44,15 @@ workloads.each do |workload|
   selector = workload.dig('spec', 'selector', 'matchLabels')
   labels = template.dig('metadata', 'labels') || {}
   recovery_workload = labels.fetch('app.kubernetes.io/component', '').start_with?('recovery-')
+  compatibility_label = 'platform.theforeman.org/compatibility-set'
+  workload_compatibility_set = workload.dig('metadata', 'labels', compatibility_label)
+  pod_compatibility_set = labels[compatibility_label]
+
+  if workload_compatibility_set.to_s.empty?
+    errors << "#{workload_name} has no compatibility-set label"
+  elsif pod_compatibility_set != workload_compatibility_set
+    errors << "#{workload_name} pod compatibility set does not match its workload"
+  end
 
   if selector && !labels_match?(selector, labels)
     errors << "#{workload_name} selector does not match its pod template"

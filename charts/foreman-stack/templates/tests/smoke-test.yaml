@@ -14,9 +14,7 @@ spec:
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: {{ include "foreman-stack.name" . }}
-        app.kubernetes.io/instance: {{ .Release.Name }}
-        app.kubernetes.io/component: smoke-test
+        {{- include "foreman-stack.podLabels" (dict "root" . "component" "smoke-test") | nindent 8 }}
     spec:
       restartPolicy: Never
       automountServiceAccountToken: false

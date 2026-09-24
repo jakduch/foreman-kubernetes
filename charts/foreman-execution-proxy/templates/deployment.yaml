@@ -17,7 +17,7 @@ spec:
   template:
     metadata:
       labels:
-        {{- include "foreman-execution-proxy.selectorLabels" . | nindent 8 }}
+        {{- include "foreman-execution-proxy.podLabels" . | nindent 8 }}
       annotations:
         checksum/config: {{ include (print $.Template.BasePath "/config.yaml") . | sha256sum }}
         checksum/secrets: {{ .Values.secretRolloutToken | sha256sum }}

@@ -26,6 +26,11 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 app.kubernetes.io/component: execution-proxy
 {{- end }}
 
+{{- define "foreman-execution-proxy.podLabels" -}}
+{{ include "foreman-execution-proxy.selectorLabels" . }}
+platform.theforeman.org/compatibility-set: {{ .Values.compatibilitySet | quote }}
+{{- end }}
+
 {{- define "foreman-execution-proxy.serviceAccountName" -}}
 {{- if .Values.serviceAccount.create }}
 {{- default (include "foreman-execution-proxy.fullname" .) .Values.serviceAccount.name }}

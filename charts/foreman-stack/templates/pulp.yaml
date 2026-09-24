@@ -60,9 +60,7 @@ spec:
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: {{ include "foreman-stack.name" $root }}
-        app.kubernetes.io/instance: {{ $root.Release.Name }}
-        app.kubernetes.io/component: pulp-{{ $service.name }}
+        {{- include "foreman-stack.podLabels" (dict "root" $root "component" (printf "pulp-%s" $service.name)) | nindent 8 }}
       annotations:
         checksum/secrets: {{ $root.Values.secretRolloutToken | sha256sum }}
     spec:
@@ -211,9 +209,7 @@ spec:
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: {{ include "foreman-stack.name" . }}
-        app.kubernetes.io/instance: {{ .Release.Name }}
-        app.kubernetes.io/component: pulp-worker
+        {{- include "foreman-stack.podLabels" (dict "root" . "component" "pulp-worker") | nindent 8 }}
       annotations:
         checksum/secrets: {{ .Values.secretRolloutToken | sha256sum }}
     spec:

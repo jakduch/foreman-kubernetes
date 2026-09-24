@@ -12,8 +12,7 @@ spec:
   template:
     metadata:
       labels:
-        app.kubernetes.io/instance: {{ .Release.Name }}
-        app.kubernetes.io/component: pulp-registration
+        {{- include "foreman-stack.podLabels" (dict "root" . "component" "pulp-registration") | nindent 8 }}
     spec:
       restartPolicy: OnFailure
       serviceAccountName: {{ include "foreman-stack.serviceAccountName" . }}

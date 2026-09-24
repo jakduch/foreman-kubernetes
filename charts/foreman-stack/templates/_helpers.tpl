@@ -24,6 +24,13 @@ app.kubernetes.io/component: {{ .component }}
 platform.theforeman.org/compatibility-set: {{ .root.Values.platform.compatibilitySet | quote }}
 {{- end }}
 
+{{- define "foreman-stack.podLabels" -}}
+app.kubernetes.io/name: {{ include "foreman-stack.name" .root }}
+app.kubernetes.io/instance: {{ .root.Release.Name }}
+app.kubernetes.io/component: {{ .component }}
+platform.theforeman.org/compatibility-set: {{ .root.Values.platform.compatibilitySet | quote }}
+{{- end }}
+
 {{- define "foreman-stack.serviceAccountName" -}}
 {{- if .Values.serviceAccount.create }}
 {{- default (include "foreman-stack.fullname" .) .Values.serviceAccount.name }}
