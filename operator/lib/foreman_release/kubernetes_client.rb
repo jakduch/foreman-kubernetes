@@ -68,6 +68,13 @@ module ForemanRelease
       JSON.parse(response)
     end
 
+    def delete(namespace, type, name)
+      @runner.run(
+        *kubectl(namespace, 'delete', type, name, '--ignore-not-found=true', '--wait=false')
+      )
+      true
+    end
+
     def write_status(resource, status)
       metadata = resource.fetch('metadata')
       resource_version = metadata.fetch('resourceVersion')

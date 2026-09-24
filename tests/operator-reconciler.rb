@@ -37,6 +37,13 @@ class FakeAdapter
   def release_lease(_resource, operation)
     @calls << [:release_lease, operation['id']]
   end
+
+  def prune_operation_history(_resource, operation)
+    @calls << [:prune_operation_history, operation['id']]
+    states = @results[:prune_operation_history]
+    state = states.length > 1 ? states.shift : states.first
+    ForemanRelease::Observation.new(state: state, message: "history cleanup is #{state}")
+  end
 end
 
 def resource(generation: 1, compatibility_set: 'candidate-1', retry_token: '', reconcile_token: '', paused: false,
@@ -87,6 +94,10 @@ raise 'reconciliation did not use a deterministic operation ID' unless release.d
 raise 'migration Jobs were not adopted with one operation ID' unless adapter.migration_operations == [operation_id, operation_id]
 raise 'successful migrations were not recorded' unless release.dig('status', 'operation', 'migrationJobs') == %w[job-a job-b job-c]
 raise 'ready reconciliation did not release the Lease' unless adapter.calls.include?([:release_lease, operation_id])
+raise 'ready reconciliation did not checkpoint cleanup' unless reconciler.reconcile(release) == :idle
+raise 'ready reconciliation did not prune old operation history' unless adapter.calls.include?([:prune_operation_history, operation_id])
+raise 'cleanup did not record its operation' unless release.dig('status', 'historyPrunedThroughOperation') == operation_id
+raise 'cleanup did not record its retention limit' unless release.dig('status', 'historyPrunedLimit') == 3
 raise 'ready reconciliation did not record the set' unless release.dig('status', 'currentSet') == 'candidate-1'
 
 release['spec']['reconcileToken'] = 'rotate-certificates'
@@ -114,6 +125,24 @@ release['spec']['timeouts'] = {'preflightSeconds' => 600}
 release['metadata']['generation'] = 5
 raise 'idle spec update did not remain idle' unless reconciler.reconcile(release) == :idle
 raise 'idle spec generation was not acknowledged' unless release.dig('status', 'observedGeneration') == 5
+
+cleanup_adapter = FakeAdapter.new
+cleanup_adapter.results(:prune_operation_history, :failed)
+cleanup_release = resource(status: {
+  'phase' => 'Ready',
+  'currentSet' => 'candidate-1',
+  'observedGeneration' => 1,
+  'operation' => {'id' => operation_id, 'startedAt' => '2026-09-24T12:00:00Z'}
+})
+cleanup_reconciler = ForemanRelease::Reconciler.new(
+  state_machine: machine,
+  adapter: cleanup_adapter,
+  status_writer: ->(_item, _status) { raise 'cleanup failure changed Ready status' }
+)
+unless cleanup_reconciler.reconcile(cleanup_release) == :cleanup_pending
+  raise 'failed best-effort history cleanup was not exposed for retry'
+end
+raise 'cleanup failure degraded a healthy release' unless cleanup_release.dig('status', 'phase') == 'Ready'
 
 conflicting_writer = ForemanRelease::Reconciler.new(
   state_machine: machine,

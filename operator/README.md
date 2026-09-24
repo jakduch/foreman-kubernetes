@@ -88,10 +88,13 @@ both managed charts. A new application object cannot enter the release graph
 without explicit CRUD coverage, while Pods remain read-only and cluster-scoped
 preflight access remains separately read-only.
 
-Operator-owned Jobs intentionally have no completion TTL. This preserves the
-result across a controller outage. They remain attached to the ForemanRelease
-for audit and restart adoption, while Jobs from the manual Helm workflow retain
-their one-hour TTL.
+Operator-owned Jobs intentionally have no completion TTL, so Kubernetes cannot
+erase an unobserved result during a controller outage. Once a release reaches
+`Ready`, the controller removes only wholly terminal histories older than the
+newest `spec.operationHistoryLimit` operations (three by default). It always
+preserves the current operation and any operation containing an unfinished Job.
+Cleanup is best-effort and cannot turn a healthy release into `Blocked`. Jobs
+from the manual Helm workflow retain their one-hour TTL.
 
 `LeaseManager` implements both fencing boundaries. Controller candidates use
 the short-lived `foreman-release-controller-leader` Lease to elect one active

@@ -65,6 +65,12 @@ spec:
                   type: string
                   maxLength: 128
                   description: Change this value to run a new validated release with the current compatibility set and values Secrets.
+                operationHistoryLimit:
+                  type: integer
+                  minimum: 1
+                  maximum: 20
+                  default: 3
+                  description: Number of completed controller-owned release operation Job histories to retain. The current and every unfinished operation are always preserved.
                 failurePolicy:
                   type: object
                   default:
@@ -204,6 +210,12 @@ spec:
                   type: string
                 observedReconcileToken:
                   type: string
+                historyPrunedThroughOperation:
+                  type: string
+                historyPrunedLimit:
+                  type: integer
+                  minimum: 1
+                  maximum: 20
                 operation:
                   type: object
                   properties:

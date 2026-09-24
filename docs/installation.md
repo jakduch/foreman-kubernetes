@@ -124,6 +124,12 @@ runs the complete application-plus-execution release even when
 `spec.compatibilitySet` is unchanged. `retryToken` has a separate purpose and
 remains required to leave `Blocked`.
 
+Completed controller-owned Job histories are retained for audit without a TTL,
+then safely bounded after a successful release. Set `spec.operationHistoryLimit`
+to keep between one and twenty completed operations (default: three). The
+current operation and every operation with an unfinished Job are never pruned;
+a cleanup failure leaves the release `Ready` and is retried by reconciliation.
+
 Deleting a `ForemanRelease` is a detach operation, not an uninstall. Its
 finalizer waits for the current migration or rollout to reach a safe pause,
 releases the operation Lease, and then lets Kubernetes remove the CR while the

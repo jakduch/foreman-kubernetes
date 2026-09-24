@@ -48,7 +48,7 @@ class RecordingHelmRunner
 end
 
 class RuntimeKubernetesClient
-  attr_reader :created, :created_resources
+  attr_reader :created, :created_resources, :deleted
   attr_accessor :application_values, :execution_values, :releases_list
 
   def initialize(application_values:, execution_values:)
@@ -57,6 +57,7 @@ class RuntimeKubernetesClient
     @resources = Hash.new { |hash, key| hash[key] = [] }
     @created = []
     @created_resources = []
+    @deleted = []
     @releases_list = []
   end
 
@@ -111,6 +112,13 @@ class RuntimeKubernetesClient
   def resource(_namespace, type, name)
     plural = type.end_with?('s') ? type : "#{type}s"
     @resources[plural].find { |item| item.dig('metadata', 'name') == name } || raise('resource not found')
+  end
+
+  def delete(_namespace, type, name)
+    plural = type.end_with?('s') ? type : "#{type}s"
+    @resources[plural].reject! { |item| item.dig('metadata', 'name') == name }
+    @deleted << [plural, name]
+    true
   end
 
   private
@@ -438,4 +446,29 @@ raise 'four release verification Jobs did not receive distinct names' unless ver
 kubernetes.replace('jobs', kubernetes.resources('platform', 'jobs').map { |job| complete_job(job) })
 raise 'completed paired final smoke gate was not adopted' unless adapter.ensure_final_smoke(resource, operation).state == :succeeded
 
-puts 'Runtime adapter pins inputs and adopts application, proxy, and paired smoke resources.'
+owner = resource.dig('metadata', 'uid')
+historical_jobs = (3..6).map do |generation|
+  job = {
+    'apiVersion' => 'batch/v1',
+    'kind' => 'Job',
+    'metadata' => {
+      'name' => "foreman-history-g#{generation}",
+      'creationTimestamp' => "2026-09-2#{generation}T12:00:00Z",
+      'labels' => {
+        ForemanRelease::RuntimeAdapter::OWNER_LABEL => owner,
+        ForemanRelease::RuntimeAdapter::OPERATION_LABEL => "#{owner}-g#{generation}",
+        ForemanRelease::RuntimeAdapter::INSTANCE_LABEL => 'foreman',
+        ForemanRelease::RuntimeAdapter::COMPONENT_LABEL => 'smoke-test'
+      }
+    }
+  }
+  generation == 3 ? job : complete_job(job)
+end
+kubernetes.replace('jobs', kubernetes.resources('platform', 'jobs') + historical_jobs)
+cleanup = adapter.prune_operation_history(resource, operation)
+raise 'operation history cleanup did not succeed' unless cleanup.state == :succeeded
+unless kubernetes.deleted == [['jobs', 'foreman-history-g4']]
+  raise "history cleanup removed an unsafe set: #{kubernetes.deleted.inspect}"
+end
+
+puts 'Runtime adapter pins inputs, adopts paired resources, and safely bounds completed Job history.'

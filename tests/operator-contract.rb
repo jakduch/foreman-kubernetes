@@ -38,8 +38,16 @@ after_migration = spec_schema.dig('properties', 'failurePolicy', 'properties', '
 raise 'post-migration failure policy must only permit Halt' unless after_migration.fetch('enum') == ['Halt']
 raise 'operator spec must expose an explicit retry token' unless spec_schema.dig('properties', 'retryToken', 'type') == 'string'
 raise 'operator spec must expose an explicit reconcile token' unless spec_schema.dig('properties', 'reconcileToken', 'type') == 'string'
+history_limit = spec_schema.dig('properties', 'operationHistoryLimit')
+unless history_limit.fetch('default') == 3 && history_limit.fetch('minimum') == 1 && history_limit.fetch('maximum') == 20
+  raise 'operator spec must bound retained operation history'
+end
 unless status_schema.dig('properties', 'observedReconcileToken', 'type') == 'string'
   raise 'operator status does not retain the applied reconcile token'
+end
+unless status_schema.dig('properties', 'historyPrunedThroughOperation', 'type') == 'string' &&
+       status_schema.dig('properties', 'historyPrunedLimit', 'minimum') == 1
+  raise 'operator status does not checkpoint Job history cleanup'
 end
 timeouts = spec_schema.dig('properties', 'timeouts')
 expected_timeouts = %w[preflightSeconds leaseSeconds migrationSeconds applicationRolloutSeconds verificationSeconds proxyRolloutSeconds]

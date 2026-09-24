@@ -17,6 +17,9 @@ module ForemanRelease
     MIGRATION_COMPONENTS = %w[candlepin-migrate pulp-migrate foreman-migrate].freeze
     REGISTRATION_COMPONENT = 'pulp-registration'
     EXECUTION_REGISTRATION_COMPONENT = 'execution-proxy-registration'
+    HISTORY_COMPONENTS = (MIGRATION_COMPONENTS + [
+      REGISTRATION_COMPONENT, EXECUTION_REGISTRATION_COMPONENT, 'smoke-test'
+    ]).freeze
     OPERATION_LABEL = 'platform.theforeman.org/release-operation'
     OWNER_LABEL = 'platform.theforeman.org/release-owner'
     COMPONENT_LABEL = 'app.kubernetes.io/component'
@@ -92,6 +95,39 @@ module ForemanRelease
 
     def release_lease(resource, operation)
       @lease_manager.release(resource, lease_operation(operation))
+    end
+
+    def prune_operation_history(resource, operation)
+      limit = Integer(resource.dig('spec', 'operationHistoryLimit') || 3)
+      jobs = @kubernetes_client.resources(
+        resource.dig('metadata', 'namespace'), 'jobs',
+        labels: {OWNER_LABEL => resource.dig('metadata', 'uid')}
+      ).select do |job|
+        HISTORY_COMPONENTS.include?(job.dig('metadata', 'labels', COMPONENT_LABEL)) &&
+          [application_release(resource), execution_release(resource)].include?(job.dig('metadata', 'labels', INSTANCE_LABEL))
+      end
+      completed = jobs.group_by { |job| job.dig('metadata', 'labels', OPERATION_LABEL) }.reject do |id, grouped|
+        id.to_s.empty? || grouped.any? { |job| !terminal_job?(job) }
+      end
+      retained = completed.keys.sort_by do |id|
+        grouped = completed.fetch(id)
+        timestamps = grouped.map { |job| job.dig('metadata', 'creationTimestamp') }.compact
+        [operation_generation(id), timestamps.max.to_s, id]
+      end.last(limit)
+      retained << operation['id'] if operation['id']
+      stale = completed.keys - retained
+      stale.flat_map { |id| completed.fetch(id) }.each do |job|
+        @kubernetes_client.delete(
+          resource.dig('metadata', 'namespace'), 'job', job.dig('metadata', 'name')
+        )
+      end
+      retained_count = (completed.keys - stale).length
+
+      Observation.new(
+        state: :succeeded,
+        message: "retained #{retained_count} completed operation histories and removed #{stale.length}",
+        details: {'prunedOperations' => stale.sort}
+      )
     end
 
     def ensure_migrations(resource, operation)
@@ -622,6 +658,15 @@ module ForemanRelease
 
     def condition_true?(resource, type)
       condition(resource, type)&.fetch('status', nil) == 'True'
+    end
+
+    def terminal_job?(job)
+      condition_true?(job, 'Complete') || condition_true?(job, 'Failed')
+    end
+
+    def operation_generation(operation_id)
+      match = operation_id.match(/-g(\d+)\z/)
+      match ? Integer(match[1]) : -1
     end
 
     def ensure_smoke(resource, operation, stage, source:)

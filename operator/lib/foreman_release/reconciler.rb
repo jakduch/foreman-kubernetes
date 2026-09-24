@@ -58,6 +58,7 @@ module ForemanRelease
         return persist_pause(resource, status) if spec.fetch('paused', false)
         return persist_resume(resource, status) if paused?(status)
         return persist_observation(resource, status) if status['observedGeneration'] != resource.dig('metadata', 'generation')
+        return prune_operation_history(resource, status) if phase == 'Ready' && history_cleanup_required?(resource, status)
 
         return :idle
       end
@@ -222,6 +223,27 @@ module ForemanRelease
       Array(status['conditions']).any? do |condition|
         condition['type'] == 'Paused' && condition['status'] == 'True'
       end
+    end
+
+    def history_cleanup_required?(resource, status)
+      operation_id = status.dig('operation', 'id')
+      return false unless operation_id
+
+      limit = Integer(resource.dig('spec', 'operationHistoryLimit') || 3)
+      status['historyPrunedThroughOperation'] != operation_id ||
+        status['historyPrunedLimit'] != limit
+    end
+
+    def prune_operation_history(resource, status)
+      operation = status.fetch('operation', {})
+      observation = observe(:prune_operation_history, resource, operation)
+      return :cleanup_pending unless observation.state == :succeeded
+
+      cleaned_status = Marshal.load(Marshal.dump(status))
+      cleaned_status['historyPrunedThroughOperation'] = operation.fetch('id')
+      cleaned_status['historyPrunedLimit'] = Integer(resource.dig('spec', 'operationHistoryLimit') || 3)
+      @status_writer.call(resource, cleaned_status)
+      :idle
     end
 
     def observe(handler, resource, operation)

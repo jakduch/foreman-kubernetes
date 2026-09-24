@@ -68,7 +68,8 @@ resource_runner = FakeRunner.new(
   JSON.generate('items' => [{'metadata' => {'name' => 'migration'}}]),
   JSON.generate('metadata' => {'name' => 'migration'}),
   JSON.generate('metadata' => {'name' => 'smoke'}),
-  JSON.generate('metadata' => {'name' => 'runtime-config', 'resourceVersion' => '8'})
+  JSON.generate('metadata' => {'name' => 'runtime-config', 'resourceVersion' => '8'}),
+  'job.batch/smoke deleted'
 )
 resource_client = ForemanRelease::KubernetesClient.new(runner: resource_runner)
 listed = resource_client.resources('platform', 'jobs', labels: {'operation' => 'release-1', 'owner' => 'uid-1'})
@@ -88,6 +89,10 @@ raise 'replaced resource was not decoded' unless replaced.dig('metadata', 'resou
 replace_command = resource_runner.calls.last.first
 raise 'resource replace did not use kubectl replace' unless replace_command.include?('replace')
 raise 'resource replace did not use stdin' unless resource_runner.calls.last.last.include?('"resourceVersion":"7"')
+raise 'resource delete did not succeed' unless resource_client.delete('platform', 'job', 'smoke')
+delete_command = resource_runner.calls.last.first
+raise 'resource delete can block controller shutdown' unless delete_command.include?('--wait=false')
+raise 'resource delete is not idempotent' unless delete_command.include?('--ignore-not-found=true')
 
 finalizer = 'platform.theforeman.org/release-protection'
 finalizer_runner = FakeRunner.new(
