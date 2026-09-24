@@ -15,8 +15,8 @@
    scale, and recovery proof.
 8. Run the prepared central-execution drill against the pinned amd64 image,
    then extend it from prepared successful, failed, and cancelled SSH/Ansible
-   jobs plus fresh jobs after identity rotation and restricted egress to
-   content replacement and interrupted-job recovery.
+   jobs, content replacement, fresh jobs after identity rotation, and
+   restricted egress to interrupted-job recovery.
 
 ## Implemented, pending integration proof
 
@@ -45,8 +45,10 @@
   and assigned Ansible role against a disposable target. It checks proxy
   selection, permits only the declared ingress and target peers, rejects an
   unrelated in-cluster destination, and repeats the jobs after clean restoration
-  and complete proxy TLS/client/SSH identity rotation; the drill has not yet
-  been executed against the published image set.
+  and complete proxy TLS/client/SSH identity rotation. It then replaces the
+  already imported role with a second revision, synchronizes it again, and
+  rejects execution of the stale revision; the drill has not yet been executed
+  against the published image set.
 
 ## Candlepin HA track
 

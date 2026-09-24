@@ -261,14 +261,8 @@ install_dependencies() {
   kubectl --namespace "${namespace}" rollout status deployment/artemis --timeout=5m
   kubectl --namespace "${namespace}" rollout status deployment/content-source --timeout=5m
   "${repo_root}/tests/kind/apply-secrets.sh" "${temporary_directory}"
-  kubectl --namespace "${namespace}" delete job execution-ansible-content-loader \
-    --ignore-not-found=true \
-    --wait=true
   kubectl apply --filename="${repo_root}/tests/kind/execution-target.yaml"
-  kubectl --namespace "${namespace}" wait \
-    --for=condition=complete \
-    job/execution-ansible-content-loader \
-    --timeout=5m
+  "${repo_root}/tests/kind/publish-ansible-content.sh" v1
   kubectl --namespace "${namespace}" rollout status deployment/execution-target --timeout=5m
 }
 
@@ -292,7 +286,10 @@ configure_cluster_dns() {
 }
 
 assert_execution_plane() {
-  "${repo_root}/tests/kind/execution-plane.sh" "${temporary_directory}"
+  local role_revision="${1:-v1}"
+
+  EXPECTED_ROLE_REVISION="${role_revision}" \
+    "${repo_root}/tests/kind/execution-plane.sh" "${temporary_directory}"
 }
 
 rotate_execution_identity() {
@@ -562,9 +559,11 @@ kubectl --namespace "${namespace}" rollout status \
 
 rotate_execution_identity
 assert_execution_plane
+"${repo_root}/tests/kind/publish-ansible-content.sh" v2
+assert_execution_plane v2
 
 if [[ "${skip_recovery_test}" == 1 ]]; then
-  echo "Kind install, Candlepin HA, mTLS, content, execution, proxy restart, scale, and upgrade checks passed; recovery drill skipped."
+  echo "Kind install, Candlepin HA, mTLS, content replacement, execution, proxy restart, scale, and upgrade checks passed; recovery drill skipped."
 else
-  echo "Kind install, Candlepin HA, mTLS, content, execution, proxy restart, backup, restore, scale, and upgrade checks passed."
+  echo "Kind install, Candlepin HA, mTLS, content replacement, execution, proxy restart, backup, restore, scale, and upgrade checks passed."
 fi

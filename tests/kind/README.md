@@ -20,6 +20,8 @@
   an unrelated in-cluster content service;
 - discovery, import, host assignment, and execution of a disposable Ansible
   role published declaratively to the proxy's content claim;
+- replacement of that already imported role with a second revision, followed
+  by another synchronization and execution which rejects the stale revision;
 - expected-failure and cancellation paths followed by a successful job proving
   the executor remains usable;
 - absence of a public Pulp administrative API route;

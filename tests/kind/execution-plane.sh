@@ -12,6 +12,15 @@ proxy_name="Kubernetes execution proxy"
 proxy_url="https://execution-foreman-execution-proxy:8443"
 target_name="execution-target.foreman.svc.cluster.local"
 role_name="foreman_kubernetes_test"
+role_revision="${EXPECTED_ROLE_REVISION:-v1}"
+
+case "${role_revision}" in
+  v1 | v2) ;;
+  *)
+    echo "unsupported expected Ansible content revision: ${role_revision}" >&2
+    exit 2
+    ;;
+esac
 
 foreman_pod() {
   kubectl --namespace "${namespace}" get pod \
@@ -371,13 +380,22 @@ assert_cancelled_job() {
 run_role_job() {
   local host_id="$1"
   local proxy_id="$2"
-  local marker="foreman-kubernetes-role-ok"
+  local marker="foreman-kubernetes-role-${role_revision}-ok"
+  local unexpected_revision
+  local unexpected_marker
   local invocation
   local invocation_id
   local task_id
 
+  if [[ "${role_revision}" == v1 ]]; then
+    unexpected_revision=v2
+  else
+    unexpected_revision=v1
+  fi
+  unexpected_marker="foreman-kubernetes-role-${unexpected_revision}-ok"
+
   kubectl --namespace "${namespace}" exec deployment/execution-target -- \
-    rm -f "/tmp/${marker}"
+    rm -f "/tmp/${marker}" "/tmp/${unexpected_marker}"
 
   invocation="$(foreman_api POST "/api/hosts/${host_id}/play_roles")"
   invocation_id="$(jq --exit-status --raw-output '.id' <<<"${invocation}")"
@@ -386,6 +404,11 @@ run_role_job() {
 
   kubectl --namespace "${namespace}" exec deployment/execution-target -- \
     test -f "/tmp/${marker}"
+  if kubectl --namespace "${namespace}" exec deployment/execution-target -- \
+    test -f "/tmp/${unexpected_marker}"; then
+    echo "Ansible role executed stale content revision ${unexpected_revision}" >&2
+    exit 1
+  fi
 
   assert_job_proxy "${invocation_id}" 'Ansible role' "${proxy_id}"
 }
@@ -408,4 +431,4 @@ run_job foreman-kubernetes-rex-ok Script "${proxy_id}"
 run_job foreman-kubernetes-ansible-ok Ansible "${proxy_id}" "${ansible_template_id}"
 run_role_job "${host_id}" "${proxy_id}"
 
-echo "Execution proxy registration, failure/cancellation, role sync, SSH, Ansible command, and Ansible role checks passed."
+echo "Execution proxy registration, failure/cancellation, role sync, SSH, Ansible command, and Ansible role ${role_revision} checks passed."

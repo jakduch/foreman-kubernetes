@@ -181,6 +181,10 @@ shellcheck -x \
   "${chart}/files/backup.sh" \
   "${chart}/files/restore.sh" \
   "${chart}/files/candlepin-migrate.sh"
+shellcheck \
+  "${repo_root}/tests/kind/execution-plane.sh" \
+  "${repo_root}/tests/kind/publish-ansible-content.sh" \
+  "${repo_root}/tests/kind/run.sh"
 
 ruby "${repo_root}/tests/plugin-compatibility.rb"
 
@@ -201,16 +205,24 @@ grep -Fq '/cancel' "${repo_root}/tests/kind/execution-plane.sh"
 grep -Fq 'expected failure' "${repo_root}/tests/kind/execution-plane.sh"
 grep -Fq 'Execution proxy reached an undeclared in-cluster destination' \
   "${repo_root}/tests/kind/execution-plane.sh"
-grep -Fq 'foreman-kubernetes-role-ok' \
-  "${repo_root}/tests/kind/execution-target.yaml"
+grep -Fq 'foreman_kubernetes_content_revision' \
+  "${repo_root}/tests/kind/publish-ansible-content.sh"
+grep -Fq 'foreman-kubernetes-role-{{ foreman_kubernetes_content_revision }}-ok' \
+  "${repo_root}/tests/kind/publish-ansible-content.sh"
 grep -Fq 'claimName: execution-ansible-content' \
-  "${repo_root}/tests/kind/execution-target.yaml"
+  "${repo_root}/tests/kind/execution-ansible-content-job.yaml"
+grep -Fq 'EXPECTED_ROLE_REVISION' \
+  "${repo_root}/tests/kind/execution-plane.sh"
+grep -Fq 'Ansible role executed stale content revision' \
+  "${repo_root}/tests/kind/execution-plane.sh"
 grep -Fq "if [[ ! -s \"\${workdir}/ca.crt\" ]]" \
   "${repo_root}/tests/kind/apply-secrets.sh"
 grep -Fq 'foreman-execution-proxy-tls' "${rendered_kind_backup}"
 grep -Fq 'foreman-execution-proxy-foreman-client' "${rendered_kind_backup}"
 grep -Fq 'foreman-execution-proxy-ssh' "${rendered_kind_backup}"
 grep -Fq 'rotate_execution_identity' "${repo_root}/tests/kind/run.sh"
+grep -Fq 'publish-ansible-content.sh" v2' "${repo_root}/tests/kind/run.sh"
+grep -Fq 'assert_execution_plane v2' "${repo_root}/tests/kind/run.sh"
 grep -Fq -- '-purpose sslserver' "${repo_root}/tests/kind/run.sh"
 grep -Fq -- '-purpose sslclient' "${repo_root}/tests/kind/run.sh"
 
