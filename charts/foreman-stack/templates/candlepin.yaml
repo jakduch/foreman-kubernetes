@@ -134,10 +134,19 @@ spec:
             timeoutSeconds: 2
             failureThreshold: 60
           readinessProbe:
-            httpGet:
-              path: /candlepin/status
-              port: https
-              scheme: HTTPS
+            exec:
+              command:
+                - /bin/bash
+                - -ec
+                - |
+                  response="$(
+                    printf 'GET /candlepin/status HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' |
+                      openssl s_client -quiet -verify_return_error \
+                        -CAfile /etc/candlepin/certs/candlepin-ca.crt \
+                        -connect "127.0.0.1:{{ .Values.candlepin.service.port }}" 2>/dev/null
+                  )"
+                  printf '%s\n' "${response}" | head -n 1 | grep -Eq '^HTTP/1\.[01] 200 '
+                  printf '%s\n' "${response}" | grep -Eq '"mode"[[:space:]]*:[[:space:]]*"NORMAL"'
             initialDelaySeconds: 30
             periodSeconds: 10
             timeoutSeconds: 5

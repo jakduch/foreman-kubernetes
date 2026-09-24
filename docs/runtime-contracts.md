@@ -81,6 +81,8 @@ process so an asynchronous step can run on a different pod.
   identity to be non-root but does not hard-code an RPM-owned UID.
 - Runs Tomcat using `/usr/libexec/tomcat/server start`.
 - Exposes an unauthenticated `/candlepin/status` endpoint.
+- Readiness verifies both its successful HTTP status and a JSON `mode` of
+  `NORMAL`; suspend mode is not allowed into the Candlepin Service.
 - Runs database management during application startup by default.
 - Uses a JDBC Quartz job store, but the current deployed configuration does not enable `org.quartz.jobStore.isClustered`.
 - Uses an embedded Artemis broker by default (`vm://0`). Multiple replicas would not share that queue.
@@ -116,6 +118,8 @@ pending.
   task pool. Worker Pods receive a one-hour termination grace period by
   default because Pulpcore handles SIGTERM by finishing an active task; reduce
   it only when interrupted synchronization and publication tasks are accepted.
+- API readiness parses Pulp status rather than trusting HTTP 200: the database
+  and cache must be connected and at least one worker and content app online.
 - S3 mode uses `/var/lib/pulp/tmp` only as per-pod scratch space and can redirect
   downloads to signed object-store URLs.
 - The `pulp_smart_proxy` plugin exposes Foreman-compatible feature discovery below `/pulp/api/v3/smart_proxy` and advertises `PULP_SMART_PROXY_PULP_URL` as Katello's API base URL.

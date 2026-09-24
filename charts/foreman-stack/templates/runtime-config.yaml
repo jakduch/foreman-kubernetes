@@ -82,6 +82,8 @@ data:
 {{ .Files.Get "files/foreman-readiness.rb" | indent 4 }}
   dynflow-lifecycle.rb: |
 {{ .Files.Get "files/dynflow-lifecycle.rb" | indent 4 }}
+  pulp-readiness.py: |
+{{ .Files.Get "files/pulp-readiness.py" | indent 4 }}
   dynflow-orchestrator.yml: |
     ---
     :concurrency: 1

@@ -113,6 +113,12 @@ spec:
               readOnly: true
             {{- include "foreman-stack.pulpDatabaseCaVolumeMount" $root | nindent 12 }}
             {{- include "foreman-stack.pulpObjectStorageCaVolumeMount" $root | nindent 12 }}
+            {{- if eq $service.name "api" }}
+            - name: pulp-health
+              mountPath: /opt/foreman-kubernetes/pulp-readiness.py
+              subPath: pulp-readiness.py
+              readOnly: true
+            {{- end }}
           startupProbe:
             tcpSocket:
               port: http
@@ -121,9 +127,10 @@ spec:
             failureThreshold: 60
           readinessProbe:
             {{- if eq $service.name "api" }}
-            httpGet:
-              path: /pulp/api/v3/status/
-              port: http
+            exec:
+              command:
+                - python3
+                - /opt/foreman-kubernetes/pulp-readiness.py
             {{- else }}
             tcpSocket:
               port: http
@@ -148,6 +155,9 @@ spec:
             secretName: {{ $root.Values.pulp.existingConfigSecret }}
         {{- include "foreman-stack.pulpDatabaseCaVolume" $root | nindent 8 }}
         {{- include "foreman-stack.pulpObjectStorageCaVolume" $root | nindent 8 }}
+        - name: pulp-health
+          configMap:
+            name: {{ include "foreman-stack.foremanConfigName" $root }}
       {{- include "foreman-stack.topologySpread" (dict "Values" $root.Values "Release" $root.Release "component" (printf "pulp-%s" $service.name)) | nindent 6 }}
 {{- end }}
 ---
