@@ -355,6 +355,8 @@ ruby "${repo_root}/tests/secret-rollout-contract.rb" \
   "${rendered_execution}" "${rendered_execution_secret_rotation}"
 ruby "${repo_root}/tests/kubernetes-invariants.rb" "${rendered_operator}"
 ruby "${repo_root}/tests/operator-chart-contract.rb" "${rendered_operator}"
+ruby "${repo_root}/tests/operator-rbac-coverage.rb" \
+  "${rendered_operator}" "${rendered_ingress}" "${rendered_execution}"
 ruby "${repo_root}/tests/operator-monitoring-contract.rb" \
   "${rendered_operator}" "${rendered_operator_monitoring}"
 ruby -c "${execution_chart}/files/check-features.rb"

@@ -65,6 +65,10 @@ ServiceAccounts, explicit or default StorageClasses, the required IngressClass
 controller, and metrics API availability. The manual install and upgrade
 scripts use the same `ManifestRequirements` implementation, so their preflight
 inventory cannot drift from the controller.
+The chart's namespaced Role is checked against every resource kind rendered by
+both managed charts. A new application object cannot enter the release graph
+without explicit CRUD coverage, while Pods remain read-only and cluster-scoped
+preflight access remains separately read-only.
 
 Operator-owned Jobs intentionally have no completion TTL. This preserves the
 result across a controller outage; a later Helm operation replaces the old
