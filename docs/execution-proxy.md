@@ -128,9 +128,12 @@ managed-host names to addresses. Enabling it requires both:
 
 The chart rejects an egress-restricted render when either peer set is empty.
 The example profile shows the Foreman ingress address on HTTPS and a target
-CIDR. The allowed Foreman peer must describe the address actually resolved by
-`proxy.foremanUrl`; it is not necessarily the Foreman Pod address. Do not use
-`0.0.0.0/0` merely to make jobs pass; model the actual management networks.
+CIDR. The kind profile selects only its ingress controller and disposable SSH
+target, then checks both allowed connections and a denied connection to an
+unrelated in-cluster service. The allowed Foreman peer must describe the
+address actually resolved by `proxy.foremanUrl`; it is not necessarily the
+Foreman Pod address. Do not use `0.0.0.0/0` merely to make jobs pass; model the
+actual management networks.
 
 ## Proof status
 
@@ -154,5 +157,6 @@ Still required before production support:
    interrupted job across a Pod restart;
 3. verify replacement of already-imported role/collection content and SSH key
    or certificate rotation;
-4. validate restricted egress against real Foreman and target networks;
+4. run the prepared allow/deny egress probe and then validate deployment-specific
+   Foreman and target networks;
 5. test an application and proxy upgrade while jobs are active.

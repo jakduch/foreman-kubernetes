@@ -12,6 +12,29 @@ ansible:
 state:
   size: 1Gi
 
+networkPolicy:
+  egress:
+    enabled: true
+    foreman:
+      peers:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/component: controller
+              app.kubernetes.io/instance: ingress-nginx
+      ports:
+        - 443
+        - 8443
+    targets:
+      peers:
+        - podSelector:
+            matchLabels:
+              app: execution-target
+      ports:
+        - 22
+
 resources:
   requests:
     cpu: 100m

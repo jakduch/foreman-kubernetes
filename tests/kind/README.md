@@ -15,6 +15,13 @@
 - real SSH and Ansible command jobs from Foreman against a disposable
   unprivileged target, including verification that Foreman selected the
   registered execution proxy;
+- an egress-restricted execution proxy which reaches only cluster DNS, the
+  Foreman ingress, and the disposable SSH target, plus a denied connection to
+  an unrelated in-cluster content service;
+- discovery, import, host assignment, and execution of a disposable Ansible
+  role published declaratively to the proxy's content claim;
+- expected-failure and cancellation paths followed by a successful job proving
+  the executor remains usable;
 - absence of a public Pulp administrative API route;
 - a Katello content lifecycle against an in-cluster deterministic file source:
   organization and product creation, repository synchronization, public Pulp

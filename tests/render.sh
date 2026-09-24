@@ -148,6 +148,15 @@ grep -q 'ANSIBLE_HOST_KEY_CHECKING="True"' "${rendered_execution_egress}"
 grep -Fq 'quay.io/foreman/foreman-proxy:nightly@sha256:244c756844a137990779ad153998c426eb0326d8d6f376192ea6e84947affd47' "${rendered_execution_kind}"
 grep -Fq ':foreman_url: "https://foreman.test"' "${rendered_execution_kind}"
 grep -Fq 'claimName: execution-ansible-content' "${rendered_execution_kind}"
+grep -q '^    - Egress$' "${rendered_execution_kind}"
+grep -q 'kubernetes.io/metadata.name: ingress-nginx' "${rendered_execution_kind}"
+grep -q 'app.kubernetes.io/instance: ingress-nginx' "${rendered_execution_kind}"
+grep -q 'app: execution-target' "${rendered_execution_kind}"
+grep -q 'port: 8443' "${rendered_execution_kind}"
+if grep -q 'cidr: 0.0.0.0/0' "${rendered_execution_kind}"; then
+  echo 'kind execution proxy must not receive unrestricted egress' >&2
+  exit 1
+fi
 
 if helm template execution "${execution_chart}" --set replicas=2 >/dev/null 2>&1; then
   echo 'expected multiple execution proxy replicas to be rejected' >&2
@@ -190,6 +199,8 @@ grep -Fq '/ansible/api/v2/ansible_roles/sync' \
 grep -Fq '/play_roles' "${repo_root}/tests/kind/execution-plane.sh"
 grep -Fq '/cancel' "${repo_root}/tests/kind/execution-plane.sh"
 grep -Fq 'expected failure' "${repo_root}/tests/kind/execution-plane.sh"
+grep -Fq 'Execution proxy reached an undeclared in-cluster destination' \
+  "${repo_root}/tests/kind/execution-plane.sh"
 grep -Fq 'foreman-kubernetes-role-ok' \
   "${repo_root}/tests/kind/execution-target.yaml"
 grep -Fq 'claimName: execution-ansible-content' \

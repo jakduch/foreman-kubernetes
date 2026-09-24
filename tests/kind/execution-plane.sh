@@ -122,6 +122,22 @@ wait_for_job_proxy() {
   exit 1
 }
 
+assert_egress_boundary() {
+  local proxy_deployment="deployment/execution-foreman-execution-proxy"
+
+  kubectl --namespace "${namespace}" exec "${proxy_deployment}" -- \
+    ruby -rsocket -e 'Socket.tcp("foreman.test", 443, connect_timeout: 5).close'
+  kubectl --namespace "${namespace}" exec "${proxy_deployment}" -- \
+    ruby -rsocket -e 'Socket.tcp("execution-target", 22, connect_timeout: 5).close'
+
+  if kubectl --namespace "${namespace}" exec "${proxy_deployment}" -- \
+    ruby -rsocket -e 'Socket.tcp("content-source", 80, connect_timeout: 3).close' \
+    >/dev/null 2>&1; then
+    echo 'Execution proxy reached an undeclared in-cluster destination' >&2
+    exit 1
+  fi
+}
+
 first_result_id() {
   jq --exit-status --raw-output '.results[0].id'
 }
@@ -376,6 +392,7 @@ run_role_job() {
 
 organization_id="$(default_taxonomy_id organizations)"
 location_id="$(default_taxonomy_id locations)"
+assert_egress_boundary
 proxy_id="$(register_execution_proxy "${location_id}" "${organization_id}")"
 host_id="$(ensure_target_host "${location_id}" "${organization_id}")"
 configure_execution_defaults

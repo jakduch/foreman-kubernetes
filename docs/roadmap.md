@@ -15,8 +15,8 @@
    scale, and recovery proof.
 8. Run the prepared central-execution drill against the pinned amd64 image,
    then extend it from prepared successful, failed, and cancelled SSH/Ansible
-   jobs plus fresh jobs after restart to content replacement, identity
-   rotation, restricted egress, and interrupted-job recovery.
+   jobs plus fresh jobs after restart and restricted egress to content
+   replacement, identity rotation, and interrupted-job recovery.
 
 ## Implemented, pending integration proof
 
@@ -43,8 +43,10 @@
   The amd64 drill now deploys and registers that proxy, runs real SSH and
   successful, failed, and cancelled SSH jobs, Ansible commands, plus an imported
   and assigned Ansible role against a disposable target. It checks proxy
-  selection and repeats the jobs after clean restoration and a proxy restart;
-  the drill has not yet been executed against the published image set.
+  selection, permits only the declared ingress and target peers, rejects an
+  unrelated in-cluster destination, and repeats the jobs after clean restoration
+  and a proxy restart; the drill has not yet been executed against the published
+  image set.
 
 ## Candlepin HA track
 
