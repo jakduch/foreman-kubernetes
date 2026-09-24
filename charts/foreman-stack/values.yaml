@@ -33,11 +33,28 @@ ingress:
     annotations: {}
 
 valkey:
-  host: valkey.example.test
-  port: 6379
-  foremanCacheDatabase: 4
-  dynflowDatabase: 6
-  pulpDatabase: 8
+  existingSecret: foreman-valkey
+  foremanCacheUriAuthSecretKey: foreman-cache-uri-auth
+  dynflowUriAuthSecretKey: dynflow-uri-auth
+  pulpPasswordSecretKey: pulp-password
+  tls:
+    enabled: true
+    existingCaSecret: valkey-ca
+    caSecretKey: ca.crt
+  # Cache data may use an eviction policy. Dynflow contains durable job state
+  # and should point at a persistent noeviction service in production.
+  foremanCache:
+    host: foreman-cache.valkey.example.test
+    port: 6379
+    database: 4
+  dynflow:
+    host: dynflow.valkey.example.test
+    port: 6379
+    database: 6
+  pulp:
+    host: pulp.valkey.example.test
+    port: 6379
+    database: 8
 
 sharedSecret:
   name: foreman-shared
@@ -373,6 +390,8 @@ networkPolicy:
         - 5432
     valkey:
       peers: []
+      ports:
+        - 6379
     external:
       foreman:
         peers: []

@@ -8,6 +8,12 @@
 {{- if and (has .Values.pulp.database.sslMode $verifiedModes) (not .Values.pulp.existingDatabaseCaSecret) -}}
 {{- fail "pulp.existingDatabaseCaSecret is required when pulp.database.sslMode verifies the server certificate" -}}
 {{- end -}}
+{{- if and .Values.valkey.tls.enabled (not .Values.valkey.tls.existingCaSecret) -}}
+{{- fail "valkey.tls.existingCaSecret is required when Valkey TLS is enabled" -}}
+{{- end -}}
+{{- if and (not .Values.valkey.tls.enabled) .Values.valkey.tls.existingCaSecret -}}
+{{- fail "valkey.tls.existingCaSecret must be empty when Valkey TLS is disabled" -}}
+{{- end -}}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -44,11 +50,14 @@ data:
     :require_ssl: true
     :rails_cache_store:
       :type: redis
-      :urls:
-        - {{ printf "redis://%s:%v/%v" .Values.valkey.host .Values.valkey.port .Values.valkey.foremanCacheDatabase | quote }}
       :options:
         :compress: true
         :namespace: foreman
+        {{- if .Values.valkey.tls.enabled }}
+        :ssl_params:
+          :ca_file: /etc/foreman/certs/valkey-ca.crt
+          :verify_mode: 1
+        {{- end }}
   katello.yaml: |
     ---
     :katello:
@@ -90,6 +99,29 @@ data:
       0,
       ForemanKubernetesClientCertificate
     )
+  foreman-kubernetes-valkey-tls.rb: |
+    if ENV.fetch('VALKEY_TLS_ENABLED', 'false') == 'true'
+      require 'openssl'
+      require 'uri'
+
+      cache_url = ENV.fetch('FOREMAN_RAILS_CACHE_STORE_URLS')
+      dynflow_url = ENV.fetch('DYNFLOW_REDIS_URL')
+      [cache_url, dynflow_url].each do |url|
+        raise "Valkey TLS requires a rediss URL" unless URI.parse(url).scheme == 'rediss'
+      end
+
+      if defined?(::Sidekiq)
+        options = {
+          url: dynflow_url,
+          ssl_params: {
+            ca_file: '/etc/foreman/certs/valkey-ca.crt',
+            verify_mode: OpenSSL::SSL::VERIFY_PEER,
+          },
+        }
+        Sidekiq.configure_server { |config| config.redis = options }
+        Sidekiq.configure_client { |config| config.redis = options }
+      end
+    end
   katello-event-daemon.rb: |
 {{ .Files.Get "files/katello-event-daemon.rb" | indent 4 }}
   foreman-readiness.rb: |

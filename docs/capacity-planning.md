@@ -56,6 +56,24 @@ so size Pulp PostgreSQL from observed saturation in the full integration
 environment and retain headroom for migrations and task bursts. Do not infer a
 safe production maximum from the chart's development defaults alone.
 
+## Valkey roles
+
+`valkey.foremanCache`, `valkey.dynflow`, and `valkey.pulp` are independent
+endpoint contracts. They can share one host in a development environment, but
+their production failure and eviction semantics differ:
+
+- Foreman cache data is disposable and may use a bounded cache policy.
+- Dynflow carries the Sidekiq transport and singleton lock. Give it durable
+  storage, failover, sufficient client connections for every Foreman and
+  Dynflow process, and `maxmemory-policy noeviction`.
+- Pulp uses Valkey for its cache and must retain enough connections for every
+  API, content, worker, and migration process.
+
+All three production endpoints use authenticated `rediss` URLs and verify the
+configured private CA. Monitor memory, rejected connections, evictions, and
+failover latency; an eviction count above zero on Dynflow is a correctness
+incident rather than an ordinary cache-capacity signal.
+
 ## CPU autoscaling and node capacity
 
 Resource-based HPAs require a healthy `v1beta1.metrics.k8s.io` APIService. The

@@ -43,6 +43,10 @@ app.kubernetes.io/component: {{ .component }}
 {{- printf "%s:%s" .repository .tag }}
 {{- end }}
 
+{{- define "foreman-stack.valkeyScheme" -}}
+{{- ternary "rediss" "redis" .Values.valkey.tls.enabled }}
+{{- end }}
+
 {{- define "foreman-stack.imagePullSecrets" -}}
 {{- with .Values.imagePullSecrets }}
 imagePullSecrets:
@@ -173,6 +177,22 @@ server {
   value: {{ .Values.foreman.puma.threadsMin | quote }}
 - name: FOREMAN_PUMA_THREADS_MAX
   value: {{ .Values.foreman.puma.threadsMax | quote }}
+- name: VALKEY_FOREMAN_CACHE_URI_AUTH
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Values.valkey.existingSecret }}
+      key: {{ .Values.valkey.foremanCacheUriAuthSecretKey }}
+- name: VALKEY_DYNFLOW_URI_AUTH
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Values.valkey.existingSecret }}
+      key: {{ .Values.valkey.dynflowUriAuthSecretKey }}
+- name: FOREMAN_RAILS_CACHE_STORE_TYPE
+  value: redis
+- name: FOREMAN_RAILS_CACHE_STORE_URLS
+  value: {{ printf "%s://$(VALKEY_FOREMAN_CACHE_URI_AUTH)%s:%v/%v" (include "foreman-stack.valkeyScheme" .) .Values.valkey.foremanCache.host .Values.valkey.foremanCache.port .Values.valkey.foremanCache.database | quote }}
+- name: VALKEY_TLS_ENABLED
+  value: {{ .Values.valkey.tls.enabled | quote }}
 - name: DATABASE_URL
   valueFrom:
     secretKeyRef:
@@ -190,7 +210,7 @@ server {
       name: {{ .Values.foreman.existingEnvSecret }}
       key: {{ .Values.foreman.encryptionKeySecretKey }}
 - name: DYNFLOW_REDIS_URL
-  value: {{ printf "redis://%s:%v/%v" .Values.valkey.host .Values.valkey.port .Values.valkey.dynflowDatabase | quote }}
+  value: {{ printf "%s://$(VALKEY_DYNFLOW_URI_AUTH)%s:%v/%v" (include "foreman-stack.valkeyScheme" .) .Values.valkey.dynflow.host .Values.valkey.dynflow.port .Values.valkey.dynflow.database | quote }}
 - name: REDIS_PROVIDER
   value: DYNFLOW_REDIS_URL
 - name: CANDLEPIN_OAUTH_SECRET
@@ -238,6 +258,10 @@ server {
   subPath: foreman-kubernetes-client-certificate.rb
   readOnly: true
 - name: foreman-generated-config
+  mountPath: /usr/share/foreman/config/initializers/foreman_kubernetes_valkey_tls.rb
+  subPath: foreman-kubernetes-valkey-tls.rb
+  readOnly: true
+- name: foreman-generated-config
   mountPath: /opt/foreman-kubernetes/foreman-readiness.rb
   subPath: foreman-readiness.rb
   readOnly: true
@@ -259,6 +283,12 @@ server {
   subPath: db-ca.crt
   readOnly: true
 {{- end }}
+{{- if .Values.valkey.tls.enabled }}
+- name: valkey-ca
+  mountPath: /etc/foreman/certs/valkey-ca.crt
+  subPath: {{ .Values.valkey.tls.caSecretKey }}
+  readOnly: true
+{{- end }}
 {{- end }}
 
 {{- define "foreman-stack.foremanVolumes" -}}
@@ -278,6 +308,14 @@ server {
     items:
       - key: db-ca.crt
         path: db-ca.crt
+{{- end }}
+{{- if .Values.valkey.tls.enabled }}
+- name: valkey-ca
+  secret:
+    secretName: {{ .Values.valkey.tls.existingCaSecret }}
+    items:
+      - key: {{ .Values.valkey.tls.caSecretKey }}
+        path: {{ .Values.valkey.tls.caSecretKey }}
 {{- end }}
 {{- end }}
 
@@ -344,8 +382,26 @@ server {
   value: /etc/pulp/object-storage/ca.crt
 {{- end }}
 {{- end }}
-- name: PULP_REDIS_URL
-  value: {{ printf "redis://%s:%v/%v" .Values.valkey.host .Values.valkey.port .Values.valkey.pulpDatabase | quote }}
+- name: PULP_REDIS_HOST
+  value: {{ .Values.valkey.pulp.host | quote }}
+- name: PULP_REDIS_PORT
+  value: {{ .Values.valkey.pulp.port | quote }}
+- name: PULP_REDIS_DB
+  value: {{ .Values.valkey.pulp.database | quote }}
+- name: PULP_REDIS_PASSWORD
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Values.valkey.existingSecret }}
+      key: {{ .Values.valkey.pulpPasswordSecretKey }}
+{{- if .Values.valkey.tls.enabled }}
+- name: PULP_REDIS_SSL
+  value: "true"
+- name: PULP_REDIS_SSL_CA_CERTS
+  value: /etc/pulp/certs/valkey-ca.crt
+{{- else }}
+- name: PULP_REDIS_SSL
+  value: "false"
+{{- end }}
 - name: PULP_SECRET_KEY
   valueFrom:
     secretKeyRef:
@@ -456,6 +512,26 @@ server {
 {{- end }}
 {{- end }}
 
+{{- define "foreman-stack.pulpValkeyCaVolumeMount" -}}
+{{- if .Values.valkey.tls.enabled }}
+- name: valkey-ca
+  mountPath: /etc/pulp/certs/valkey-ca.crt
+  subPath: {{ .Values.valkey.tls.caSecretKey }}
+  readOnly: true
+{{- end }}
+{{- end }}
+
+{{- define "foreman-stack.pulpValkeyCaVolume" -}}
+{{- if .Values.valkey.tls.enabled }}
+- name: valkey-ca
+  secret:
+    secretName: {{ .Values.valkey.tls.existingCaSecret }}
+    items:
+      - key: {{ .Values.valkey.tls.caSecretKey }}
+        path: {{ .Values.valkey.tls.caSecretKey }}
+{{- end }}
+{{- end }}
+
 {{- define "foreman-stack.foremanMigrationWait" -}}
 - name: wait-for-foreman-migrations
   image: {{ include "foreman-stack.image" .Values.foreman.image }}
@@ -495,6 +571,7 @@ server {
       subPath: database_fields.symmetric.key
       readOnly: true
     {{- include "foreman-stack.pulpDatabaseCaVolumeMount" . | nindent 4 }}
+    {{- include "foreman-stack.pulpValkeyCaVolumeMount" . | nindent 4 }}
     {{- include "foreman-stack.pulpObjectStorageCaVolumeMount" . | nindent 4 }}
 {{- end }}
 

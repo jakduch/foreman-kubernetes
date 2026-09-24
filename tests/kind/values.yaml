@@ -18,7 +18,15 @@ ingress:
     clientCaSecret: ingress-client-ca
 
 valkey:
-  host: valkey
+  tls:
+    enabled: false
+    existingCaSecret: ""
+  foremanCache:
+    host: valkey
+  dynflow:
+    host: valkey
+  pulp:
+    host: valkey
 
 foreman:
   replicas: 1

@@ -120,12 +120,14 @@ spec:
               subPath: database_fields.symmetric.key
               readOnly: true
             {{- include "foreman-stack.pulpDatabaseCaVolumeMount" . | nindent 12 }}
+            {{- include "foreman-stack.pulpValkeyCaVolumeMount" . | nindent 12 }}
             {{- include "foreman-stack.pulpObjectStorageCaVolumeMount" . | nindent 12 }}
       volumes:
         - name: pulp-config
           secret:
             secretName: {{ .Values.pulp.existingConfigSecret }}
         {{- include "foreman-stack.pulpDatabaseCaVolume" . | nindent 8 }}
+        {{- include "foreman-stack.pulpValkeyCaVolume" . | nindent 8 }}
         {{- include "foreman-stack.pulpObjectStorageCaVolume" . | nindent 8 }}
 ---
 apiVersion: batch/v1
@@ -179,5 +181,6 @@ spec:
           secret:
             secretName: {{ .Values.pulp.existingConfigSecret }}
         {{- include "foreman-stack.pulpDatabaseCaVolume" . | nindent 8 }}
+        {{- include "foreman-stack.pulpValkeyCaVolume" . | nindent 8 }}
         {{- include "foreman-stack.pulpObjectStorageCaVolume" . | nindent 8 }}
 {{- end }}

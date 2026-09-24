@@ -8,7 +8,8 @@ mix image profiles from different sets.
 
 - a Kubernetes cluster with a default StorageClass and an ingress controller;
 - external PostgreSQL databases for Foreman, Candlepin, and Pulp;
-- external Valkey/Redis endpoints for Rails caching, Dynflow, and Pulp;
+- external Valkey/Redis endpoints for Rails caching, Dynflow, and Pulp; the
+  production profile requires authenticated TLS and a trusted CA;
 - DNS names and TLS material for the Foreman and Pulp endpoints;
 - the namespace and every Secret referenced by the selected values;
 - Helm, kubectl, jq, Ruby, and access to the digest-pinned images.
@@ -23,6 +24,14 @@ mix image profiles from different sets.
 The chart does not create production credentials. Copy the example values into
 deployment-owned files outside this repository and create the referenced
 Secrets through the site's secret-management workflow.
+
+The three Valkey endpoint blocks may reference one service, but a production
+deployment should keep the disposable Foreman cache separate from the durable
+Dynflow queue. Configure the Dynflow service with persistence, replication or
+managed failover, and `maxmemory-policy noeviction`. The Foreman cache and
+Dynflow `*-uri-auth` Secret values are URI userinfo including the trailing
+`@`; percent-encode reserved characters before storing them. Pulp uses the
+separate raw `pulp-password` value for its default Valkey ACL user.
 
 ## Guarded first installation
 

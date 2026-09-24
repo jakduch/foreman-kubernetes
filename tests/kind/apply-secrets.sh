@@ -79,6 +79,12 @@ kubectl --namespace "${namespace}" create secret generic foreman-shared \
   --from-literal=candlepin-oauth-secret=candlepin-oauth-test \
   --dry-run=client -o yaml | kubectl apply -f -
 
+kubectl --namespace "${namespace}" create secret generic foreman-valkey \
+  --from-literal=foreman-cache-uri-auth='' \
+  --from-literal=dynflow-uri-auth='' \
+  --from-literal=pulp-password='' \
+  --dry-run=client -o yaml | kubectl apply -f -
+
 kubectl --namespace "${namespace}" create secret generic foreman-certificates \
   --from-file=ca.crt="${workdir}/ca.crt" \
   --from-file=client_cert.pem="${workdir}/foreman-client.crt" \

@@ -51,7 +51,7 @@ The upstream Sidekiq entry point supports distinct queue configurations. Kuberne
 - `worker`: horizontally scalable;
 - `worker-hosts-queue`: independently scalable for host work.
 
-This preserves the upstream Redis lock and single-orchestrator contract instead of allowing an HPA to scale every process indiscriminately.
+This preserves the upstream Redis lock and single-orchestrator contract instead of allowing an HPA to scale every process indiscriminately. The chart gives Dynflow its own endpoint contract rather than treating numbered databases on a disposable cache as isolation. A production Dynflow endpoint must be persistent and use `noeviction`; the Foreman cache can use a cache-oriented policy independently.
 
 ### Candlepin
 
@@ -73,7 +73,7 @@ cutting the built-in graceful shutdown back to its 30-second default.
 ### Pulp
 
 Pulp already exposes separate API, content, and worker commands. All three use
-the same database, Valkey, symmetric key, and content storage. Filesystem mode
+the same database, Pulp-specific Valkey endpoint, symmetric key, and content storage. Filesystem mode
 requires ReadWriteMany storage so replicas on different nodes see identical
 content. S3 mode makes the bucket authoritative and gives every pod only local
 scratch space, removing the RWX scheduling and storage dependency.
@@ -210,7 +210,7 @@ content or provisioning workflow.
 
 ## State and upgrades
 
-PostgreSQL, Valkey, object/shared storage, PKI, Secrets, and the optional
+PostgreSQL, the three role-specific Valkey endpoints, object/shared storage, PKI, Secrets, and the optional
 Candlepin Artemis broker are external contracts. This keeps the application
 chart usable with existing operators and managed services.
 

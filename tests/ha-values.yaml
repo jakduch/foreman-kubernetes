@@ -16,6 +16,8 @@ networkPolicy:
       peers:
         - ipBlock:
             cidr: 192.0.2.11/32
+      ports:
+        - 6379
     external:
       candlepin:
         peers:

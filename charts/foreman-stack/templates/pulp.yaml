@@ -133,6 +133,7 @@ spec:
               subPath: database_fields.symmetric.key
               readOnly: true
             {{- include "foreman-stack.pulpDatabaseCaVolumeMount" $root | nindent 12 }}
+            {{- include "foreman-stack.pulpValkeyCaVolumeMount" $root | nindent 12 }}
             {{- include "foreman-stack.pulpObjectStorageCaVolumeMount" $root | nindent 12 }}
             {{- if eq $service.name "api" }}
             - name: pulp-health
@@ -182,6 +183,7 @@ spec:
           secret:
             secretName: {{ $root.Values.pulp.existingConfigSecret }}
         {{- include "foreman-stack.pulpDatabaseCaVolume" $root | nindent 8 }}
+        {{- include "foreman-stack.pulpValkeyCaVolume" $root | nindent 8 }}
         {{- include "foreman-stack.pulpObjectStorageCaVolume" $root | nindent 8 }}
         - name: pulp-health
           configMap:
@@ -251,6 +253,7 @@ spec:
               subPath: database_fields.symmetric.key
               readOnly: true
             {{- include "foreman-stack.pulpDatabaseCaVolumeMount" . | nindent 12 }}
+            {{- include "foreman-stack.pulpValkeyCaVolumeMount" . | nindent 12 }}
             {{- include "foreman-stack.pulpObjectStorageCaVolumeMount" . | nindent 12 }}
             - name: pulp-health
               mountPath: /opt/foreman-kubernetes/pulp-app-readiness.py
@@ -273,6 +276,7 @@ spec:
           secret:
             secretName: {{ .Values.pulp.existingConfigSecret }}
         {{- include "foreman-stack.pulpDatabaseCaVolume" . | nindent 8 }}
+        {{- include "foreman-stack.pulpValkeyCaVolume" . | nindent 8 }}
         {{- include "foreman-stack.pulpObjectStorageCaVolume" . | nindent 8 }}
         - name: pulp-health
           configMap:

@@ -61,8 +61,10 @@ spec:
     - to:
         {{- toYaml $valkey.peers | nindent 8 }}
       ports:
+        {{- range $valkey.ports }}
         - protocol: TCP
-          port: {{ .Values.valkey.port }}
+          port: {{ . }}
+        {{- end }}
     - to:
         - podSelector:
             matchLabels:
@@ -128,8 +130,10 @@ spec:
     - to:
         {{- toYaml $valkey.peers | nindent 8 }}
       ports:
+        {{- range $valkey.ports }}
         - protocol: TCP
-          port: {{ .Values.valkey.port }}
+          port: {{ . }}
+        {{- end }}
     {{- if gt (len $pulpExternal.peers) 0 }}
     - to:
         {{- toYaml $pulpExternal.peers | nindent 8 }}

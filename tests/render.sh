@@ -22,12 +22,13 @@ rendered_no_migrations="$(mktemp)"
 rendered_secret_rotation="$(mktemp)"
 rendered_s3="$(mktemp)"
 rendered_s3_backup="$(mktemp)"
+rendered_kind="$(mktemp)"
 rendered_kind_backup="$(mktemp)"
 rendered_execution="$(mktemp)"
 rendered_execution_egress="$(mktemp)"
 rendered_execution_kind="$(mktemp)"
 rendered_execution_secret_rotation="$(mktemp)"
-trap 'rm -f "${rendered}" "${rendered_ingress}" "${rendered_ingress_overrides}" "${rendered_minimal_pulp_ingress}" "${rendered_backup}" "${rendered_restore}" "${rendered_egress}" "${rendered_singletons}" "${rendered_ha}" "${rendered_candlepin_port}" "${rendered_foreman_service_port}" "${rendered_foreman_secret_contract}" "${rendered_database_tls_disabled}" "${rendered_image_pull_secrets}" "${rendered_no_migrations}" "${rendered_secret_rotation}" "${rendered_s3}" "${rendered_s3_backup}" "${rendered_kind_backup}" "${rendered_execution}" "${rendered_execution_egress}" "${rendered_execution_kind}" "${rendered_execution_secret_rotation}"' EXIT
+trap 'rm -f "${rendered}" "${rendered_ingress}" "${rendered_ingress_overrides}" "${rendered_minimal_pulp_ingress}" "${rendered_backup}" "${rendered_restore}" "${rendered_egress}" "${rendered_singletons}" "${rendered_ha}" "${rendered_candlepin_port}" "${rendered_foreman_service_port}" "${rendered_foreman_secret_contract}" "${rendered_database_tls_disabled}" "${rendered_image_pull_secrets}" "${rendered_no_migrations}" "${rendered_secret_rotation}" "${rendered_s3}" "${rendered_s3_backup}" "${rendered_kind}" "${rendered_kind_backup}" "${rendered_execution}" "${rendered_execution_egress}" "${rendered_execution_kind}" "${rendered_execution_secret_rotation}"' EXIT
 
 ruby "${repo_root}/tests/yaml-duplicates.rb"
 ruby "${repo_root}/tests/operator-contract.rb"
@@ -85,7 +86,7 @@ helm lint "${chart}" \
 helm template foreman "${chart}" \
   --values "${repo_root}/tests/kind/values.yaml" \
   --values "${repo_root}/examples/execution-control-plane-values.yaml" \
-  --values "${repo_root}/profiles/nightly-candidate-2026-09-23.yaml" >/dev/null
+  --values "${repo_root}/profiles/nightly-candidate-2026-09-23.yaml" > "${rendered_kind}"
 helm template foreman "${chart}" \
   --values "${repo_root}/tests/kind/values.yaml" \
   --values "${repo_root}/examples/execution-control-plane-values.yaml" \
@@ -197,6 +198,9 @@ ruby "${repo_root}/tests/foreman-shared-tmp-contract.rb" "${rendered_s3}" false
 ruby "${repo_root}/tests/foreman-database-pool-contract.rb" "${rendered}"
 ruby "${repo_root}/tests/database-tls-contract.rb" "${rendered}" verify-full true
 ruby "${repo_root}/tests/database-tls-contract.rb" "${rendered_database_tls_disabled}" disable false
+ruby "${repo_root}/tests/valkey-contract.rb" "${rendered}" true
+ruby "${repo_root}/tests/valkey-contract.rb" "${rendered_database_tls_disabled}" true
+ruby "${repo_root}/tests/valkey-contract.rb" "${rendered_kind}" false
 ruby "${repo_root}/tests/disruption-budget-contract.rb" "${rendered}"
 ruby "${repo_root}/tests/rollout-strategy-contract.rb" "${rendered}"
 ruby "${repo_root}/tests/recovery-storage-contract.rb" "${rendered_backup}" true
@@ -709,6 +713,18 @@ fi
 if helm template test "${chart}" \
   --set foreman.existingDatabaseCaSecret= >/dev/null 2>&1; then
   echo 'expected Foreman certificate verification without a database CA to be rejected' >&2
+  exit 1
+fi
+
+if helm template test "${chart}" \
+  --set valkey.tls.existingCaSecret= >/dev/null 2>&1; then
+  echo 'expected Valkey TLS without a CA to be rejected' >&2
+  exit 1
+fi
+
+if helm template test "${chart}" \
+  --set valkey.tls.enabled=false >/dev/null 2>&1; then
+  echo 'expected a Valkey CA to be rejected when TLS is disabled' >&2
   exit 1
 fi
 

@@ -168,6 +168,22 @@ sets `foreman.database.sslMode=disable` must also clear
 
 The same key is injected into Foreman's ERB-evaluated Katello settings and Candlepin's SmallRye environment configuration. It is never rendered into a ConfigMap.
 
+### `foreman-valkey` and `valkey-ca`
+
+`foreman-valkey` contains the configurable keys `foreman-cache-uri-auth`,
+`dynflow-uri-auth`, and `pulp-password`. The two Foreman values are URI-encoded
+userinfo, including their trailing `@`; the chart combines them with typed
+endpoints and database numbers without rendering credentials into a manifest.
+Pulpcore uses its discrete host, port, database, password, SSL, and CA settings
+because upstream ignores the latter TLS options whenever `REDIS_URL` is set.
+`valkey-ca` contains `ca.crt`.
+
+Production defaults construct `rediss` URLs, verify the CA in both Ruby Redis
+clients and Pulpcore, and refuse to render TLS without the CA. Foreman's
+generated initializer also rejects a non-`rediss` runtime URL before Rails or
+Sidekiq starts. The Kind profile explicitly switches to `redis` and clears the
+CA reference.
+
 ### `foreman-certificates`
 
 - `ca.crt`
@@ -190,7 +206,7 @@ The chart generates `candlepin.conf`, `server.xml`, `tomcat.conf`, `logging.prop
 
 ### `pulp-runtime` and `pulp-config`
 
-`pulp-runtime` contains `database-password` and `django-secret-key`. `pulp-config` contains `database_fields.symmetric.key`. The chart generates all non-secret Dynaconf environment values, including database host, Valkey URL, content origin, and enabled plugins.
+`pulp-runtime` contains `database-password` and `django-secret-key`. `pulp-config` contains `database_fields.symmetric.key`. The chart generates all non-secret Dynaconf environment values, including database host, the credential-free portion of the Valkey URL, content origin, and enabled plugins.
 
 With S3 storage, an optional `pulp-object-storage` Secret contains the selected
 access-key, secret-key, and optional session-token keys. Workload identity can

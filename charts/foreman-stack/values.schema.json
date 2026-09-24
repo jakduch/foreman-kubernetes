@@ -54,13 +54,25 @@
     "valkey": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["host", "port", "foremanCacheDatabase", "dynflowDatabase", "pulpDatabase"],
+      "required": ["existingSecret", "foremanCacheUriAuthSecretKey", "dynflowUriAuthSecretKey", "pulpPasswordSecretKey", "tls", "foremanCache", "dynflow", "pulp"],
       "properties": {
-        "host": { "type": "string", "minLength": 1 },
-        "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
-        "foremanCacheDatabase": { "type": "integer", "minimum": 0 },
-        "dynflowDatabase": { "type": "integer", "minimum": 0 },
-        "pulpDatabase": { "type": "integer", "minimum": 0 }
+        "existingSecret": { "type": "string", "minLength": 1 },
+        "foremanCacheUriAuthSecretKey": { "type": "string", "minLength": 1 },
+        "dynflowUriAuthSecretKey": { "type": "string", "minLength": 1 },
+        "pulpPasswordSecretKey": { "type": "string", "minLength": 1 },
+        "tls": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["enabled", "existingCaSecret", "caSecretKey"],
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "existingCaSecret": { "type": "string" },
+            "caSecretKey": { "type": "string", "minLength": 1 }
+          }
+        },
+        "foremanCache": { "$ref": "#/definitions/valkeyEndpoint" },
+        "dynflow": { "$ref": "#/definitions/valkeyEndpoint" },
+        "pulp": { "$ref": "#/definitions/valkeyEndpoint" }
       }
     },
     "sharedSecret": {
@@ -488,9 +500,10 @@
             },
             "valkey": {
               "type": "object",
-              "required": ["peers"],
+              "required": ["peers", "ports"],
               "properties": {
-                "peers": { "$ref": "#/definitions/networkPolicyPeers" }
+                "peers": { "$ref": "#/definitions/networkPolicyPeers" },
+                "ports": { "$ref": "#/definitions/networkPolicyPorts" }
               }
             },
             "external": {
@@ -903,6 +916,16 @@
       "additionalProperties": false,
       "properties": {
         "sslMode": { "enum": ["disable", "allow", "prefer", "require", "verify-ca", "verify-full"] }
+      }
+    },
+    "valkeyEndpoint": {
+      "type": "object",
+      "required": ["host", "port", "database"],
+      "additionalProperties": false,
+      "properties": {
+        "host": { "type": "string", "minLength": 1 },
+        "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "database": { "type": "integer", "minimum": 0 }
       }
     }
   }

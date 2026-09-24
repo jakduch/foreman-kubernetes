@@ -40,7 +40,7 @@ The initial Helm chart is under [`charts/foreman-stack`](charts/foreman-stack). 
 
 ## Current status
 
-This is an implementation scaffold, not yet a production release. It deliberately requires external PostgreSQL and Valkey services and pre-created Kubernetes Secrets. Those stateful dependencies need their own HA, backup, and lifecycle policy rather than being hidden inside an application chart. Production defaults require hostname-verified PostgreSQL TLS for Foreman, Candlepin, and Pulp; the disposable Kind profile is the only supplied profile that explicitly disables it.
+This is an implementation scaffold, not yet a production release. It deliberately requires external PostgreSQL and Valkey services and pre-created Kubernetes Secrets. Those stateful dependencies need their own HA, backup, and lifecycle policy rather than being hidden inside an application chart. Production defaults require hostname-verified PostgreSQL and authenticated Valkey TLS; the disposable Kind profile is the only supplied profile that explicitly disables them. Cache, Dynflow, and Pulp can use separate Valkey endpoints so durable queues never have to inherit a cache eviction policy.
 
 The chart generates the non-secret Foreman, Katello, Dynflow, Candlepin, Tomcat, Pulp, and internal NGINX configuration from typed values. Existing Secrets are limited to credentials, encryption material, and certificates. The Pulp administrative API is not published by the ingress profile; Katello reaches it through a private mTLS endpoint that only maps approved client-certificate common names to Pulp's remote `admin` user.
 
