@@ -31,7 +31,7 @@ from the reviewed official image.
 | `foreman_ansible` | no | Foreman plus the execution Smart Proxy chart | role import, execution, and content replacement are modelled; live run remains |
 | `foreman_google` | no | Foreman pods | provider credentials, egress, API test |
 | `foreman_azure_rm` | no | Foreman pods | provider credentials, egress, API test |
-| `foreman_kubevirt` | no | Foreman pods | KubeVirt credentials, egress, API test |
+| `foreman_kubevirt` | no | Foreman pods | upstream API-version fix, KubeVirt credentials, egress, API test |
 | `foreman_rh_cloud` | no | Foreman pods | cloud credentials, egress, service workflow |
 | `foreman_webhooks` | no | Foreman and Dynflow pods | dedicated destination allow-list; delivery, failure, receiver replacement, and clean-recovery drill implemented but unrun |
 | `foreman_virt_who_configure` | no | Foreman plus external virt-who host | configuration API, generated deployment script, report state, service-user cleanup, and clean-recovery drill implemented but unrun |
@@ -39,6 +39,16 @@ from the reviewed official image.
 The base image also installs compute-provider packages for libvirt, VMware,
 OpenStack, and EC2. These are not selected through `FOREMAN_ENABLED_PLUGINS`;
 each still needs provider-specific credential, egress, and lifecycle tests.
+
+The reviewed `foreman_kubevirt` source forces `v1alpha3`, even though its
+`fog-kubevirt` dependency already discovers the preferred version from the
+cluster's `kubevirt.io` API group. That override is also inconsistent with the
+plugin's `kubevirt.io/v1` owner references. A separate local upstream commit
+removes the override and tests the complete client-options contract. The plugin
+remains `packaged-integration-pending` until that fix is accepted into the
+official image and a real cluster workflow covers connection validation, VM
+creation, restart, deletion, and recovery. The chart will not hide the problem
+with a mock KubeVirt endpoint.
 
 Foreman Webhooks uses the plugin's asynchronous delivery job for event-driven
 requests and Ruby's standard HTTP client for the destination connection. The

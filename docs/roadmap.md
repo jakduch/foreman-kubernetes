@@ -25,6 +25,10 @@
    generated external-host script, report state, cleanup, and clean recovery.
    Execution of that script and a real Candlepin report remain an external-host
    qualification step rather than a Kubernetes workload.
+   Foreman KubeVirt additionally remains blocked on shipping the prepared
+   dynamic API-version discovery fix; the packaged plugin currently forces
+   `v1alpha3`. After that lands, qualify it against a real KubeVirt cluster
+   rather than a mocked API.
 8. Run the prepared central-execution drill against the pinned amd64 image,
    then extend it from prepared successful, failed, and cancelled SSH/Ansible
    jobs, content replacement, fresh jobs after identity rotation, and

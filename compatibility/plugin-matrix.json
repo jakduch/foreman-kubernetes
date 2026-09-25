@@ -8,6 +8,9 @@
     "foremanAnsibleCommit": "7ffc9e37344011554347ca9429fffdcf1f81816e",
     "foremanWebhooksCommit": "4ad5882f4b866cb55b0d1bb102010ddb1e448ebd",
     "foremanVirtWhoConfigureCommit": "78b9e78650013b6ef023a4163a7d47518024cd1d",
+    "foremanKubevirtUpstreamCommit": "4b89174424245289bd4cc7535a94a8c24aa19172",
+    "foremanKubevirtCompatibilityPatchCommit": "60d6c1f8ff3497d39c63e3359ea1e8539e2a0a70",
+    "fogKubevirtCommit": "d3277fa121609c5a2c949f3518f5f1bb07ef6447",
     "smartProxyCommit": "c2af3d35497058fd7dc8146dcbca3adf60334b9e",
     "smartProxyDynflowCommit": "a07e3fa37aca20f2038e8f469f88c545c39276ff",
     "smartProxyRemoteExecutionSshCommit": "1ad66baae4498f7f3a5e3cc939ddf20e188336d2",
@@ -61,7 +64,14 @@
       "enabledByDefault": false,
       "placement": "application",
       "status": "packaged-integration-pending",
-      "requires": ["kubevirt-api-credentials", "provider-egress"]
+      "requires": ["kubevirt-api-credentials", "provider-egress"],
+      "blockers": [
+        {
+          "id": "dynamic-kubevirt-api-version",
+          "status": "local-fix-prepared",
+          "reason": "the packaged plugin forces the obsolete v1alpha3 API instead of using fog-kubevirt API discovery"
+        }
+      ]
     },
     {
       "name": "foreman_rh_cloud",

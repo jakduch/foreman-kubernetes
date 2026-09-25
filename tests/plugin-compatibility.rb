@@ -30,8 +30,8 @@ def image_argument(path, name)
   match[1].split.sort
 end
 
-def revision(path)
-  output, status = Open3.capture2('git', '-C', path, 'rev-parse', 'HEAD')
+def revision(path, ref = 'HEAD')
+  output, status = Open3.capture2('git', '-C', path, 'rev-parse', ref)
   raise "cannot read Git revision for #{path}" unless status.success?
 
   output.strip
@@ -68,6 +68,14 @@ matrix.fetch('smartProxyImagePlugins').each do |plugin|
   raise "Unexpected execution status for #{plugin.fetch('name')}" unless plugin.fetch('status') == expected_status
 end
 
+kubevirt = foreman_plugins.find { |plugin| plugin.fetch('name') == 'foreman_kubevirt' }
+raise 'Foreman KubeVirt must remain integration-pending until its compatibility fix ships' unless kubevirt.fetch('status') == 'packaged-integration-pending'
+
+kubevirt_blocker = kubevirt.fetch('blockers').find { |blocker| blocker.fetch('id') == 'dynamic-kubevirt-api-version' }
+unless kubevirt_blocker&.fetch('status') == 'local-fix-prepared'
+  raise 'Foreman KubeVirt API-version blocker is missing from the compatibility matrix'
+end
+
 upstream = File.expand_path('../foreman-kubernetes-upstream', root)
 if Dir.exist?(upstream)
   foreman_images = File.join(upstream, 'foreman-oci-images')
@@ -75,6 +83,8 @@ if Dir.exist?(upstream)
   foremanctl = File.join(upstream, 'foremanctl')
   foreman_webhooks = File.join(upstream, 'foreman_webhooks')
   foreman_virt_who_configure = File.join(upstream, 'foreman_virt_who_configure')
+  foreman_kubevirt = File.join(upstream, 'foreman_kubevirt')
+  fog_kubevirt = File.join(upstream, 'fog-kubevirt')
 
   foreman_containerfile = File.join(foreman_images, 'images/foreman/Containerfile')
   proxy_containerfile = File.join(foreman_images, 'images/foreman-proxy/Containerfile')
@@ -95,10 +105,15 @@ if Dir.exist?(upstream)
     'pulpOciImagesCommit' => pulp_images,
     'foremanctlCommit' => foremanctl,
     'foremanWebhooksCommit' => foreman_webhooks,
-    'foremanVirtWhoConfigureCommit' => foreman_virt_who_configure
+    'foremanVirtWhoConfigureCommit' => foreman_virt_who_configure,
+    'foremanKubevirtCompatibilityPatchCommit' => foreman_kubevirt,
+    'fogKubevirtCommit' => fog_kubevirt
   }
   expected_revisions.each do |key, path|
     raise "#{key} snapshot is stale" unless revision(path) == matrix.dig('snapshot', key)
+  end
+  unless revision(foreman_kubevirt, 'HEAD^') == matrix.dig('snapshot', 'foremanKubevirtUpstreamCommit')
+    raise 'foremanKubevirtUpstreamCommit snapshot is stale'
   end
 end
 
