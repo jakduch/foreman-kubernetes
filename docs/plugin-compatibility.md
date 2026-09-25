@@ -64,6 +64,12 @@ resource, so an unusable provider can be saved without an actionable error. A
 third local upstream commit records distinct errors for an unreachable
 Kubernetes API and a reachable API without KubeVirt, with regression coverage.
 
+Volume creation has two additional edge cases covered by the local patch
+series. An explicitly non-bootable disk sent as `bootable: "false"` must not be
+treated as a boot disk and skipped during image provisioning. If a later PVC
+creation fails, every PVC already created by that request must be removed before
+the error is returned. The prepared tests cover both behaviors.
+
 An opt-in external-cluster drill is prepared for that later qualification. It
 registers the compute resource through Foreman's API without retaining token or
 CA material in its state artifact, requires Foreman and the cluster discovery

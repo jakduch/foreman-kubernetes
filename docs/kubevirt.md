@@ -13,8 +13,9 @@ obsolete `v1alpha3` API. The local upstream fix removes that override so
 The reviewed fog client also lists NetworkAttachmentDefinitions cluster-wide;
 a second local fix scopes that request to the compute resource namespace. Both
 fixes are accompanied by a plugin validation fix that turns failed Kubernetes
-and KubeVirt probes into actionable model errors. All three fixes and the
-external-cluster lifecycle must ship and pass before support is claimed.
+and KubeVirt probes into actionable model errors. The local series also fixes
+image data-disk selection and partial-PVC cleanup. All fixes and the external-
+cluster lifecycle must ship and pass before support is claimed.
 
 ## Least-privilege target namespace
 
