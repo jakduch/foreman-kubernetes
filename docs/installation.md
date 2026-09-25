@@ -197,7 +197,10 @@ an active migration or rollout.
 
 While `Ready`, the controller checks for missing Helm-managed objects and
 out-of-band Helm revisions every `spec.driftCheckSeconds` (60 seconds by
-default). Missing stateless resources or a changed Helm revision start a
+default). It also revalidates every external Secret and TLS identity, so an
+expired or incorrectly rotated certificate appears in `lastDriftCheckError`
+and the drift-audit alert without an unsafe automatic credential change.
+Missing stateless resources or a changed Helm revision start a
 uniquely identified repair: the normal preflight, lock, rollout, registration,
 and smoke gates run again, while schema migrations remain skipped. A missing
 PVC instead enters `Blocked` and requires explicit storage recovery. The check

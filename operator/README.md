@@ -69,8 +69,12 @@ resource deletion without re-running a schema change.
 After a release is `Ready`, the controller also audits both recorded Helm
 revisions and every non-Job object declared by the exact application and
 execution-proxy renders. The interval is bounded by `spec.driftCheckSeconds`
-(60 seconds by default). A missing release or stateless object, or an
-out-of-band Helm revision, starts a new uniquely sequenced `Repair` operation. It repeats
+(60 seconds by default). The same audit re-reads every external Secret and
+revalidates required certificate dates, key pairs, and colocated trust chains.
+An unusable Secret records a drift-audit error and raises the monitoring alert,
+but never causes the controller to rewrite credentials or interrupt running
+Pods. A missing release or stateless object, or an out-of-band Helm revision,
+starts a new uniquely sequenced `Repair` operation. It repeats
 preflight, Lease fencing, both rollouts, registration, and smoke verification,
 but deliberately skips database migrations because the compatibility set was
 already migrated. Changed values Secret content still fails the pinned-input

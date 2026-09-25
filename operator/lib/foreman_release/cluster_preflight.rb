@@ -24,6 +24,19 @@ module ForemanRelease
       requirements.cluster_resources.each do |kind, name, contract|
         validate_resource!(namespace, kind, name, contract)
       end
+      validate_secret_requirements!(requirements, namespace)
+      validate_server_dry_run!(documents, namespace)
+      true
+    end
+
+    def validate_secrets!(documents, namespace)
+      validate_secret_requirements!(ManifestRequirements.new(documents), namespace)
+      true
+    end
+
+    private
+
+    def validate_secret_requirements!(requirements, namespace)
       requirements.secrets.each do |name, keys|
         secret = required_resource(namespace, 'secret', name)
         missing = keys.reject { |key| secret.fetch('data', {}).key?(key) }
@@ -31,11 +44,7 @@ module ForemanRelease
 
         @certificate_validator.validate_secret!(namespace, name, secret, keys)
       end
-      validate_server_dry_run!(documents, namespace)
-      true
     end
-
-    private
 
     def validate_server_dry_run!(documents, namespace)
       manifest = Array(documents).map { |document| YAML.dump(document) }.join

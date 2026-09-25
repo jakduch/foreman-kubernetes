@@ -168,6 +168,14 @@ expected_command = %w[kubectl --namespace platform apply --dry-run=server --file
 raise 'preflight did not use a server-side admission dry-run' unless dry_run.first == expected_command
 raise 'preflight did not submit the complete rendered manifest' unless dry_run.last.include?('kind: Deployment')
 
+runner.calls.clear
+certificate_validator.calls.clear
+raise 'Secret-only audit failed' unless preflight.validate_secrets!(documents, 'platform')
+raise 'Secret-only audit unexpectedly ran admission dry-run' unless runner.calls.empty?
+unless certificate_validator.calls.map { |arguments| arguments.take(2) }.include?(%w[platform ingress-tls])
+  raise 'Secret-only audit did not validate certificate inputs'
+end
+
 client.objects[['platform', 'secret', 'database']] = {'data' => {}}
 begin
   preflight.validate!(documents, 'platform')

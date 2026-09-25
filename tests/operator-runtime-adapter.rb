@@ -161,14 +161,21 @@ class RuntimeLeaseManager
 end
 
 class RuntimePreflight
-  attr_reader :calls
+  attr_reader :calls, :secret_calls
+  attr_accessor :secret_error
 
   def initialize
     @calls = []
+    @secret_calls = []
   end
 
   def validate!(documents, namespace)
     @calls << [documents, namespace]
+  end
+
+  def validate_secrets!(documents, namespace)
+    @secret_calls << [documents, namespace]
+    raise ForemanRelease::InvalidRelease, secret_error if secret_error
   end
 end
 
@@ -497,6 +504,20 @@ ForemanRelease::RuntimeAdapter::DRIFT_RESOURCE_TYPES.each do |kind, type|
 end
 audit = adapter.audit_ready(resource, operation)
 raise "complete Ready release was reported as drifted: #{audit.message}" unless audit.state == :succeeded
+unless preflight.secret_calls.length == 1 &&
+       preflight.secret_calls.first.first.length == all_rendered.length &&
+       preflight.secret_calls.first.last == 'platform'
+  raise 'Ready audit did not revalidate the combined external Secret inventory'
+end
+preflight.secret_error = 'certificate expires before the safety window'
+begin
+  adapter.audit_ready(resource, operation)
+  raise 'Ready audit accepted an unusable certificate Secret'
+rescue ForemanRelease::InvalidRelease => error
+  raise unless error.message.include?('certificate expires before the safety window')
+ensure
+  preflight.secret_error = nil
+end
 revision_drift = adapter.audit_ready(
   resource,
   operation.merge('applicationRevision' => 1, 'executionProxyRevision' => 4)

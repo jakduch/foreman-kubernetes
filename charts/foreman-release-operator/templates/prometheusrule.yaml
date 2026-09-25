@@ -65,5 +65,5 @@ spec:
             severity: warning
           annotations:
             summary: Foreman release drift audit is failing
-            description: ForemanRelease {{ "{{" }} $labels.namespace {{ "}}" }}/{{ "{{" }} $labels.name {{ "}}" }} cannot verify that all declared resources are still present.
+            description: ForemanRelease {{ "{{" }} $labels.namespace {{ "}}" }}/{{ "{{" }} $labels.name {{ "}}" }} cannot verify declared resources or external Secret and certificate inputs.
 {{- end }}

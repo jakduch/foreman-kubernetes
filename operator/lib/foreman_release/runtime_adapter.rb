@@ -173,6 +173,7 @@ module ForemanRelease
 
     def audit_ready(resource, operation)
       missing = []
+      rendered = []
       [
         [application_release(resource), operation['applicationRevision']],
         [execution_release(resource), operation['executionProxyRevision']]
@@ -190,9 +191,11 @@ module ForemanRelease
       end
 
       with_rendered_application(resource, operation) do |_context, _values_path, resources|
+        rendered.concat(resources)
         missing.concat(missing_declared_resources(resource, resources))
       end
       with_rendered_execution(resource, operation) do |_context, _values_path, resources|
+        rendered.concat(resources)
         missing.concat(missing_declared_resources(resource, resources))
       end
 
@@ -213,7 +216,12 @@ module ForemanRelease
         )
       end
 
-      Observation.new(state: :succeeded, message: 'all declared release resources are present', details: {})
+      @preflight.validate_secrets!(rendered, resource.dig('metadata', 'namespace'))
+      Observation.new(
+        state: :succeeded,
+        message: 'all declared release resources and external Secret inputs are usable',
+        details: {}
+      )
     end
 
     def ensure_application(resource, operation)
