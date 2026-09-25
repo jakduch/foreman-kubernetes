@@ -13,9 +13,11 @@ kind_node_image="${KIND_NODE_IMAGE:-kindest/node:v1.34.11@sha256:44e222ee2132dab
 created_cluster=false
 temporary_directory="$(mktemp -d)"
 skip_recovery_test="${SKIP_RECOVERY_TEST:-0}"
+kubevirt_qualify="${KUBEVIRT_QUALIFY:-0}"
 content_lifecycle_state="${temporary_directory}/content-lifecycle.json"
 webhook_lifecycle_state="${temporary_directory}/webhook-lifecycle.json"
 virt_who_config_lifecycle_state="${temporary_directory}/virt-who-config-lifecycle.json"
+kubevirt_lifecycle_state="${temporary_directory}/kubevirt-lifecycle.json"
 image_runtime_contract_file="${IMAGE_RUNTIME_CONTRACT_FILE:-artifacts/image-runtime-contract.json}"
 candlepin_job_delivery_file="${CANDLEPIN_JOB_DELIVERY_FILE:-artifacts/candlepin-job-delivery.json}"
 operator_release_evidence_file="${OPERATOR_RELEASE_EVIDENCE_FILE:-artifacts/operator-release.json}"
@@ -876,6 +878,11 @@ reset_namespace_for_restore() {
 
 cleanup() {
   local exit_status=$?
+  if [[ "${kubevirt_qualify}" == 1 && -f "${kubevirt_lifecycle_state}" ]] && \
+    kubectl get namespace "${namespace}" >/dev/null 2>&1; then
+    NAMESPACE="${namespace}" "${repo_root}/tests/kind/kubevirt-lifecycle.sh" \
+      cleanup "${temporary_directory}" "${kubevirt_lifecycle_state}" || true
+  fi
   if [[ -n "${foreman_database_url_backup}" ]] && \
     kubectl get namespace "${namespace}" >/dev/null 2>&1; then
     restore_foreman_database_url || true
@@ -901,6 +908,31 @@ for command_name in kind kubectl helm openssl curl jq docker ssh-keygen cmp ruby
     exit 1
   fi
 done
+
+if [[ "${kubevirt_qualify}" != 0 && "${kubevirt_qualify}" != 1 ]]; then
+  echo 'KUBEVIRT_QUALIFY must be 0 or 1' >&2
+  exit 1
+fi
+if [[ "${kubevirt_qualify}" == 1 ]]; then
+  for variable in \
+    KUBEVIRT_API_HOST \
+    KUBEVIRT_API_PORT \
+    KUBEVIRT_NAMESPACE \
+    KUBEVIRT_TOKEN_FILE \
+    KUBEVIRT_CA_FILE \
+    KUBEVIRT_STORAGE_CLASS; do
+    if [[ -z "${!variable:-}" ]]; then
+      echo "${variable} is required when KUBEVIRT_QUALIFY=1" >&2
+      exit 1
+    fi
+  done
+  for credential_file in "${KUBEVIRT_TOKEN_FILE}" "${KUBEVIRT_CA_FILE}"; do
+    if [[ ! -r "${credential_file}" ]]; then
+      echo "KubeVirt credential file is not readable: ${credential_file}" >&2
+      exit 1
+    fi
+  done
+fi
 
 if [[ -n "${image_profile}" && -z "${execution_proxy_image_profile}" ]] ||
   [[ -z "${image_profile}" && -n "${execution_proxy_image_profile}" ]]; then
@@ -1053,6 +1085,10 @@ assert_execution_plane v1 1
 "${repo_root}/tests/kind/virt-who-config-lifecycle.sh" \
   seed "${temporary_directory}" "${content_lifecycle_state}" \
   "${virt_who_config_lifecycle_state}"
+if [[ "${kubevirt_qualify}" == 1 ]]; then
+  NAMESPACE="${namespace}" "${repo_root}/tests/kind/kubevirt-lifecycle.sh" \
+    seed "${temporary_directory}" "${kubevirt_lifecycle_state}"
+fi
 NAMESPACE="${namespace}" "${repo_root}/tests/kind/candlepin-job-delivery.sh" \
   "${candlepin_job_delivery_file}"
 
@@ -1092,6 +1128,10 @@ if [[ "${skip_recovery_test}" != 1 ]]; then
   "${repo_root}/tests/kind/virt-who-config-lifecycle.sh" \
     assert "${temporary_directory}" "${content_lifecycle_state}" \
     "${virt_who_config_lifecycle_state}"
+  if [[ "${kubevirt_qualify}" == 1 ]]; then
+    NAMESPACE="${namespace}" "${repo_root}/tests/kind/kubevirt-lifecycle.sh" \
+      assert "${temporary_directory}" "${kubevirt_lifecycle_state}"
+  fi
   assert_database_probes before-backup
   assert_pulp_probe before-backup
   assert_avatar_probe before-backup
@@ -1161,6 +1201,13 @@ NAMESPACE="${namespace}" \
     "${temporary_directory}/operator-release"
 assert_execution_plane v2
 write_integration_evidence
+
+if [[ "${kubevirt_qualify}" == 1 ]]; then
+  NAMESPACE="${namespace}" "${repo_root}/tests/kind/kubevirt-lifecycle.sh" \
+    assert "${temporary_directory}" "${kubevirt_lifecycle_state}"
+  NAMESPACE="${namespace}" "${repo_root}/tests/kind/kubevirt-lifecycle.sh" \
+    cleanup "${temporary_directory}" "${kubevirt_lifecycle_state}"
+fi
 
 if [[ "${skip_recovery_test}" == 1 ]]; then
   echo "Kind install, Candlepin HA, webhooks, virt-who configuration, mTLS, content replacement, execution, proxy restart, scale, and upgrade checks passed; recovery drill skipped."

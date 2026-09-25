@@ -50,6 +50,14 @@ official image and a real cluster workflow covers connection validation, VM
 creation, restart, deletion, and recovery. The chart will not hide the problem
 with a mock KubeVirt endpoint.
 
+An opt-in external-cluster drill is prepared for that later qualification. It
+registers the compute resource through Foreman's API without retaining token or
+CA material in its state artifact, requires Foreman and the cluster discovery
+endpoint to select the same API version, creates one stopped VM and PVC, checks
+the relationship after clean database recovery and application upgrades, and
+removes both Kubernetes resources and the Foreman record. It remains unrun and
+does not change the plugin's compatibility status.
+
 Foreman Webhooks uses the plugin's asynchronous delivery job for event-driven
 requests and Ruby's standard HTTP client for the destination connection. The
 chart accepts either a dedicated webhook peer/port allow-list or the declared

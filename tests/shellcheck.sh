@@ -25,6 +25,7 @@ shellcheck -x \
   "${repo_root}/tests/kind/publish-ansible-content.sh" \
   "${repo_root}/tests/kind/run.sh" \
   "${repo_root}/tests/kind/virt-who-config-lifecycle.sh" \
+  "${repo_root}/tests/kind/kubevirt-lifecycle.sh" \
   "${repo_root}/tests/recover-release.sh" \
   "${repo_root}/tests/recovery-integrity.sh" \
   "${repo_root}/tests/recovery-quiescence.sh" \

@@ -27,8 +27,10 @@
    qualification step rather than a Kubernetes workload.
    Foreman KubeVirt additionally remains blocked on shipping the prepared
    dynamic API-version discovery fix; the packaged plugin currently forces
-   `v1alpha3`. After that lands, qualify it against a real KubeVirt cluster
-   rather than a mocked API.
+   `v1alpha3`. An external-cluster lifecycle is prepared to compare discovery,
+   create a stopped VM/PVC, survive database recovery and application upgrades,
+   and clean up. Run it only after an image containing the fix is available;
+   a mocked API is not promotion evidence.
 8. Run the prepared central-execution drill against the pinned amd64 image,
    then extend it from prepared successful, failed, and cancelled SSH/Ansible
    jobs, content replacement, fresh jobs after identity rotation, and
@@ -38,6 +40,14 @@
    successful completion of the in-flight job, and a successful fresh job.
 
 ## Implemented, pending integration proof
+
+- Foreman KubeVirt now has an opt-in external qualification path. It reads the
+  bearer token and CA from files, stores no credential in its state artifact,
+  compares the plugin's selected API version with live cluster discovery,
+  validates the requested StorageClass, creates a stopped pod-network VM and
+  PVC, checks them after clean database recovery and later rollouts, and deletes
+  both even through a direct API fallback. This does not run in the default
+  Kind drill and cannot pass against the current packaged `v1alpha3` override.
 
 - Foreman virt-who Configure now has a prepared API lifecycle against the same
   organization used by the Katello content drill. It verifies that invalid

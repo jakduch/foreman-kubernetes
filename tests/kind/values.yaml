@@ -39,6 +39,7 @@ foreman:
     - foreman_ansible
     - foreman_webhooks
     - foreman_virt_who_configure
+    - foreman_kubevirt
   existingDatabaseCaSecret: ""
   database:
     sslMode: disable

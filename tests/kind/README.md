@@ -58,6 +58,11 @@
   encrypted hidden reporting identity, generated deployment script, endpoint
   update, `unknown` to `ok` report state, cleanup, and preservation through the
   same clean-namespace database restore;
+- optional qualification against an externally operated KubeVirt cluster:
+  preferred API discovery, secret-safe compute-resource registration, storage
+  discovery, creation of one stopped VM and PVC in a dedicated namespace,
+  preservation through database restore and application upgrades, and complete
+  cleanup;
 - execution-proxy re-registration and successful new jobs after the clean
   namespace restore and again after rotating its server TLS, Foreman client
   TLS, and SSH identities and restarting both ends of the SSH trust relation;
@@ -141,6 +146,20 @@ package repositories, and systemd, and the resulting virt-who process needs its
 own hypervisor and Foreman/Candlepin network paths. The disposable test proves
 configuration, credential, script, state, and recovery behavior without
 misrepresenting that external host as a chart-owned Kubernetes daemon.
+
+KubeVirt qualification is disabled by default and does not install or emulate a
+hypervisor. Set `KUBEVIRT_QUALIFY=1` and provide `KUBEVIRT_API_HOST`,
+`KUBEVIRT_API_PORT`, `KUBEVIRT_NAMESPACE`, `KUBEVIRT_STORAGE_CLASS`, plus
+readable `KUBEVIRT_TOKEN_FILE` and `KUBEVIRT_CA_FILE` paths. Use a dedicated
+namespace and a least-privilege service account that can discover the
+`kubevirt.io` API, read StorageClasses, and create, inspect, and delete
+VirtualMachines and PVCs in that namespace. The token and CA contents are never
+written into the retained state file. The drill compares Foreman's selected API
+version with the cluster's preferred version, leaves the VM stopped, and has a
+direct API cleanup fallback if Foreman becomes unavailable. It still requires
+an application image containing the prepared dynamic-version compatibility
+fix; the current packaged plugin must not be promoted merely because the drill
+exists.
 
 The web availability drill uses the host's existing `curl` and the public TLS
 ingress. It sends 640 dependency-aware requests while deleting one of two ready
