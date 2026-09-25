@@ -24,18 +24,6 @@ jobs:
         with:
           version: ${{ matrix.helm }}
       - name: Check shell scripts
-        run: >-
-          shellcheck tests/render.sh
-          tests/kind/run.sh
-          tests/kind/apply-secrets.sh
-          tests/kind/content-lifecycle.sh
-          tests/kind/execution-plane.sh
-          tests/install-release.sh
-          tests/upgrade-release.sh
-          scripts/install-release.sh
-          scripts/upgrade-release.sh
-          scripts/recover-release.sh
-          tests/recover-release.sh
-          images/ssh-target/entrypoint.sh
+        run: tests/shellcheck.sh
       - name: Lint and render chart profiles
         run: tests/render.sh

@@ -605,28 +605,7 @@ if helm template execution "${execution_chart}" \
   exit 1
 fi
 
-shellcheck -x \
-  -P "${chart}/files" \
-  "${chart}/files/recovery-common.sh" \
-  "${chart}/files/backup.sh" \
-  "${chart}/files/restore.sh" \
-  "${chart}/files/candlepin-migrate.sh"
-shellcheck -x \
-  -P "${repo_root}/scripts" \
-  "${repo_root}/scripts/release-preflight.sh" \
-  "${repo_root}/scripts/install-release.sh" \
-  "${repo_root}/scripts/upgrade-release.sh" \
-  "${repo_root}/scripts/recover-release.sh" \
-  "${repo_root}/scripts/collect-diagnostics.sh" \
-  "${repo_root}/tests/install-release.sh" \
-  "${repo_root}/tests/upgrade-release.sh" \
-  "${repo_root}/tests/recover-release.sh" \
-  "${repo_root}/tests/kind/execution-plane.sh" \
-  "${repo_root}/tests/kind/publish-ansible-content.sh" \
-  "${repo_root}/tests/kind/run.sh"
-shellcheck "${repo_root}/tests/recovery-quiescence.sh"
-shellcheck "${repo_root}/tests/recovery-integrity.sh"
-shellcheck "${repo_root}/tests/collect-diagnostics.sh"
+"${repo_root}/tests/shellcheck.sh"
 "${repo_root}/tests/recovery-integrity.sh"
 
 ruby "${repo_root}/tests/plugin-compatibility.rb"
