@@ -50,6 +50,13 @@ pulp:
       eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/foreman-pulp
 ```
 
+Changing annotations on this chart-managed ServiceAccount automatically rolls
+the Pulp API, content, and worker pods so workload-identity admission can inject
+the new credentials. If `pulp.serviceAccount.create` is disabled, the chart
+cannot observe changes made to the external ServiceAccount; after changing its
+identity configuration, change `secretRolloutToken` to deliberately recreate
+the Pulp runtime pods.
+
 When workload identity is unavailable, set `storage.s3.existingSecret`. The
 Secret keys are configurable and are injected only into the Pulp API, content,
 and worker containers. The chart automatically includes that Secret in the

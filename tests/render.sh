@@ -770,6 +770,7 @@ if [[ "$(grep -c 'serviceAccountName: test-foreman-stack-pulp$' "${rendered_s3}"
   echo 'only Pulp API, content, and worker Deployments should use the object-storage identity' >&2
   exit 1
 fi
+ruby "${repo_root}/tests/pulp-service-account-rollout-contract.rb" "${rendered}" "${rendered_s3}"
 grep -q 'name: PULP_STORAGE_BACKEND' "${rendered_s3_backup}"
 grep -A1 'name: PULP_STORAGE_BACKEND' "${rendered_s3_backup}" | grep -Eq 'value: "?s3"?'
 grep -q -- '- pulp-object-storage$' "${rendered_s3_backup}"

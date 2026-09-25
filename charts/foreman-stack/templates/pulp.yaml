@@ -63,6 +63,7 @@ spec:
       labels:
         {{- include "foreman-stack.podLabels" (dict "root" $root "component" (printf "pulp-%s" $service.name)) | nindent 8 }}
       annotations:
+        checksum/service-account: {{ toJson $root.Values.pulp.serviceAccount.annotations | sha256sum }}
         {{- if eq $service.name "api" }}
         checksum/health: {{ $root.Files.Get "files/pulp-readiness.py" | sha256sum }}
         {{- else }}
@@ -219,6 +220,7 @@ spec:
       labels:
         {{- include "foreman-stack.podLabels" (dict "root" . "component" "pulp-worker") | nindent 8 }}
       annotations:
+        checksum/service-account: {{ toJson .Values.pulp.serviceAccount.annotations | sha256sum }}
         checksum/health: {{ .Files.Get "files/pulp-app-readiness.py" | sha256sum }}
         checksum/secrets: {{ .Values.secretRolloutToken | sha256sum }}
     spec:
