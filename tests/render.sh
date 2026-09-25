@@ -10,6 +10,7 @@ rendered_ingress="$(mktemp)"
 rendered_execution_registration="$(mktemp)"
 rendered_ingress_overrides="$(mktemp)"
 rendered_minimal_pulp_ingress="$(mktemp)"
+rendered_all_pulp_ingress="$(mktemp)"
 rendered_backup="$(mktemp)"
 rendered_backup_execution="$(mktemp)"
 rendered_restore="$(mktemp)"
@@ -51,7 +52,7 @@ rendered_scheduled_stack="$(mktemp)"
 rendered_scheduled_backup="$(mktemp)"
 rendered_scheduled_execution="$(mktemp)"
 rendered_scheduled_operator="$(mktemp)"
-trap 'rm -f "${rendered}" "${rendered_ingress}" "${rendered_execution_registration}" "${rendered_ingress_overrides}" "${rendered_minimal_pulp_ingress}" "${rendered_backup}" "${rendered_backup_execution}" "${rendered_restore}" "${rendered_egress}" "${rendered_egress_backup}" "${rendered_egress_backup_local}" "${rendered_singletons}" "${rendered_ha}" "${rendered_candlepin_port}" "${rendered_foreman_service_port}" "${rendered_foreman_secret_contract}" "${rendered_database_tls_disabled}" "${rendered_image_pull_secrets}" "${rendered_no_migrations}" "${rendered_release_operation}" "${rendered_release_application}" "${rendered_manual_migration_stage}" "${rendered_secret_rotation}" "${rendered_monitoring}" "${rendered_monitoring_maintenance}" "${rendered_s3}" "${rendered_azure_identity}" "${rendered_s3_backup}" "${rendered_smtp}" "${rendered_smtp_backup}" "${rendered_kind}" "${rendered_kind_backup}" "${rendered_execution}" "${rendered_execution_egress}" "${rendered_execution_kind}" "${rendered_execution_operation}" "${rendered_execution_secret_rotation}" "${rendered_execution_monitoring}" "${rendered_execution_maintenance}" "${rendered_operator}" "${rendered_operator_monitoring}" "${rendered_operator_egress}" "${rendered_scheduled_stack}" "${rendered_scheduled_backup}" "${rendered_scheduled_execution}" "${rendered_scheduled_operator}"' EXIT
+trap 'rm -f "${rendered}" "${rendered_ingress}" "${rendered_execution_registration}" "${rendered_ingress_overrides}" "${rendered_minimal_pulp_ingress}" "${rendered_all_pulp_ingress}" "${rendered_backup}" "${rendered_backup_execution}" "${rendered_restore}" "${rendered_egress}" "${rendered_egress_backup}" "${rendered_egress_backup_local}" "${rendered_singletons}" "${rendered_ha}" "${rendered_candlepin_port}" "${rendered_foreman_service_port}" "${rendered_foreman_secret_contract}" "${rendered_database_tls_disabled}" "${rendered_image_pull_secrets}" "${rendered_no_migrations}" "${rendered_release_operation}" "${rendered_release_application}" "${rendered_manual_migration_stage}" "${rendered_secret_rotation}" "${rendered_monitoring}" "${rendered_monitoring_maintenance}" "${rendered_s3}" "${rendered_azure_identity}" "${rendered_s3_backup}" "${rendered_smtp}" "${rendered_smtp_backup}" "${rendered_kind}" "${rendered_kind_backup}" "${rendered_execution}" "${rendered_execution_egress}" "${rendered_execution_kind}" "${rendered_execution_operation}" "${rendered_execution_secret_rotation}" "${rendered_execution_monitoring}" "${rendered_execution_maintenance}" "${rendered_operator}" "${rendered_operator_monitoring}" "${rendered_operator_egress}" "${rendered_scheduled_stack}" "${rendered_scheduled_backup}" "${rendered_scheduled_execution}" "${rendered_scheduled_operator}"' EXIT
 
 ruby "${repo_root}/tests/yaml-duplicates.rb"
 ruby "${repo_root}/tests/workflow-action-pins.rb" "${repo_root}/.github/workflows"
@@ -186,6 +187,9 @@ helm template test "${chart}" \
 helm template test "${chart}" \
   --values "${repo_root}/examples/cluster-values.yaml" \
   --set-json 'pulp.enabledPlugins=["pulp_certguard","pulp_file","pulp_smart_proxy"]' > "${rendered_minimal_pulp_ingress}"
+helm template test "${chart}" \
+  --values "${repo_root}/examples/cluster-values.yaml" \
+  --set-json 'pulp.enabledPlugins=["pulp_certguard","pulp_file","pulp_smart_proxy","pulp_ansible","pulp_container","pulp_deb","pulp_ostree","pulp_python","pulp_rpm"]' > "${rendered_all_pulp_ingress}"
 helm lint "${chart}" --values "${repo_root}/tests/kind/values.yaml"
 helm lint "${chart}" --values "${repo_root}/profiles/nightly-candidate-2026-09-23.yaml"
 helm lint "${chart}" --values "${repo_root}/tests/egress-values.yaml"
@@ -391,6 +395,7 @@ ruby "${repo_root}/tests/manual-migration-staging-contract.rb" \
 ruby "${repo_root}/tests/candlepin-shutdown-contract.rb" "${rendered}"
 ruby "${repo_root}/tests/pulp-ingress-contract.rb" "${rendered_ingress}"
 ruby "${repo_root}/tests/pulp-ingress-contract.rb" "${rendered_minimal_pulp_ingress}"
+ruby "${repo_root}/tests/pulp-ingress-contract.rb" "${rendered_all_pulp_ingress}"
 ruby "${repo_root}/tests/foreman-ingress-contract.rb" "${rendered_ingress}"
 ruby "${repo_root}/tests/foreman-ingress-contract.rb" "${rendered_ingress_overrides}"
 ruby "${repo_root}/tests/pulp-process-contract.rb" "${rendered}"

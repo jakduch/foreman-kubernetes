@@ -49,10 +49,14 @@ accepts only that inventory and always requires `pulp_certguard`, `pulp_file`,
 and `pulp_smart_proxy` because Katello's control and registration path depends
 on them.
 
-The default enables container, Debian, file, and RPM content. Ansible, OSTree,
-and Python remain disabled until each public route and real content lifecycle
-is tested. A package being present in the image is not sufficient evidence that
-the ingress and Katello integration are correct.
+The default enables container, Debian, file, and RPM content. The chart also
+models the packaged optional routes: Galaxy uses `/pulp_ansible/galaxy`, Python
+uses the API-backed `/pypi` endpoint, and OSTree uses the common
+`/pulp/content` distribution path. A render contract enables every packaged
+plugin together and verifies that no administrative `/pulp/api` route becomes
+public. Ansible, OSTree, and Python remain disabled by default until each real
+content lifecycle is run; a package and a correct route are not sufficient
+evidence that the Katello workflow is supported.
 
 ## Smart Proxy placement
 

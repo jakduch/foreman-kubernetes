@@ -86,11 +86,11 @@
   "pulp": [
     { "name": "pulp_certguard", "enabledByDefault": true, "status": "chart-wired-integration-pending" },
     { "name": "pulp_file", "enabledByDefault": true, "status": "chart-wired-integration-pending" },
-    { "name": "pulp_ansible", "enabledByDefault": false, "status": "packaged-route-test-pending" },
+    { "name": "pulp_ansible", "enabledByDefault": false, "status": "chart-wired-integration-pending" },
     { "name": "pulp_container", "enabledByDefault": true, "status": "chart-wired-integration-pending" },
     { "name": "pulp_deb", "enabledByDefault": true, "status": "chart-wired-integration-pending" },
-    { "name": "pulp_ostree", "enabledByDefault": false, "status": "packaged-route-test-pending" },
-    { "name": "pulp_python", "enabledByDefault": false, "status": "packaged-route-test-pending" },
+    { "name": "pulp_ostree", "enabledByDefault": false, "status": "chart-wired-integration-pending" },
+    { "name": "pulp_python", "enabledByDefault": false, "status": "chart-wired-integration-pending" },
     { "name": "pulp_rpm", "enabledByDefault": true, "status": "chart-wired-integration-pending" },
     { "name": "pulp_smart_proxy", "enabledByDefault": true, "status": "chart-wired-integration-pending" }
   ],

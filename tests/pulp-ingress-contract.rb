@@ -59,7 +59,8 @@ plugin_routes = {
     '/pulpcore_registry' => api_service_name
   },
   'pulp_deb' => {'/pulp/deb' => content_service_name},
-  'pulp_ansible' => {'/pulp_ansible/galaxy' => api_service_name}
+  'pulp_ansible' => {'/pulp_ansible/galaxy' => api_service_name},
+  'pulp_python' => {'/pypi' => api_service_name}
 }
 
 required_routes.each do |path, service|

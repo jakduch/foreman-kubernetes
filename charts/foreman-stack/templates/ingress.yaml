@@ -148,6 +148,15 @@ spec:
                 port:
                   number: {{ .Values.pulp.api.port }}
           {{- end }}
+          {{- if has "pulp_python" .Values.pulp.enabledPlugins }}
+          - path: /pypi
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "foreman-stack.pulpApiServiceName" . }}
+                port:
+                  number: {{ .Values.pulp.api.port }}
+          {{- end }}
           - path: /pulp/assets
             pathType: Prefix
             backend:
