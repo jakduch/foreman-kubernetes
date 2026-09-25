@@ -113,7 +113,16 @@ abort 'restore validates Secret escrow after destructive changes' unless secret_
 integrity_validation = restore.index('verify_recovery_integrity')
 abort 'restore verifies recovery integrity after destructive changes' unless integrity_validation && integrity_validation < validation_boundary
 abort 'restore integrity verification precedes Secret validation' unless secret_validation < integrity_validation
+%w[Foreman Candlepin Pulp].each do |database|
+  validation = restore.index("validate_database_dump #{database}")
+  abort "restore does not validate the #{database} archive before destructive changes" unless
+    validation && validation < validation_boundary
+end
 abort 'recovery helper does not define exact integrity paths' unless common.include?('recovery_integrity_paths()')
+abort 'database restore does not validate custom archives with pg_restore' unless
+  common.include?('pg_restore --list "${dump}"')
+abort 'database restore can leave a partially applied database' unless
+  common.include?('--single-transaction')
 abort 'recovery helper accepts unlisted files in the integrity manifest' unless common.include?('does not describe the exact recovery set')
 abort 'recovery quiescence omits the Katello event daemon' unless common.include?('$component == "katello-event-daemon"')
 abort 'recovery ignores terminating writers' if common.include?('.metadata.deletionTimestamp == null')

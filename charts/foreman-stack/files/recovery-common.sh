@@ -188,8 +188,20 @@ restore_database() {
     --no-owner \
     --no-acl \
     --exit-on-error \
+    --single-transaction \
     "$@" \
     "${dump}"
+}
+
+validate_database_dump() {
+  name="$1"
+  dump="$2"
+
+  if ! pg_restore --list "${dump}" >/dev/null; then
+    log "${name} database archive cannot be read by pg_restore: ${dump}" >&2
+    return 1
+  fi
+  log "Validated ${name} database archive"
 }
 
 resolve_snapshot() {

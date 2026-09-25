@@ -303,7 +303,12 @@ and upgrade helpers. `RECOVERY_TIMEOUT`, `RESUME_TIMEOUT`, and `SMOKE_TIMEOUT`
 control their respective waits. Candidate qualification may additionally pass
 `APPLICATION_PROFILE_OVERRIDE` and `EXECUTION_PROXY_PROFILE_OVERRIDE`
 together. A single override and overrides of supported releases are rejected,
-so production recovery remains bound to its declared digest-pinned set.
+so production recovery remains bound to its declared digest-pinned set. Before
+crossing the destructive boundary, restore also makes `pg_restore` parse all
+three custom archives. Each individual database is then replaced in one
+transaction, so a failed archive restore cannot commit a partial schema. The
+three external databases still cannot share one transaction; retain the full
+recovery point until all three restores and subsequent migrations pass.
 `BOOTSTRAP_RESTORE=1` is accepted only by the restore operation and only when
 both Helm releases are absent. It cannot be combined with
 `RECOVERY_FROM_QUIESCED=1`; there is no running release to quiesce. For an S3

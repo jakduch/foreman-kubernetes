@@ -691,6 +691,7 @@ fi
 
 "${repo_root}/tests/shellcheck.sh"
 "${repo_root}/tests/recovery-integrity.sh"
+"${repo_root}/tests/recovery-database-archive.sh"
 
 ruby "${repo_root}/tests/plugin-compatibility.rb"
 ruby "${repo_root}/tests/release-sets.rb"

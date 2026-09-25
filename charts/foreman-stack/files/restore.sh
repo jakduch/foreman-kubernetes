@@ -135,6 +135,10 @@ fi
 
 verify_recovery_integrity
 
+validate_database_dump Foreman /work/databases/foreman.dump
+validate_database_dump Candlepin /work/databases/candlepin.dump
+validate_database_dump Pulp /work/databases/pulp.dump
+
 log "Snapshot validation completed; starting destructive restore"
 
 log "Replacing Foreman LDAP avatars from the selected recovery snapshot"
