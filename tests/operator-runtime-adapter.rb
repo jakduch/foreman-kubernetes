@@ -191,14 +191,27 @@ end
 def available_deployment(deployment)
   copy = Marshal.load(Marshal.dump(deployment))
   copy['metadata']['generation'] = 1
+  replicas = copy.dig('spec', 'replicas') || 1
   copy['status'] = {
     'observedGeneration' => 1,
-    'availableReplicas' => copy.dig('spec', 'replicas') || 1,
+    'replicas' => replicas,
+    'updatedReplicas' => replicas,
+    'readyReplicas' => replicas,
+    'availableReplicas' => replicas,
+    'unavailableReplicas' => 0,
     'conditions' => [
       {'type' => 'Progressing', 'status' => 'True'},
       {'type' => 'Available', 'status' => 'True'}
     ]
   }
+  copy
+end
+
+def deployment_with_old_replicas(deployment)
+  copy = available_deployment(deployment)
+  desired = copy.dig('spec', 'replicas') || 1
+  copy['status']['replicas'] = desired + 1
+  copy['status']['updatedReplicas'] = [desired - 1, 0].max
   copy
 end
 
@@ -432,6 +445,15 @@ registration_jobs = application_render.select do |item|
   item['kind'] == 'Job' && item.dig('metadata', 'labels', 'app.kubernetes.io/component') == 'pulp-registration'
 end
 kubernetes.replace('jobs', migration_jobs.map { |job| complete_job(job) })
+rolling_deployments = deployments.each_with_index.map do |deployment, index|
+  index.zero? ? deployment_with_old_replicas(deployment) : deployment
+end
+kubernetes.replace('deployments', rolling_deployments)
+rolling_application = adapter.ensure_application(resource, operation)
+unless rolling_application.state == :pending && rolling_application.message.include?('updated')
+  raise 'application rollout advanced while old ReplicaSet pods were still available'
+end
+kubernetes.replace('deployments', deployments)
 missing_registration = adapter.ensure_application(resource, operation)
 raise 'missing Pulp registration Job was not repaired' unless missing_registration.state == :pending
 kubernetes.replace('jobs', migration_jobs.map { |job| complete_job(job) } + registration_jobs.map { |job| complete_job(job) })

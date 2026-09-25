@@ -110,11 +110,14 @@ Deployment. Existing Pods mount those ConfigMaps through `subPath`, so they
 retain their old configuration inode during migrations. Only after all three
 Jobs succeed does it submit the application Helm revision with migration Jobs
 suppressed, observe every expected Deployment and Pulp registration Job, then
-submit deterministic smoke-test Jobs. The execution-proxy release follows
-the same operation identity and is applied only after the application smoke
-test succeeds. Once available, an idempotent Rails Job registers it without an
-API password and requires Foreman to associate exactly Ansible, Dynflow, and
-Script before the final application and external mTLS smoke gates run.
+submit deterministic smoke-test Jobs. Deployment observation requires every
+desired replica to be updated, ready, and available with no old or unavailable
+replica remaining; an `Available=True` condition backed only by the previous
+ReplicaSet cannot advance the release. The execution-proxy release follows the
+same operation identity and is applied only after the application smoke test
+succeeds. Once available, an idempotent Rails Job registers it without an API
+password and requires Foreman to associate exactly Ansible, Dynflow, and Script
+before the final application and external mTLS smoke gates run.
 
 Before the Lease is acquired, `ClusterPreflight` derives dependencies from the
 exact combined render. It verifies referenced Secret keys, external PVCs and

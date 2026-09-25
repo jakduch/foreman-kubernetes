@@ -780,8 +780,21 @@ module ForemanRelease
           return Observation.new(state: :pending, message: "waiting for Deployment #{name} to become available")
         end
         desired = Integer(deployment.dig('spec', 'replicas') || 1)
+        replicas = Integer(deployment.dig('status', 'replicas') || 0)
+        updated = Integer(deployment.dig('status', 'updatedReplicas') || 0)
+        ready = Integer(deployment.dig('status', 'readyReplicas') || 0)
         available = Integer(deployment.dig('status', 'availableReplicas') || 0)
-        return Observation.new(state: :pending, message: "waiting for Deployment #{name} replicas") if available < desired
+        unavailable = Integer(deployment.dig('status', 'unavailableReplicas') || 0)
+        rollout_complete = replicas == desired && updated == desired && ready >= desired &&
+          available >= desired && unavailable.zero?
+        unless rollout_complete
+          return Observation.new(
+            state: :pending,
+            message: "waiting for Deployment #{name} rollout " \
+                     "(#{updated}/#{desired} updated, #{ready}/#{desired} ready, " \
+                     "#{available}/#{desired} available, #{unavailable} unavailable)"
+          )
+        end
       end
 
       Observation.new(state: :succeeded, message: 'Deployments are available')
