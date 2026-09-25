@@ -50,6 +50,25 @@ pulp:
       eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/foreman-pulp
 ```
 
+Azure workload identity additionally requires a pod label. Provider-specific
+pod labels and admission annotations are confined to the three Pulp runtime
+roles:
+
+```yaml
+pulp:
+  serviceAccount:
+    annotations:
+      azure.workload.identity/client-id: 11111111-2222-3333-4444-555555555555
+    podLabels:
+      azure.workload.identity/use: "true"
+    podAnnotations:
+      azure.workload.identity/service-account-token-expiration: "3600"
+```
+
+The chart reserves its selector and release labels and the `checksum/`
+annotation namespace so identity configuration cannot break workload ownership
+or rollout tracking.
+
 Changing annotations on this chart-managed ServiceAccount automatically rolls
 the Pulp API, content, and worker pods so workload-identity admission can inject
 the new credentials. If `pulp.serviceAccount.create` is disabled, the chart

@@ -30,6 +30,7 @@ rendered_secret_rotation="$(mktemp)"
 rendered_monitoring="$(mktemp)"
 rendered_monitoring_maintenance="$(mktemp)"
 rendered_s3="$(mktemp)"
+rendered_azure_identity="$(mktemp)"
 rendered_s3_backup="$(mktemp)"
 rendered_smtp="$(mktemp)"
 rendered_smtp_backup="$(mktemp)"
@@ -48,7 +49,7 @@ rendered_scheduled_stack="$(mktemp)"
 rendered_scheduled_backup="$(mktemp)"
 rendered_scheduled_execution="$(mktemp)"
 rendered_scheduled_operator="$(mktemp)"
-trap 'rm -f "${rendered}" "${rendered_ingress}" "${rendered_execution_registration}" "${rendered_ingress_overrides}" "${rendered_minimal_pulp_ingress}" "${rendered_backup}" "${rendered_restore}" "${rendered_egress}" "${rendered_egress_backup}" "${rendered_egress_backup_local}" "${rendered_singletons}" "${rendered_ha}" "${rendered_candlepin_port}" "${rendered_foreman_service_port}" "${rendered_foreman_secret_contract}" "${rendered_database_tls_disabled}" "${rendered_image_pull_secrets}" "${rendered_no_migrations}" "${rendered_release_operation}" "${rendered_release_application}" "${rendered_manual_migration_stage}" "${rendered_secret_rotation}" "${rendered_monitoring}" "${rendered_monitoring_maintenance}" "${rendered_s3}" "${rendered_s3_backup}" "${rendered_smtp}" "${rendered_smtp_backup}" "${rendered_kind}" "${rendered_kind_backup}" "${rendered_execution}" "${rendered_execution_egress}" "${rendered_execution_kind}" "${rendered_execution_operation}" "${rendered_execution_secret_rotation}" "${rendered_execution_monitoring}" "${rendered_operator}" "${rendered_operator_monitoring}" "${rendered_operator_egress}" "${rendered_scheduled_stack}" "${rendered_scheduled_backup}" "${rendered_scheduled_execution}" "${rendered_scheduled_operator}"' EXIT
+trap 'rm -f "${rendered}" "${rendered_ingress}" "${rendered_execution_registration}" "${rendered_ingress_overrides}" "${rendered_minimal_pulp_ingress}" "${rendered_backup}" "${rendered_restore}" "${rendered_egress}" "${rendered_egress_backup}" "${rendered_egress_backup_local}" "${rendered_singletons}" "${rendered_ha}" "${rendered_candlepin_port}" "${rendered_foreman_service_port}" "${rendered_foreman_secret_contract}" "${rendered_database_tls_disabled}" "${rendered_image_pull_secrets}" "${rendered_no_migrations}" "${rendered_release_operation}" "${rendered_release_application}" "${rendered_manual_migration_stage}" "${rendered_secret_rotation}" "${rendered_monitoring}" "${rendered_monitoring_maintenance}" "${rendered_s3}" "${rendered_azure_identity}" "${rendered_s3_backup}" "${rendered_smtp}" "${rendered_smtp_backup}" "${rendered_kind}" "${rendered_kind_backup}" "${rendered_execution}" "${rendered_execution_egress}" "${rendered_execution_kind}" "${rendered_execution_operation}" "${rendered_execution_secret_rotation}" "${rendered_execution_monitoring}" "${rendered_operator}" "${rendered_operator_monitoring}" "${rendered_operator_egress}" "${rendered_scheduled_stack}" "${rendered_scheduled_backup}" "${rendered_scheduled_execution}" "${rendered_scheduled_operator}"' EXIT
 
 ruby "${repo_root}/tests/yaml-duplicates.rb"
 ruby "${repo_root}/tests/workflow-action-pins.rb" "${repo_root}/.github/workflows"
@@ -178,6 +179,17 @@ helm lint "${chart}" --values "${repo_root}/profiles/nightly-candidate-2026-09-2
 helm lint "${chart}" --values "${repo_root}/tests/egress-values.yaml"
 helm lint "${chart}" --values "${repo_root}/tests/ha-values.yaml"
 helm lint "${chart}" --values "${repo_root}/examples/pulp-s3-values.yaml"
+helm lint "${chart}" --values "${repo_root}/tests/pulp-azure-workload-identity-values.yaml"
+if helm lint "${chart}" \
+  --set-json 'pulp.serviceAccount.podLabels={"app.kubernetes.io/component":"wrong"}' >/dev/null 2>&1; then
+  echo 'Pulp workload identity accepted an override of a core pod label' >&2
+  exit 1
+fi
+if helm lint "${chart}" \
+  --set-json 'pulp.serviceAccount.podAnnotations={"checksum/health":"wrong"}' >/dev/null 2>&1; then
+  echo 'Pulp workload identity accepted an override of a managed checksum' >&2
+  exit 1
+fi
 helm lint "${chart}" \
   --values "${repo_root}/tests/egress-values.yaml" \
   --values "${repo_root}/tests/smtp-values.yaml"
@@ -287,6 +299,8 @@ helm template test "${chart}" \
 helm template test "${chart}" \
   --values "${repo_root}/examples/pulp-s3-values.yaml" > "${rendered_s3}"
 helm template test "${chart}" \
+  --values "${repo_root}/tests/pulp-azure-workload-identity-values.yaml" > "${rendered_azure_identity}"
+helm template test "${chart}" \
   --values "${repo_root}/profiles/nightly-candidate-2026-09-23.yaml" \
   --values "${repo_root}/examples/pulp-s3-values.yaml" \
   --values "${repo_root}/tests/recovery-image-values.yaml" \
@@ -327,6 +341,7 @@ for manifest in \
   "${rendered_release_operation}" \
   "${rendered_secret_rotation}" \
   "${rendered_s3}" \
+  "${rendered_azure_identity}" \
   "${rendered_smtp}" \
   "${rendered_backup}" \
   "${rendered_restore}" \
@@ -770,7 +785,8 @@ if [[ "$(grep -c 'serviceAccountName: test-foreman-stack-pulp$' "${rendered_s3}"
   echo 'only Pulp API, content, and worker Deployments should use the object-storage identity' >&2
   exit 1
 fi
-ruby "${repo_root}/tests/pulp-service-account-rollout-contract.rb" "${rendered}" "${rendered_s3}"
+ruby "${repo_root}/tests/pulp-service-account-rollout-contract.rb" \
+  "${rendered}" "${rendered_s3}" "${rendered_azure_identity}"
 grep -q 'name: PULP_STORAGE_BACKEND' "${rendered_s3_backup}"
 grep -A1 'name: PULP_STORAGE_BACKEND' "${rendered_s3_backup}" | grep -Eq 'value: "?s3"?'
 grep -q -- '- pulp-object-storage$' "${rendered_s3_backup}"

@@ -252,8 +252,13 @@ pulp:
   serviceAccount:
     create: true
     name: ""
-    # Used by cloud workload identity integrations such as AWS IRSA.
+    # Used by cloud workload identity integrations such as AWS IRSA and Azure.
     annotations: {}
+    # Applied only to Pulp runtime pods. Required by providers such as Azure
+    # workload identity; core selector and release labels cannot be replaced.
+    podLabels: {}
+    # Admission-webhook settings applied only to Pulp runtime pods.
+    podAnnotations: {}
   existingRuntimeSecret: pulp-runtime
   databasePasswordSecretKey: database-password
   djangoSecretKey: django-secret-key

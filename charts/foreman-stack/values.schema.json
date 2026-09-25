@@ -917,13 +917,29 @@
     },
     "annotatedServiceAccount": {
       "type": "object",
-      "required": ["create", "name", "annotations"],
+      "required": ["create", "name", "annotations", "podLabels", "podAnnotations"],
       "additionalProperties": false,
       "properties": {
         "create": { "type": "boolean" },
         "name": { "type": "string" },
         "annotations": {
           "type": "object",
+          "additionalProperties": { "type": "string" }
+        },
+        "podLabels": {
+          "type": "object",
+          "propertyNames": {
+            "not": {
+              "pattern": "^(app\\.kubernetes\\.io/(name|instance|component)|platform\\.theforeman\\.org/)"
+            }
+          },
+          "additionalProperties": { "type": "string" }
+        },
+        "podAnnotations": {
+          "type": "object",
+          "propertyNames": {
+            "not": { "pattern": "^checksum/" }
+          },
           "additionalProperties": { "type": "string" }
         }
       }

@@ -68,6 +68,13 @@ platform.theforeman.org/release-owner: {{ $.root.Values.releaseOperation.ownerUi
 {{- end }}
 {{- end }}
 
+{{- define "foreman-stack.pulpPodLabels" -}}
+{{- with .root.Values.pulp.serviceAccount.podLabels }}
+{{ toYaml . }}
+{{- end }}
+{{ include "foreman-stack.podLabels" (dict "root" .root "component" .component) }}
+{{- end }}
+
 {{- define "foreman-stack.image" -}}
 {{- printf "%s:%s" .repository .tag }}
 {{- end }}
