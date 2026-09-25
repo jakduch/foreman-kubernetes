@@ -410,6 +410,10 @@ ruby "${repo_root}/tests/recovery-egress-contract.rb" "${rendered_egress_backup_
 ruby "${repo_root}/tests/smoke-network-policy-contract.rb" "${rendered_egress}" 3100
 ruby "${repo_root}/tests/smoke-network-policy-contract.rb" "${rendered_foreman_service_port}" 3100
 ruby "${repo_root}/tests/default-deny-ingress-contract.rb" "${rendered}" test
+ruby "${repo_root}/tests/pvc-retention-contract.rb" "${rendered}" \
+  test-foreman-stack-foreman-tmp \
+  test-foreman-stack-foreman-avatars \
+  test-foreman-stack-pulp
 ruby "${repo_root}/tests/disruption-budget-contract.rb" "${rendered}"
 ruby "${repo_root}/tests/rollout-strategy-contract.rb" "${rendered}"
 ruby "${repo_root}/tests/topology-spread-contract.rb" "${rendered}" ScheduleAnyway
@@ -434,6 +438,9 @@ ruby "${repo_root}/tests/execution-release-operation-contract.rb" \
   12345678-1234-1234-1234-123456789abc
 ruby "${repo_root}/tests/execution-smoke-contract.rb" "${rendered_execution}"
 ruby "${repo_root}/tests/default-deny-ingress-contract.rb" "${rendered_execution}" execution
+ruby "${repo_root}/tests/pvc-retention-contract.rb" "${rendered_execution}" \
+  execution-foreman-execution-proxy-state \
+  execution-foreman-execution-proxy-ansible
 ruby "${repo_root}/tests/execution-registration-contract.rb" "${rendered_execution_registration}"
 ruby "${repo_root}/tests/secret-rollout-contract.rb" \
   "${rendered_execution}" "${rendered_execution_secret_rotation}"

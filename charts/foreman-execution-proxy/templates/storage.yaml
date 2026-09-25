@@ -3,6 +3,8 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: {{ include "foreman-execution-proxy.stateClaimName" . }}
+  annotations:
+    helm.sh/resource-policy: keep
   labels:
     {{- include "foreman-execution-proxy.labels" . | nindent 4 }}
 spec:
@@ -23,6 +25,8 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: {{ include "foreman-execution-proxy.ansibleClaimName" . }}
+  annotations:
+    helm.sh/resource-policy: keep
   labels:
     {{- include "foreman-execution-proxy.labels" . | nindent 4 }}
 spec:

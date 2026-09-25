@@ -3,6 +3,8 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: {{ include "foreman-stack.fullname" . }}-pulp
+  annotations:
+    helm.sh/resource-policy: keep
   labels:
     {{- include "foreman-stack.componentLabels" (dict "root" . "component" "pulp") | nindent 4 }}
 spec:

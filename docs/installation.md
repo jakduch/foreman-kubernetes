@@ -288,3 +288,19 @@ databases as part of an automated retry.
 
 Existing releases must use `scripts/upgrade-release.sh` and the procedure in
 [`upgrades.md`](upgrades.md).
+
+## Uninstall and persistent data
+
+Every PVC created by the application and execution-proxy charts carries
+`helm.sh/resource-policy: keep`. Removing either Helm release therefore leaves
+Foreman shared temporary storage and avatars, filesystem-backed Pulp content,
+execution Dynflow state, and Ansible content intact. This protects against an
+accidental application uninstall; it does not protect against namespace
+deletion, direct PVC deletion, storage failure, or a destructive storage-class
+reclaim policy.
+
+To reuse retained data predictably, reference the retained claim names through
+the corresponding `existingClaim` values before installing a replacement
+release. Delete a retained claim only as a separate, reviewed operation after
+its recovery point and underlying volume policy have been verified. Helm
+uninstall must never double as a data-retention decision.
