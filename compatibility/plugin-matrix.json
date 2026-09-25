@@ -10,7 +10,8 @@
     "foremanVirtWhoConfigureCommit": "78b9e78650013b6ef023a4163a7d47518024cd1d",
     "foremanKubevirtUpstreamCommit": "4b89174424245289bd4cc7535a94a8c24aa19172",
     "foremanKubevirtCompatibilityPatchCommit": "60d6c1f8ff3497d39c63e3359ea1e8539e2a0a70",
-    "fogKubevirtCommit": "d3277fa121609c5a2c949f3518f5f1bb07ef6447",
+    "fogKubevirtUpstreamCommit": "d3277fa121609c5a2c949f3518f5f1bb07ef6447",
+    "fogKubevirtNamespacePatchCommit": "98c874ad35d74005297b6385ede267ac78e35662",
     "smartProxyCommit": "c2af3d35497058fd7dc8146dcbca3adf60334b9e",
     "smartProxyDynflowCommit": "a07e3fa37aca20f2038e8f469f88c545c39276ff",
     "smartProxyRemoteExecutionSshCommit": "1ad66baae4498f7f3a5e3cc939ddf20e188336d2",
@@ -70,6 +71,11 @@
           "id": "dynamic-kubevirt-api-version",
           "status": "local-fix-prepared",
           "reason": "the packaged plugin forces the obsolete v1alpha3 API instead of using fog-kubevirt API discovery"
+        },
+        {
+          "id": "namespaced-network-attachment-discovery",
+          "status": "local-fix-prepared",
+          "reason": "fog-kubevirt lists NetworkAttachmentDefinitions cluster-wide instead of using the configured namespace"
         }
       ]
     },

@@ -27,7 +27,9 @@
    qualification step rather than a Kubernetes workload.
    Foreman KubeVirt additionally remains blocked on shipping the prepared
    dynamic API-version discovery fix; the packaged plugin currently forces
-   `v1alpha3`. An external-cluster lifecycle is prepared to compare discovery,
+   `v1alpha3`. Its fog dependency also needs the prepared namespace-scoping fix
+   so network attachment discovery does not require cluster-wide access. An
+   external-cluster lifecycle is prepared to compare discovery,
    create a stopped VM/PVC, survive database recovery and application upgrades,
    and clean up. Run it only after an image containing the fix is available;
    a mocked API is not promotion evidence.

@@ -155,6 +155,7 @@ credential, and recovery-drill contracts.
 - [`docs/diagnostics.md`](docs/diagnostics.md) defines the read-only, Secret-redacted support bundle.
 - [`docs/candlepin-ha.md`](docs/candlepin-ha.md) defines the external broker, clustered scheduler, and migration boundary.
 - [`docs/pulp-object-storage.md`](docs/pulp-object-storage.md) defines the optional S3-compatible artifact backend and its recovery boundary.
+- [`docs/kubevirt.md`](docs/kubevirt.md) defines KubeVirt compatibility gates, least-privilege provider RBAC, egress, and external qualification.
 - [`docs/roadmap.md`](docs/roadmap.md) lists the next implementation slices.
 - [`operator/README.md`](operator/README.md) defines the controller API, phase ownership, and failure/retry contract.
 
@@ -173,7 +174,8 @@ The sibling `foreman-kubernetes-upstream/` directory is intentionally not part o
 | Foreman virt-who Configure | `master` | `78b9e78650013b6ef023a4163a7d47518024cd1d` |
 | Foreman KubeVirt (reviewed upstream) | `master` | `4b89174424245289bd4cc7535a94a8c24aa19172` |
 | Foreman KubeVirt (local compatibility patch) | `fix/discover-kubevirt-api-version` | `60d6c1f8ff3497d39c63e3359ea1e8539e2a0a70` |
-| Fog KubeVirt | `master` | `d3277fa121609c5a2c949f3518f5f1bb07ef6447` |
+| Fog KubeVirt (reviewed upstream) | `master` | `d3277fa121609c5a2c949f3518f5f1bb07ef6447` |
+| Fog KubeVirt (local namespace-scope patch) | `fix/scope-network-attachments` | `98c874ad35d74005297b6385ede267ac78e35662` |
 | foremanctl | `master` | `cb135b25817fba875061a7d4495fe14ad2bd474e` |
 | Smart Proxy | `develop` | `c2af3d35497058fd7dc8146dcbca3adf60334b9e` |
 | Smart Proxy Dynflow | `master` | `a07e3fa37aca20f2038e8f469f88c545c39276ff` |

@@ -50,6 +50,13 @@ official image and a real cluster workflow covers connection validation, VM
 creation, restart, deletion, and recovery. The chart will not hide the problem
 with a mock KubeVirt endpoint.
 
+The reviewed `fog-kubevirt` source also lists
+`NetworkAttachmentDefinition` objects without a namespace even though the
+compute resource is namespace-scoped. That would require a needlessly broad
+cluster permission. A second local upstream commit passes the configured
+namespace to the client and has a focused regression test. Least-privilege RBAC
+and promotion depend on shipping both fixes.
+
 An opt-in external-cluster drill is prepared for that later qualification. It
 registers the compute resource through Foreman's API without retaining token or
 CA material in its state artifact, requires Foreman and the cluster discovery

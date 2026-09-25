@@ -90,6 +90,7 @@ ruby "${repo_root}/tests/kind-python-content-contract.rb"
 ruby "${repo_root}/tests/kind-pulp-availability-contract.rb"
 ruby "${repo_root}/tests/kind-webhook-contract.rb"
 ruby "${repo_root}/tests/kind-kubevirt-contract.rb"
+ruby "${repo_root}/tests/kubevirt-rbac-contract.rb"
 ruby "${repo_root}/tests/kind-virt-who-config-contract.rb"
 bash "${repo_root}/tests/collect-diagnostics.sh"
 
