@@ -76,6 +76,11 @@ treated as a boot disk and skipped during image provisioning. If a later PVC
 creation fails, every PVC already created by that request must be removed before
 the error is returned. The prepared tests cover both behaviors.
 
+Deletion had the inverse safety problem: the plugin removed PVCs before asking
+Kubernetes to delete the VM. A failed VM deletion could therefore leave a VM
+whose storage was already gone. The local fix captures the volume list, requires
+the VM delete call to succeed, and only then removes plugin-managed PVCs.
+
 The upstream credential guide in the reviewed revision still recommends a
 cluster-admin identity and legacy automatically generated ServiceAccount token
 Secrets. The local documentation patch replaces that with a dedicated,

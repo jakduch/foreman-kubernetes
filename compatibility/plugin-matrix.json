@@ -13,6 +13,7 @@
     "foremanKubevirtValidationPatchCommit": "49d4822c9be3459e02406b36e4ffc6d69e9d9044",
     "foremanKubevirtVolumePatchCommit": "abab1b52d2ccc5dff1db33f9034138442af48c65",
     "foremanKubevirtDocumentationPatchCommit": "2eac240d9722e7881185a940523e8dc816524208",
+    "foremanKubevirtDeletionPatchCommit": "b5a1d3bee546394d62fa77514e36dcfc77893c0c",
     "fogKubevirtUpstreamCommit": "d3277fa121609c5a2c949f3518f5f1bb07ef6447",
     "fogKubevirtNamespacePatchCommit": "98c874ad35d74005297b6385ede267ac78e35662",
     "fogKubevirtApiVersionPatchCommit": "baa222aaec7ada452989eed40c96c355eb6c5c81",
@@ -95,6 +96,11 @@
           "id": "grouped-vm-api-version",
           "status": "local-fix-prepared",
           "reason": "fog-kubevirt creates a custom resource with apiVersion v1 instead of kubevirt.io/v1"
+        },
+        {
+          "id": "safe-vm-deletion-order",
+          "status": "local-fix-prepared",
+          "reason": "the plugin deletes PVCs before Kubernetes accepts deletion of their VM"
         }
       ]
     },

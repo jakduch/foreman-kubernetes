@@ -177,6 +177,7 @@ The sibling `foreman-kubernetes-upstream/` directory is intentionally not part o
 | Foreman KubeVirt (local validation patch) | `fix/discover-kubevirt-api-version` | `49d4822c9be3459e02406b36e4ffc6d69e9d9044` |
 | Foreman KubeVirt (local volume-lifecycle patch) | `fix/discover-kubevirt-api-version` | `abab1b52d2ccc5dff1db33f9034138442af48c65` |
 | Foreman KubeVirt (local credential-doc patch) | `fix/discover-kubevirt-api-version` | `2eac240d9722e7881185a940523e8dc816524208` |
+| Foreman KubeVirt (local safe-deletion patch) | `fix/discover-kubevirt-api-version` | `b5a1d3bee546394d62fa77514e36dcfc77893c0c` |
 | Fog KubeVirt (reviewed upstream) | `master` | `d3277fa121609c5a2c949f3518f5f1bb07ef6447` |
 | Fog KubeVirt (local namespace-scope patch) | `fix/scope-network-attachments` | `98c874ad35d74005297b6385ede267ac78e35662` |
 | Fog KubeVirt (local VM apiVersion patch) | `fix/scope-network-attachments` | `baa222aaec7ada452989eed40c96c355eb6c5c81` |

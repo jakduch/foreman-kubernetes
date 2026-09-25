@@ -37,6 +37,11 @@ def revision(path, ref = 'HEAD')
   output.strip
 end
 
+def ancestor?(path, ancestor, descendant = 'HEAD')
+  _output, status = Open3.capture2('git', '-C', path, 'merge-base', '--is-ancestor', ancestor, descendant)
+  status.success?
+end
+
 foreman_plugins = matrix.fetch('foreman')
 pulp_plugins = matrix.fetch('pulp')
 
@@ -99,6 +104,12 @@ end
 unless kubevirt_api_body_blocker&.fetch('status') == 'local-fix-prepared'
   raise 'Fog KubeVirt VM API-version blocker is missing from the compatibility matrix'
 end
+kubevirt_deletion_blocker = kubevirt.fetch('blockers').find do |blocker|
+  blocker.fetch('id') == 'safe-vm-deletion-order'
+end
+unless kubevirt_deletion_blocker&.fetch('status') == 'local-fix-prepared'
+  raise 'Foreman KubeVirt VM-deletion blocker is missing from the compatibility matrix'
+end
 
 upstream = File.expand_path('../foreman-kubernetes-upstream', root)
 if Dir.exist?(upstream)
@@ -130,29 +141,28 @@ if Dir.exist?(upstream)
     'foremanctlCommit' => foremanctl,
     'foremanWebhooksCommit' => foreman_webhooks,
     'foremanVirtWhoConfigureCommit' => foreman_virt_who_configure,
-    'foremanKubevirtDocumentationPatchCommit' => foreman_kubevirt,
+    'foremanKubevirtDeletionPatchCommit' => foreman_kubevirt,
     'fogKubevirtApiVersionPatchCommit' => fog_kubevirt
   }
   expected_revisions.each do |key, path|
     raise "#{key} snapshot is stale" unless revision(path) == matrix.dig('snapshot', key)
   end
-  unless revision(foreman_kubevirt, 'HEAD^') == matrix.dig('snapshot', 'foremanKubevirtVolumePatchCommit')
-    raise 'foremanKubevirtVolumePatchCommit snapshot is stale'
+
+  %w[
+    foremanKubevirtUpstreamCommit
+    foremanKubevirtCompatibilityPatchCommit
+    foremanKubevirtValidationPatchCommit
+    foremanKubevirtVolumePatchCommit
+    foremanKubevirtDocumentationPatchCommit
+  ].each do |key|
+    unless ancestor?(foreman_kubevirt, matrix.dig('snapshot', key))
+      raise "#{key} is not present in the reviewed Foreman KubeVirt history"
+    end
   end
-  unless revision(foreman_kubevirt, 'HEAD^^') == matrix.dig('snapshot', 'foremanKubevirtValidationPatchCommit')
-    raise 'foremanKubevirtValidationPatchCommit snapshot is stale'
-  end
-  unless revision(foreman_kubevirt, 'HEAD^^^') == matrix.dig('snapshot', 'foremanKubevirtCompatibilityPatchCommit')
-    raise 'foremanKubevirtCompatibilityPatchCommit snapshot is stale'
-  end
-  unless revision(foreman_kubevirt, 'HEAD^^^^') == matrix.dig('snapshot', 'foremanKubevirtUpstreamCommit')
-    raise 'foremanKubevirtUpstreamCommit snapshot is stale'
-  end
-  unless revision(fog_kubevirt, 'HEAD^') == matrix.dig('snapshot', 'fogKubevirtNamespacePatchCommit')
-    raise 'fogKubevirtNamespacePatchCommit snapshot is stale'
-  end
-  unless revision(fog_kubevirt, 'HEAD^^') == matrix.dig('snapshot', 'fogKubevirtUpstreamCommit')
-    raise 'fogKubevirtUpstreamCommit snapshot is stale'
+  %w[fogKubevirtUpstreamCommit fogKubevirtNamespacePatchCommit].each do |key|
+    unless ancestor?(fog_kubevirt, matrix.dig('snapshot', key))
+      raise "#{key} is not present in the reviewed fog-kubevirt history"
+    end
   end
 end
 

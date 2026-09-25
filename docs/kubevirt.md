@@ -17,7 +17,8 @@ objects rather than the URL-only `v1` version. These fixes are accompanied by a
 plugin validation fix that turns failed Kubernetes
 and KubeVirt probes into actionable model errors. The local series also fixes
 image data-disk selection and partial-PVC cleanup. All fixes and the external-
-cluster lifecycle must ship and pass before support is claimed.
+cluster lifecycle must ship and pass before support is claimed. VM deletion
+must also preserve PVCs when Kubernetes rejects the VM delete request.
 
 ## Least-privilege target namespace
 

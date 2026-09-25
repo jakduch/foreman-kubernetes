@@ -33,7 +33,8 @@
    additional plugin fix makes failed Kubernetes and KubeVirt probes produce
    model validation errors instead of silently returning `false`. The patch
    series also preserves explicitly non-bootable image data disks and removes
-   PVCs created before a later disk creation fails. An
+   PVCs created before a later disk creation fails. It also keeps PVCs intact
+   when Kubernetes rejects VM deletion. An
    external-cluster lifecycle is prepared to compare discovery,
    create a stopped VM/PVC, survive database recovery and application upgrades,
    and clean up. Run it only after an image containing the fix is available;
