@@ -165,6 +165,13 @@ compatibility sets. Both the application and execution-proxy values are
 referenced from same-namespace Secrets so credentials never enter the custom
 resource or its status.
 
+New resources use `platform.theforeman.org/v1beta1`, which is the CRD storage
+version. The schema-compatible `v1alpha1` endpoint remains served so existing
+manifests and stored objects continue to round-trip without a conversion
+webhook. Both versions expose the same status subresource and structural
+schema; a future incompatible API change must add explicit conversion rather
+than reinterpret an existing field.
+
 Preflight discovers compatibility-set identities from existing Helm releases
 and combines them with the last successful set retained in status. Every
 discovered source must be listed by the target set's `upgradeFrom` contract.

@@ -156,7 +156,7 @@ kubectl --namespace "${namespace}" patch secret candlepin-runtime \
     '{data: {"database-password": $password}}')" >/dev/null
 
 kubectl --namespace "${namespace}" apply --filename=- >/dev/null <<YAML
-apiVersion: platform.theforeman.org/v1alpha1
+apiVersion: platform.theforeman.org/v1beta1
 kind: ForemanRelease
 metadata:
   name: ${release_name}

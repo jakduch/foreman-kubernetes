@@ -1,4 +1,4 @@
-apiVersion: platform.theforeman.org/v1alpha1
+apiVersion: platform.theforeman.org/v1beta1
 kind: ForemanRelease
 metadata:
   name: foreman

@@ -4,6 +4,8 @@ metadata:
   name: foremanreleases.platform.theforeman.org
 spec:
   group: platform.theforeman.org
+  conversion:
+    strategy: None
   scope: Namespaced
   names:
     kind: ForemanRelease
@@ -15,7 +17,7 @@ spec:
   versions:
     - name: v1alpha1
       served: true
-      storage: true
+      storage: false
       subresources:
         status: {}
       additionalPrinterColumns:
@@ -31,7 +33,7 @@ spec:
         - name: Age
           type: date
           jsonPath: .metadata.creationTimestamp
-      schema:
+      schema: &foremanReleaseSchema
         openAPIV3Schema:
           type: object
           required:
@@ -336,3 +338,22 @@ spec:
                       lastTransitionTime:
                         type: string
                         format: date-time
+    - name: v1beta1
+      served: true
+      storage: true
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: Phase
+          type: string
+          jsonPath: .status.phase
+        - name: Current set
+          type: string
+          jsonPath: .status.currentSet
+        - name: Target set
+          type: string
+          jsonPath: .status.targetSet
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+      schema: *foremanReleaseSchema

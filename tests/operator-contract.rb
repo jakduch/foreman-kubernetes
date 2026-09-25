@@ -7,14 +7,22 @@ require 'set'
 require 'yaml'
 
 root = Pathname.new(File.expand_path('..', __dir__))
-crd = YAML.safe_load((root / 'operator/crd/platform.theforeman.org_foremanreleases.yaml').read)
+crd = YAML.safe_load(
+  (root / 'operator/crd/platform.theforeman.org_foremanreleases.yaml').read,
+  aliases: true
+)
 state_machine = JSON.parse((root / 'operator/release-state-machine.json').read)
 
 raise 'operator CRD must be namespaced' unless crd.dig('spec', 'scope') == 'Namespaced'
 raise 'unexpected operator API group' unless crd.dig('spec', 'group') == 'platform.theforeman.org'
 
-version = crd.fetch('spec').fetch('versions').find { |candidate| candidate.fetch('name') == 'v1alpha1' }
-raise 'v1alpha1 must be served and stored' unless version.fetch('served') && version.fetch('storage')
+versions = crd.fetch('spec').fetch('versions')
+alpha = versions.find { |candidate| candidate.fetch('name') == 'v1alpha1' }
+version = versions.find { |candidate| candidate.fetch('name') == 'v1beta1' }
+raise 'v1alpha1 must remain served for compatible reads and writes' unless alpha&.fetch('served') && !alpha.fetch('storage')
+raise 'v1beta1 must be served and stored' unless version&.fetch('served') && version.fetch('storage')
+raise 'operator API versions require schema-equivalent None conversion' unless
+  crd.dig('spec', 'conversion', 'strategy') == 'None' && alpha.fetch('schema') == version.fetch('schema')
 raise 'operator CRD must expose the status subresource' unless version.fetch('subresources').key?('status')
 
 root_schema = version.dig('schema', 'openAPIV3Schema')
