@@ -57,6 +57,7 @@ jobs:
           kubectl --namespace foreman logs deployment/execution-target --all-containers > artifacts/execution-target.log 2>&1 || true
           kubectl --namespace foreman logs job/execution-ansible-content-loader > artifacts/execution-ansible-content-loader.log 2>&1 || true
           kubectl --namespace foreman logs deployment/object-storage > artifacts/object-storage.log 2>&1 || true
+          kubectl --namespace foreman logs deployment/webhook-receiver --all-containers > artifacts/webhook-receiver.log 2>&1 || true
           kubectl --namespace foreman logs job/foreman-foreman-stack-pulp-object-storage-test > artifacts/pulp-object-storage-test.log 2>&1 || true
           kubectl --namespace foreman get foremanrelease foreman -o yaml > artifacts/foreman-release.yaml 2>&1 || true
           kubectl --namespace foreman logs --selector=app.kubernetes.io/name=foreman-release-operator --all-containers --prefix > artifacts/release-operator.log 2>&1 || true

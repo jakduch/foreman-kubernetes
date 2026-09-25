@@ -169,6 +169,7 @@ The sibling `foreman-kubernetes-upstream/` directory is intentionally not part o
 | Candlepin | `main` | `0928757731c4f5537207c860803fca2fbc7044f5` |
 | Foreman Remote Execution | `master` | `be391fd9ef3140df707eed4f320ce2ebd572648d` |
 | Foreman Ansible | `master` | `7ffc9e37344011554347ca9429fffdcf1f81816e` |
+| Foreman Webhooks | `master` | `4ad5882f4b866cb55b0d1bb102010ddb1e448ebd` |
 | foremanctl | `master` | `cb135b25817fba875061a7d4495fe14ad2bd474e` |
 | Smart Proxy | `develop` | `c2af3d35497058fd7dc8146dcbca3adf60334b9e` |
 | Smart Proxy Dynflow | `master` | `a07e3fa37aca20f2038e8f469f88c545c39276ff` |

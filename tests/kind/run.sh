@@ -14,6 +14,7 @@ created_cluster=false
 temporary_directory="$(mktemp -d)"
 skip_recovery_test="${SKIP_RECOVERY_TEST:-0}"
 content_lifecycle_state="${temporary_directory}/content-lifecycle.json"
+webhook_lifecycle_state="${temporary_directory}/webhook-lifecycle.json"
 image_runtime_contract_file="${IMAGE_RUNTIME_CONTRACT_FILE:-artifacts/image-runtime-contract.json}"
 candlepin_job_delivery_file="${CANDLEPIN_JOB_DELIVERY_FILE:-artifacts/candlepin-job-delivery.json}"
 operator_release_evidence_file="${OPERATOR_RELEASE_EVIDENCE_FILE:-artifacts/operator-release.json}"
@@ -1043,6 +1044,8 @@ assert_pulp_registration
 assert_execution_plane v1 1
 "${repo_root}/tests/kind/content-lifecycle.sh" \
   seed "${temporary_directory}" "${content_lifecycle_state}"
+"${repo_root}/tests/kind/webhook-lifecycle.sh" \
+  seed "${temporary_directory}" "${webhook_lifecycle_state}"
 NAMESPACE="${namespace}" "${repo_root}/tests/kind/candlepin-job-delivery.sh" \
   "${candlepin_job_delivery_file}"
 
@@ -1077,6 +1080,8 @@ if [[ "${skip_recovery_test}" != 1 ]]; then
   assert_application_smoke_test
   "${repo_root}/tests/kind/content-lifecycle.sh" \
     assert "${temporary_directory}" "${content_lifecycle_state}"
+  "${repo_root}/tests/kind/webhook-lifecycle.sh" \
+    assert "${temporary_directory}" "${webhook_lifecycle_state}"
   assert_database_probes before-backup
   assert_pulp_probe before-backup
   assert_avatar_probe before-backup
@@ -1084,6 +1089,9 @@ if [[ "${skip_recovery_test}" != 1 ]]; then
   assert_ansible_content_revision v1
   assert_secret_probe before-backup
   assert_execution_plane
+else
+  "${repo_root}/tests/kind/webhook-lifecycle.sh" \
+    cleanup "${temporary_directory}" "${webhook_lifecycle_state}"
 fi
 
 assert_failed_migration_gate
@@ -1142,7 +1150,7 @@ assert_execution_plane v2
 write_integration_evidence
 
 if [[ "${skip_recovery_test}" == 1 ]]; then
-  echo "Kind install, Candlepin HA, mTLS, content replacement, execution, proxy restart, scale, and upgrade checks passed; recovery drill skipped."
+  echo "Kind install, Candlepin HA, webhooks, mTLS, content replacement, execution, proxy restart, scale, and upgrade checks passed; recovery drill skipped."
 else
-  echo "Kind install, Candlepin HA, mTLS, content replacement, execution, proxy restart, backup, restore, scale, and upgrade checks passed."
+  echo "Kind install, Candlepin HA, webhooks, mTLS, content replacement, execution, proxy restart, backup, restore, scale, and upgrade checks passed."
 fi

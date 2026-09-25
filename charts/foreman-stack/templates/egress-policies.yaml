@@ -15,6 +15,7 @@
 {{- $pulpExternal := .Values.networkPolicy.egress.external.pulp }}
 {{- $candlepinExternal := .Values.networkPolicy.egress.external.candlepin }}
 {{- $smtpExternal := .Values.networkPolicy.egress.external.smtp }}
+{{- $webhooksExternal := .Values.networkPolicy.egress.external.webhooks }}
 {{- if and .Values.candlepin.highAvailability.enabled (eq (len $candlepinExternal.peers) 0) }}
 {{- fail "networkPolicy.egress.external.candlepin.peers must identify the external Artemis broker when Candlepin HA is enabled" }}
 {{- end }}
@@ -26,6 +27,9 @@
 {{- end }}
 {{- if and .Values.foreman.email.enabled (eq (len $smtpExternal.peers) 0) }}
 {{- fail "networkPolicy.egress.external.smtp.peers must identify the SMTP relay when email is enabled" }}
+{{- end }}
+{{- if and (has "foreman_webhooks" .Values.foreman.enabledPlugins) (eq (len $webhooksExternal.peers) 0) (not .Values.outboundProxy.enabled) }}
+{{- fail "networkPolicy.egress.external.webhooks.peers or outboundProxy must identify the webhook delivery route when foreman_webhooks is enabled" }}
 {{- end }}
 {{- if and (or .Values.backup.enabled .Values.restore.enabled) (eq (len $recovery.apiServer.peers) 0) }}
 {{- fail "networkPolicy.egress.recovery.apiServer.peers must identify the Kubernetes API endpoint during backup or restore" }}
@@ -132,6 +136,15 @@ spec:
         {{- toYaml $smtpExternal.peers | nindent 8 }}
       ports:
         {{- range $smtpExternal.ports }}
+        - protocol: TCP
+          port: {{ . }}
+        {{- end }}
+    {{- end }}
+    {{- if and (has "foreman_webhooks" .Values.foreman.enabledPlugins) (gt (len $webhooksExternal.peers) 0) }}
+    - to:
+        {{- toYaml $webhooksExternal.peers | nindent 8 }}
+      ports:
+        {{- range $webhooksExternal.ports }}
         - protocol: TCP
           port: {{ . }}
         {{- end }}

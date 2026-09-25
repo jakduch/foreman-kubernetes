@@ -37,7 +37,7 @@ checks_contract = JSON.parse(checks_path.read)
 abort 'unsupported integration checks schema' unless checks_contract.fetch('schemaVersion') == 1
 
 checks = checks_contract.fetch('checks')
-checks -= ['clean-namespace-recovery'] if result == 'partial'
+checks -= %w[clean-namespace-recovery foreman-webhooks-clean-recovery] if result == 'partial'
 
 host_os = RbConfig::CONFIG.fetch('host_os')
 operating_system = if host_os.include?('linux')

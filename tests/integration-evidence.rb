@@ -59,6 +59,9 @@ Dir.mktmpdir('foreman-kubernetes-evidence') do |directory|
   partial_generated = JSON.parse(partial_generated_evidence.read)
   abort 'partial evidence was marked promotable' unless partial_generated.fetch('eligibleForPromotion') == false
   abort 'partial evidence retained the skipped recovery check' if partial_generated.fetch('checks').include?('clean-namespace-recovery')
+  if partial_generated.fetch('checks').include?('foreman-webhooks-clean-recovery')
+    abort 'partial evidence retained the skipped webhook recovery check'
+  end
 
   undeclared_profile = work / 'undeclared-profile.yaml'
   FileUtils.cp(application_profile, undeclared_profile)

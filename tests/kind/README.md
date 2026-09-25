@@ -122,6 +122,15 @@ The S3 qualification fixture uses the signed upstream SeaweedFS 4.47 image by
 immutable multi-platform digest. It is test infrastructure only; production
 deployments still provide and operate their own versioned bucket.
 
+The webhook lifecycle fixture reuses the already selected Foreman image for a
+small in-cluster HTTP receiver, so it does not add another runtime image. It
+creates a real `domain_created.event.foreman` webhook, observes asynchronous
+delivery, requires an HTTP 503 to remain visible, corrects the target, replaces
+the receiver Pod, and repeats delivery after clean-namespace database restore.
+The receiver has a separate ingress policy that admits only the Foreman web and
+Dynflow worker components. This tests the plugin's real behavior without
+claiming an automatic retry policy the plugin does not implement.
+
 The `foreman` namespace is labelled for `restricted` enforcement, audit, and
 warnings at the Kubernetes 1.34 policy version before Helm creates any product
 workload. The version intentionally matches the default pinned kind node. When

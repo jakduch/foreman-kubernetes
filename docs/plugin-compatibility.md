@@ -33,12 +33,21 @@ from the reviewed official image.
 | `foreman_azure_rm` | no | Foreman pods | provider credentials, egress, API test |
 | `foreman_kubevirt` | no | Foreman pods | KubeVirt credentials, egress, API test |
 | `foreman_rh_cloud` | no | Foreman pods | cloud credentials, egress, service workflow |
-| `foreman_webhooks` | no | Foreman pods | destination allow-list and delivery/retry test |
+| `foreman_webhooks` | no | Foreman and Dynflow pods | dedicated destination allow-list; delivery, failure, receiver replacement, and clean-recovery drill implemented but unrun |
 | `foreman_virt_who_configure` | no | Foreman plus external virt-who | external service lifecycle |
 
 The base image also installs compute-provider packages for libvirt, VMware,
 OpenStack, and EC2. These are not selected through `FOREMAN_ENABLED_PLUGINS`;
 each still needs provider-specific credential, egress, and lifecycle tests.
+
+Foreman Webhooks uses the plugin's asynchronous delivery job for event-driven
+requests and Ruby's standard HTTP client for the destination connection. The
+chart accepts either a dedicated webhook peer/port allow-list or the declared
+outbound proxy. The prepared drill proves successful event delivery, surfaces
+an HTTP 503 from the destination, corrects the URL, replaces the receiver Pod,
+and repeats delivery after clean database recovery. It deliberately does not
+claim automatic retry of a failed request: the reviewed plugin has no
+plugin-owned retry policy that this platform can promise.
 
 ## Pulp image
 

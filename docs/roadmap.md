@@ -17,6 +17,9 @@
 7. Promote packaged plugins individually from the machine-readable inventory;
    each needs migrations, runtime dependencies, one real workflow, restart,
    scale, and recovery proof.
+   Foreman Webhooks now has that drill prepared, including HTTP failure
+   visibility, destination correction, receiver replacement, and clean
+   database recovery; the amd64 run is still pending.
 8. Run the prepared central-execution drill against the pinned amd64 image,
    then extend it from prepared successful, failed, and cancelled SSH/Ansible
    jobs, content replacement, fresh jobs after identity rotation, and

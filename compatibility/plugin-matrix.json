@@ -6,6 +6,7 @@
     "foremanctlCommit": "cb135b25817fba875061a7d4495fe14ad2bd474e",
     "foremanRemoteExecutionCommit": "be391fd9ef3140df707eed4f320ce2ebd572648d",
     "foremanAnsibleCommit": "7ffc9e37344011554347ca9429fffdcf1f81816e",
+    "foremanWebhooksCommit": "4ad5882f4b866cb55b0d1bb102010ddb1e448ebd",
     "smartProxyCommit": "c2af3d35497058fd7dc8146dcbca3adf60334b9e",
     "smartProxyDynflowCommit": "a07e3fa37aca20f2038e8f469f88c545c39276ff",
     "smartProxyRemoteExecutionSshCommit": "1ad66baae4498f7f3a5e3cc939ddf20e188336d2",
@@ -72,7 +73,7 @@
       "name": "foreman_webhooks",
       "enabledByDefault": false,
       "placement": "application",
-      "status": "packaged-integration-pending",
+      "status": "integration-drill-implemented-unrun",
       "requires": ["destination-egress"]
     },
     {
