@@ -73,11 +73,24 @@ manifests.each do |manifest|
     abort "#{manifest}: PULP_FEATURES_URL is #{smoke_environment['PULP_FEATURES_URL'].inspect}, " \
           "expected #{expected_features_url.inspect}"
   end
+  pulp_environment = environment(api_container)
+  unless smoke_environment['PULP_EXPECTED_API_URL'] == pulp_environment['PULP_SMART_PROXY_PULP_URL']
+    abort "#{manifest}: smoke test API expectation does not match the Pulp Smart Proxy setting"
+  end
+  unless smoke_environment['PULP_EXPECTED_RHSM_URL'] == pulp_environment['PULP_SMART_PROXY_RHSM_URL']
+    abort "#{manifest}: smoke test RHSM expectation does not match the Pulp Smart Proxy setting"
+  end
+  unless pulp_environment['PULP_SMART_PROXY_MIRROR'] == 'false'
+    abort "#{manifest}: the central Pulp service is not configured as the primary"
+  end
 
   smoke_script = Array(smoke_container['args']).join("\n")
   abort "#{manifest}: smoke test does not reject missing Pulp capabilities" unless smoke_script.include?('missing_capabilities')
   unless smoke_script.include?("authentication.include?('client_certificate')")
     abort "#{manifest}: smoke test does not require Pulp client-certificate authentication"
+  end
+  %w[mirror pulp_url rhsm_url].each do |setting|
+    abort "#{manifest}: smoke test does not validate Pulp #{setting}" unless smoke_script.include?("settings['#{setting}']")
   end
 
   control_policy = resources.find do |resource|

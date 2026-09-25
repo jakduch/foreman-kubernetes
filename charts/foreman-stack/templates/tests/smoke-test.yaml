@@ -77,6 +77,7 @@ spec:
               puts 'Pulp is healthy'
 
               features = get_json('Pulp Smart Proxy features', ENV.fetch('PULP_FEATURES_URL')).fetch('pulpcore')
+              settings = features.fetch('settings')
               expected_capabilities = JSON.parse(ENV.fetch('PULP_EXPECTED_CAPABILITIES')).sort
               actual_capabilities = Array(features['capabilities']).map(&:to_s).sort
               missing_capabilities = expected_capabilities - actual_capabilities
@@ -86,6 +87,15 @@ spec:
               authentication = Array(features.dig('settings', 'client_authentication'))
               unless authentication.include?('client_certificate')
                 abort 'Pulp Smart Proxy does not advertise client-certificate authentication'
+              end
+              unless settings['mirror'] == false
+                abort "Pulp Smart Proxy unexpectedly advertises mirror mode: #{settings['mirror'].inspect}"
+              end
+              unless settings['pulp_url'] == ENV.fetch('PULP_EXPECTED_API_URL')
+                abort "Pulp Smart Proxy advertises the wrong API URL: #{settings['pulp_url'].inspect}"
+              end
+              unless settings['rhsm_url'] == ENV.fetch('PULP_EXPECTED_RHSM_URL')
+                abort "Pulp Smart Proxy advertises the wrong RHSM URL: #{settings['rhsm_url'].inspect}"
               end
               puts "Pulp capabilities are active: #{expected_capabilities.join(', ')}"
           env:
@@ -101,6 +111,10 @@ spec:
               value: {{ printf "%s/v2/features" (include "foreman-stack.pulpSmartProxyUrl" .) | quote }}
             - name: PULP_EXPECTED_CAPABILITIES
               value: {{ include "foreman-stack.pulpExpectedCapabilities" . | quote }}
+            - name: PULP_EXPECTED_API_URL
+              value: {{ include "foreman-stack.pulpControlProxyUrl" . | quote }}
+            - name: PULP_EXPECTED_RHSM_URL
+              value: {{ printf "%s/rhsm" (trimSuffix "/" .Values.platform.externalUrl) | quote }}
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:

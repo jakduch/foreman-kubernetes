@@ -145,7 +145,11 @@ pending.
 - Katello currently builds generated Pulp clients from the advertised URL's scheme and hostname, without retaining a non-default port. The internal control Service therefore exposes HTTPS on port 443 while its unprivileged proxy container listens on 8443.
 - Pulp remote-user authentication reads `HTTP_REMOTE_USER`; the chart sets it only behind a private mTLS proxy after validating the client certificate common name.
 - Pulp Certguard reads a URL-escaped PEM certificate from `X-CLIENT-CERT` for protected content downloads.
-- The Pulp Smart Proxy advertises the public Foreman `/rhsm` URL separately from its private API URL, so host registration never receives a cluster-internal Service hostname.
+- The Pulp Smart Proxy advertises the public Foreman `/rhsm` URL separately
+  from its private API URL, so host registration never receives a
+  cluster-internal Service hostname. The application smoke test verifies the
+  live feature response identifies this service as the primary (not a mirror),
+  returns the private mTLS API URL, and returns the configured public RHSM URL.
 
 ## Secret keys expected by the chart
 
