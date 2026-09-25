@@ -45,6 +45,7 @@ initialize_repository="${INITIALIZE_REPOSITORY:-0}"
 restore_snapshot="${RESTORE_SNAPSHOT:-latest}"
 restore_secrets="${RESTORE_SECRETS:-0}"
 object_storage_confirmation="${OBJECT_STORAGE_CONFIRMATION:-}"
+bootstrap_restore="${BOOTSTRAP_RESTORE:-0}"
 release_lease_name="${RELEASE_LEASE_NAME:-foreman-kubernetes-release}"
 release_holder_id="${RELEASE_HOLDER_ID:-${HOSTNAME:-recovery-host}-${operation}-$$}"
 release_lease_duration_seconds="${RELEASE_LEASE_DURATION_SECONDS:-120}"
@@ -86,6 +87,13 @@ case "${restore_secrets}" in
   0 | 1) ;;
   *) fail 'RESTORE_SECRETS must be 0 or 1' ;;
 esac
+case "${bootstrap_restore}" in
+  0 | 1) ;;
+  *) fail 'BOOTSTRAP_RESTORE must be 0 or 1' ;;
+esac
+if [[ "${bootstrap_restore}" == 1 && "${operation}" != restore ]]; then
+  fail 'BOOTSTRAP_RESTORE=1 is supported only for restore'
+fi
 validate_release_lease_configuration "${release_lease_duration_seconds}" \
   "${release_lease_renew_interval_seconds}" || exit 1
 
@@ -123,21 +131,38 @@ start_release_lease_renewal "${namespace}" "${release_lease_name}" \
   "${release_holder_id}" "${release_lease_duration_seconds}" \
   "${release_lease_renew_interval_seconds}"
 
-application_installed_set="$(helm get values "${application_release}" \
-  --namespace "${namespace}" --all --output=json | \
-  jq --exit-status --raw-output '.platform.compatibilitySet | select(type == "string" and length > 0)')" || \
-  fail "cannot determine the installed compatibility set for ${application_release}"
-execution_installed_set="$(helm get values "${execution_release}" \
-  --namespace "${namespace}" --all --output=json | \
-  jq --exit-status --raw-output '.compatibilitySet | select(type == "string" and length > 0)')" || \
-  fail "cannot determine the installed compatibility set for ${execution_release}"
-if [[ "${application_installed_set}" != "${compatibility_set}" || \
-      "${execution_installed_set}" != "${compatibility_set}" ]]; then
-  fail "recovery requires application and execution proxy on ${compatibility_set}; found ${application_installed_set} and ${execution_installed_set}"
-fi
+declare -a release_install_arguments
+release_install_arguments=()
+if [[ "${bootstrap_restore}" == 1 ]]; then
+  application_exists=0
+  execution_exists=0
+  if helm status "${application_release}" --namespace "${namespace}" >/dev/null 2>&1; then
+    application_exists=1
+  fi
+  if helm status "${execution_release}" --namespace "${namespace}" >/dev/null 2>&1; then
+    execution_exists=1
+  fi
+  if [[ "${application_exists}" == 1 || "${execution_exists}" == 1 ]]; then
+    fail 'bootstrap restore requires both application and execution Helm releases to be absent'
+  fi
+  release_install_arguments=(--install)
+else
+  application_installed_set="$(helm get values "${application_release}" \
+    --namespace "${namespace}" --all --output=json | \
+    jq --exit-status --raw-output '.platform.compatibilitySet | select(type == "string" and length > 0)')" || \
+    fail "cannot determine the installed compatibility set for ${application_release}"
+  execution_installed_set="$(helm get values "${execution_release}" \
+    --namespace "${namespace}" --all --output=json | \
+    jq --exit-status --raw-output '.compatibilitySet | select(type == "string" and length > 0)')" || \
+    fail "cannot determine the installed compatibility set for ${execution_release}"
+  if [[ "${application_installed_set}" != "${compatibility_set}" || \
+        "${execution_installed_set}" != "${compatibility_set}" ]]; then
+    fail "recovery requires application and execution proxy on ${compatibility_set}; found ${application_installed_set} and ${execution_installed_set}"
+  fi
 
-helm status "${application_release}" --namespace "${namespace}" >/dev/null
-helm status "${execution_release}" --namespace "${namespace}" >/dev/null
+  helm status "${application_release}" --namespace "${namespace}" >/dev/null
+  helm status "${execution_release}" --namespace "${namespace}" >/dev/null
+fi
 
 declare -a recovery_arguments application_maintenance_arguments
 declare -a application_normal_arguments execution_maintenance_arguments
@@ -159,7 +184,7 @@ execution_maintenance_arguments=(
 )
 execution_normal_arguments=(--set maintenance.enabled=false)
 
-if [[ "${operation}" != resume ]]; then
+if [[ "${operation}" != resume && "${bootstrap_restore}" != 1 ]]; then
   kubectl --namespace "${namespace}" wait \
     --for=condition=Ready pod \
     --selector="app.kubernetes.io/instance=${execution_release},app.kubernetes.io/component=execution-proxy" \
@@ -173,6 +198,9 @@ if [[ "${operation}" != resume ]]; then
     --logs \
     --timeout "${smoke_timeout}"
 
+fi
+
+if [[ "${operation}" != resume ]]; then
   recovery_arguments+=(
     --set maintenance.enabled=true
     --set backup.enabled=false
@@ -280,6 +308,7 @@ fi
 if [[ "${operation}" != resume ]]; then
   echo 'Recovery: stopping application writers'
   if ! helm upgrade "${application_release}" "${repo_root}/charts/foreman-stack" \
+    "${release_install_arguments[@]}" \
     --namespace "${namespace}" \
     --values "${application_values}" \
     --values "${application_profile}" \
@@ -292,6 +321,7 @@ if [[ "${operation}" != resume ]]; then
 
   echo 'Recovery: stopping the execution proxy'
   if ! helm upgrade "${execution_release}" "${repo_root}/charts/foreman-execution-proxy" \
+    "${release_install_arguments[@]}" \
     --namespace "${namespace}" \
     --values "${execution_values}" \
     --values "${execution_profile}" \
@@ -308,6 +338,7 @@ if [[ "${operation}" != resume ]]; then
 
   echo "Recovery: running ${operation} ${request_id}"
   if ! helm upgrade "${application_release}" "${repo_root}/charts/foreman-stack" \
+    "${release_install_arguments[@]}" \
     --namespace "${namespace}" \
     --values "${application_values}" \
     --values "${application_profile}" \
@@ -321,6 +352,7 @@ fi
 
 echo 'Recovery: restoring the normal application release'
 if ! helm upgrade "${application_release}" "${repo_root}/charts/foreman-stack" \
+  "${release_install_arguments[@]}" \
   --namespace "${namespace}" \
   --values "${application_values}" \
   --values "${application_profile}" \
@@ -333,6 +365,7 @@ fi
 
 echo 'Recovery: restoring the execution proxy'
 if ! helm upgrade "${execution_release}" "${repo_root}/charts/foreman-execution-proxy" \
+  "${release_install_arguments[@]}" \
   --namespace "${namespace}" \
   --values "${execution_values}" \
   --values "${execution_profile}" \

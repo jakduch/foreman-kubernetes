@@ -184,6 +184,29 @@ RESTORE_SNAPSHOT=latest \
     20260924-130000
 ```
 
+For site-loss recovery into a namespace where neither Helm release exists,
+pre-create the namespace, current database/repository Secrets, external
+databases and roles, then use the explicit bootstrap gate:
+
+```sh
+BOOTSTRAP_RESTORE=1 \
+RESTORE_SNAPSHOT=latest \
+RESTORE_SECRETS=1 \
+  scripts/recover-release.sh restore \
+    /secure/path/application-values.yaml \
+    /secure/path/execution-proxy-values.yaml \
+    20260924-140000
+```
+
+Bootstrap restore refuses to run when either release already exists. It
+server-validates all maintenance, recovery, and normal manifests, installs
+both releases without runtime Pods so their retained claims exist, restores
+the selected recovery point, and then starts the application and execution
+proxy in normal order. If it is interrupted after creating those maintenance
+releases, inspect them and continue with the normal guarded restore path and a
+new request ID; do not retry with the bootstrap flag or delete the retained
+claims.
+
 The Job validates the snapshot owner, tag, compatibility set, storage backend, manifest, all three
 dumps, the avatar tree, the Pulp tree in filesystem mode, and every requested
 Secret escrow file before modifying state. It also verifies the paths against
@@ -227,7 +250,8 @@ scripts/recover-release.sh resume \
 `ALLOW_CANDIDATE`, `COMPATIBILITY_SET`, the release/namespace overrides, and
 the shared `RELEASE_LEASE_*` settings have the same meaning as in the install
 and upgrade helpers. `RECOVERY_TIMEOUT`, `RESUME_TIMEOUT`, and `SMOKE_TIMEOUT`
-control their respective waits.
+control their respective waits. `BOOTSTRAP_RESTORE=1` is accepted only by the
+restore operation and only when both Helm releases are absent.
 
 ## Required recovery drill
 

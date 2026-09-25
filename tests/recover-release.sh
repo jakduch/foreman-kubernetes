@@ -26,6 +26,9 @@ printf 'helm %s\n' "$*" >> "${FAKE_TOOL_LOG}"
 if [[ "${FAKE_RECOVERY_UPGRADE_FAIL:-0}" == 1 && "$1" == upgrade && "$*" == *'backup.enabled=true'* ]]; then
   exit 1
 fi
+if [[ "${FAKE_HELM_STATUS_MISSING:-0}" == 1 && "$1" == status ]]; then
+  exit 1
+fi
 case "$*" in
   'get values foreman --namespace foreman --all --output=json')
     printf '{"platform":{"compatibilitySet":"%s"}}\n' "${FAKE_APPLICATION_SET:-nightly-candidate-2026-09-24}"
@@ -184,6 +187,43 @@ PATH="${fake_bin}:${PATH}" \
   "${repo_root}/scripts/recover-release.sh" restore \
     "${application_values}" "${execution_values}" request-3 >/dev/null
 grep -Fq -- '--set restore.enabled=true --set-string restore.requestId=request-3 --set-string restore.snapshot=abc123 --set restore.confirmation=RESTORE --set restore.secrets=true --set-string restore.objectStorageConfirmation=BUCKET_RESTORED' "${tool_log}"
+
+: > "${tool_log}"
+PATH="${fake_bin}:${PATH}" \
+  FAKE_TOOL_LOG="${tool_log}" \
+  FAKE_HELM_STATUS_MISSING=1 \
+  ALLOW_CANDIDATE=1 \
+  BOOTSTRAP_RESTORE=1 \
+  "${repo_root}/scripts/recover-release.sh" restore \
+    "${application_values}" "${execution_values}" request-bootstrap >/dev/null
+if grep -Fq 'helm get values ' "${tool_log}"; then
+  echo 'bootstrap restore tried to inspect values of absent releases' >&2
+  exit 1
+fi
+bootstrap_first_upgrade_line="$(grep -Fn 'helm upgrade ' "${tool_log}" | head -n 1 | cut -d: -f1)"
+bootstrap_first_test_line="$(grep -Fn 'helm test ' "${tool_log}" | head -n 1 | cut -d: -f1)"
+if ! (( bootstrap_first_upgrade_line < bootstrap_first_test_line )); then
+  echo 'bootstrap restore ran a smoke test before creating its maintenance releases' >&2
+  exit 1
+fi
+grep -F "${application_upgrade}" "${tool_log}" | grep -Fq -- '--install'
+grep -F "${execution_upgrade}" "${tool_log}" | grep -Fq -- '--install'
+grep -F "${application_upgrade}" "${tool_log}" | grep -Fq -- '--set restore.enabled=true'
+
+: > "${tool_log}"
+if PATH="${fake_bin}:${PATH}" \
+  FAKE_TOOL_LOG="${tool_log}" \
+  ALLOW_CANDIDATE=1 \
+  BOOTSTRAP_RESTORE=1 \
+  "${repo_root}/scripts/recover-release.sh" restore \
+    "${application_values}" "${execution_values}" request-existing >/dev/null 2>&1; then
+  echo 'bootstrap restore accepted an existing Helm release' >&2
+  exit 1
+fi
+if grep -Fq 'helm upgrade ' "${tool_log}"; then
+  echo 'bootstrap restore mutated existing releases before rejecting them' >&2
+  exit 1
+fi
 
 : > "${tool_log}"
 PATH="${fake_bin}:${PATH}" \

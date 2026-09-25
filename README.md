@@ -42,8 +42,9 @@ The initial Helm chart is under [`charts/foreman-stack`](charts/foreman-stack). 
 - separate Candlepin, Pulp, and Foreman migration Jobs;
 - Foreman recurring tasks as non-overlapping CronJobs.
 - maintenance-gated, encrypted backup and restore Jobs covering all three
-  PostgreSQL databases, application Secrets, and Pulp filesystem content when
-  that backend is selected, with an explicit external recovery gate for S3.
+  PostgreSQL databases, both releases' Secrets, Foreman avatars, execution
+  state and Ansible content, plus Pulp filesystem content when that backend is
+  selected, with an explicit external recovery gate for S3.
 - explicit non-root identities, restricted container privileges, scoped
   disruption budgets, release-wide default-deny ingress, and optional
   component-level egress isolation.
@@ -133,7 +134,8 @@ The recovery Jobs are intentionally one-shot rather than scheduled online
 backups. They enter through an explicit maintenance revision, verify that all
 writers have stopped, and use an independently managed Restic repository. The
 guarded recovery helper serializes them with installs/upgrades, preserves the
-digest-pinned release set, and resumes normal workloads only after success. See
+digest-pinned release set, can bootstrap both maintenance releases in a clean
+namespace, and resumes normal workloads only after success. See
 [`docs/disaster-recovery.md`](docs/disaster-recovery.md) for the backup, restore,
 credential, and recovery-drill contracts.
 
