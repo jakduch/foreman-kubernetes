@@ -162,23 +162,46 @@ end
 
 class RuntimePreflight
   attr_reader :calls, :secret_calls
-  attr_accessor :certificate_expiry, :secret_error
+  attr_accessor :application_fingerprint, :execution_fingerprint, :certificate_expiry, :secret_error
 
   def initialize
     @calls = []
     @secret_calls = []
+    @application_fingerprint = 'a' * 64
+    @execution_fingerprint = 'b' * 64
     @certificate_expiry = Time.utc(2026, 10, 25, 12, 0, 0)
   end
 
   def validate!(documents, namespace)
     @calls << [documents, namespace]
+    RuntimeSecretSnapshot.new(self, certificate_expiry)
   end
 
   def validate_secrets!(documents, namespace)
     @secret_calls << [documents, namespace]
     raise ForemanRelease::InvalidRelease, secret_error if secret_error
 
-    certificate_expiry
+    RuntimeSecretSnapshot.new(self, certificate_expiry)
+  end
+
+  def fingerprint(documents)
+    execution = documents.any? do |document|
+      document.dig('metadata', 'labels', 'app.kubernetes.io/instance') == 'execution'
+    end
+    execution ? execution_fingerprint : application_fingerprint
+  end
+end
+
+class RuntimeSecretSnapshot
+  attr_reader :expiration
+
+  def initialize(preflight, expiration)
+    @preflight = preflight
+    @expiration = expiration
+  end
+
+  def fingerprint(documents)
+    @preflight.fingerprint(documents)
   end
 end
 
@@ -264,7 +287,12 @@ raise 'durable operation ID was used as a shared holder identity' unless runtime
 
 validation = adapter.validate(resource, operation)
 raise 'release validation failed' unless validation.state == :succeeded
-unless validation.details.keys.sort == (ForemanRelease::RuntimeAdapter::INPUT_DIGESTS.keys + ['sourceSets']).sort
+expected_validation_details = ForemanRelease::RuntimeAdapter::INPUT_DIGESTS.keys + [
+  ForemanRelease::RuntimeAdapter::APPLICATION_SECRETS_DIGEST,
+  ForemanRelease::RuntimeAdapter::EXECUTION_SECRETS_DIGEST,
+  'sourceSets'
+]
+unless validation.details.keys.sort == expected_validation_details.sort
   raise 'validation did not pin all release inputs and source sets'
 end
 raise 'fresh installation unexpectedly recorded an installed source set' unless validation.details.fetch('sourceSets').empty?
@@ -367,6 +395,18 @@ ensure
   kubernetes.application_values = original_values
 end
 
+preflight.application_fingerprint = 'c' * 64
+begin
+  adapter.ensure_migrations(resource, operation)
+  raise 'changed application Secret input was accepted during an operation'
+rescue ForemanRelease::InvalidRelease => error
+  raise unless error.message.include?('applicationSecretsSha256 changed during operation')
+ensure
+  preflight.application_fingerprint = operation.fetch(
+    ForemanRelease::RuntimeAdapter::APPLICATION_SECRETS_DIGEST
+  )
+end
+
 application_render = runner.renders.fetch('foreman')
 desired_foreman_config = application_render.find do |item|
   item['kind'] == 'ConfigMap' && item.dig('metadata', 'name').end_with?('-foreman-config')
@@ -425,6 +465,9 @@ upgrade = runner.calls.map(&:first).find { |command| command.first(2) == %w[helm
 raise 'application Helm release was not submitted after migrations' unless upgrade
 raise 'runtime adapter used blocking Helm wait' if upgrade.any? { |argument| argument.start_with?('--wait') }
 raise 'application operation ID was not passed to Helm' unless upgrade.include?("releaseOperation.id=#{operation.fetch('id')}")
+unless upgrade.include?("secretRolloutToken=#{operation.fetch(ForemanRelease::RuntimeAdapter::APPLICATION_SECRETS_DIGEST)}")
+  raise 'application Secret fingerprint was not passed as the rollout token'
+end
 unless upgrade.include?('releaseOperation.skipMigrationJobs=true')
   raise 'application rollout attempted to recreate controller-owned migration Jobs'
 end
@@ -477,6 +520,9 @@ end
 proxy_upgrade = runner.calls.map(&:first).find { |command| command.first(2) == %w[helm upgrade] && command.include?('execution') }
 raise 'execution proxy Helm release was not submitted' unless proxy_upgrade
 raise 'execution operation ID was not passed to Helm' unless proxy_upgrade.include?("releaseOperation.id=#{operation.fetch('id')}")
+unless proxy_upgrade.include?("secretRolloutToken=#{operation.fetch(ForemanRelease::RuntimeAdapter::EXECUTION_SECRETS_DIGEST)}")
+  raise 'execution Secret fingerprint was not passed as the rollout token'
+end
 
 execution_render = runner.renders.fetch('execution')
 kubernetes.replace(
@@ -527,16 +573,37 @@ all_rendered = runner.renders.fetch('foreman') + runner.renders.fetch('execution
 ForemanRelease::RuntimeAdapter::DRIFT_RESOURCE_TYPES.each do |kind, type|
   kubernetes.replace(type, all_rendered.select { |item| item['kind'] == kind })
 end
+preflight.secret_calls.clear
 audit = adapter.audit_ready(resource, operation)
 raise "complete Ready release was reported as drifted: #{audit.message}" unless audit.state == :succeeded
 unless audit.details == {'certificateExpiryTimestamp' => '2026-10-25T12:00:00Z'}
   raise 'Ready audit did not report the earliest certificate expiry'
 end
-unless preflight.secret_calls.length == 1 &&
-       preflight.secret_calls.first.first.length == all_rendered.length &&
-       preflight.secret_calls.first.last == 'platform'
-  raise 'Ready audit did not revalidate the combined external Secret inventory'
+unless preflight.secret_calls.length == 2 &&
+       preflight.secret_calls.sum { |documents, _namespace| documents.length } == all_rendered.length &&
+       preflight.secret_calls.all? { |_documents, namespace| namespace == 'platform' }
+  raise 'Ready audit did not revalidate both external Secret inventories'
 end
+
+preflight.application_fingerprint = 'c' * 64
+secret_drift = adapter.audit_ready(resource, operation)
+unless secret_drift.state == :drifted &&
+       secret_drift.details.fetch('driftedResources').include?('SecretInputs/application:modified')
+  raise 'valid application Secret rotation did not request a repair rollout'
+end
+preflight.application_fingerprint = operation.fetch(
+  ForemanRelease::RuntimeAdapter::APPLICATION_SECRETS_DIGEST
+)
+
+preflight.execution_fingerprint = 'd' * 64
+execution_secret_drift = adapter.audit_ready(resource, operation)
+unless execution_secret_drift.state == :drifted &&
+       execution_secret_drift.details.fetch('driftedResources').include?('SecretInputs/execution-proxy:modified')
+  raise 'valid execution proxy Secret rotation did not request a repair rollout'
+end
+preflight.execution_fingerprint = operation.fetch(
+  ForemanRelease::RuntimeAdapter::EXECUTION_SECRETS_DIGEST
+)
 
 live_deployments = kubernetes.resources('platform', 'deployments')
 injected_deployment = Marshal.load(Marshal.dump(live_deployments.first))

@@ -62,8 +62,8 @@ listener ports under `networkPolicy.egress.outboundProxy`. Direct egress rules
 remain necessary for every destination listed in `NO_PROXY`. The recovery
 repository policy also remains explicit because Restic may use a non-HTTP
 transport such as SFTP. After rotating proxy credentials, change
-`secretRolloutToken` (and `spec.reconcileToken` for controller-managed
-releases) so every long-running process receives the new Secret values.
+`secretRolloutToken` for a manually managed release. The controller detects a
+valid referenced Secret rotation and supplies this token itself.
 
 ## ForemanRelease controller (experimental)
 
@@ -199,9 +199,11 @@ an active migration or rollout.
 
 While `Ready`, the controller checks for missing or modified Helm-managed
 objects and out-of-band Helm revisions every `spec.driftCheckSeconds` (60 seconds by
-default). It also revalidates every external Secret and TLS identity, so an
-expired or incorrectly rotated certificate appears in `lastDriftCheckError`
-and the drift-audit alert without an unsafe automatic credential change.
+default). It also revalidates every external Secret and TLS identity. A valid
+referenced Secret update starts a migration-free repair whose per-release
+fingerprint becomes `secretRolloutToken`; an expired or incorrectly rotated
+certificate instead appears in `lastDriftCheckError` and the drift-audit alert
+without interrupting the working Pods.
 Missing or modified stateless resources or a changed Helm revision start a
 uniquely identified repair: the normal preflight, lock, rollout, registration,
 and smoke gates run again, while schema migrations remain skipped. A missing
@@ -211,13 +213,16 @@ admission-injected fields are ignored. The check
 never adopts changed values Secret content; update `spec.reconcileToken` when
 that change is intentional.
 
-The values Secrets are deliberately not watched as implicit rollout triggers.
-After changing their content, including a `secretRolloutToken` used for
-credential rotation, change `spec.reconcileToken`. The controller then creates
-a new operation, fingerprints and validates both current Secret payloads, and
-runs the complete application-plus-execution release even when
-`spec.compatibilitySet` is unchanged. `retryToken` has a separate purpose and
-remains required to leave `Blocked`.
+The values Secrets are deliberately not watched as implicit rollout triggers,
+because they can alter topology and migration behavior. Change
+`spec.reconcileToken` after changing either values payload. The controller then
+creates a new operation, fingerprints and validates both current values
+payloads, and runs the complete application-plus-execution release even when
+`spec.compatibilitySet` is unchanged. Referenced runtime Secrets are different:
+their names, required keys, and Kubernetes resource versions are hashed without
+persisting their contents, checked throughout an operation, and automatically
+rolled after a valid Ready-state change. `retryToken` has a separate purpose
+and remains required to leave `Blocked`.
 
 Completed controller-owned Job histories are retained for audit without a TTL,
 then safely bounded after a successful release. Set `spec.operationHistoryLimit`

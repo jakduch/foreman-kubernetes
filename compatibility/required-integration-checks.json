@@ -32,6 +32,7 @@
     "operator-blocked-retry",
     "operator-leader-takeover",
     "operator-stateless-drift-repair",
+    "operator-secret-rotation-repair",
     "operator-stateful-drift-block",
     "operator-certificate-observation",
     "dynflow-scale",

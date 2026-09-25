@@ -22,6 +22,7 @@ required = {
   'require the replacement leader to finish the retry' => '.spec.holderIdentity == $holder',
   'return adoption flags to their safe default' => 'adoptExisting":false',
   'repair modified stateless resources' => 'app.kubernetes.io/component=operator-drift',
+  'repair valid Secret rotations' => 'SecretInputs/application:modified',
   'block modified stateful resources' => 'UnsafeDriftDetected',
   'publish the earliest certificate expiry' => '.status.certificateExpiryTimestamp',
   'persist an operator evidence report' => 'operator-release.json'
@@ -37,6 +38,7 @@ abort 'CI does not retain the operator report' unless workflow.include?('artifac
   operator-blocked-retry
   operator-leader-takeover
   operator-stateless-drift-repair
+  operator-secret-rotation-repair
   operator-stateful-drift-block
   operator-certificate-observation
 ].each do |check|
@@ -60,4 +62,4 @@ Dir.mktmpdir('operator-values-contract') do |directory|
   abort 'operator values sanitizer lost application values' unless sanitized.dig('foreman', 'replicaCount') == 2
 end
 
-puts 'Full integration exercises ForemanRelease failure, takeover, drift repair, and certificate observation.'
+puts 'Full integration exercises ForemanRelease failure, takeover, drift and Secret repair, and certificate observation.'

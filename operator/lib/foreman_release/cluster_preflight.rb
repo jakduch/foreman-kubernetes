@@ -4,9 +4,30 @@ require_relative 'command_runner'
 require_relative 'certificate_validator'
 require_relative 'manifest_requirements'
 require_relative 'release_inputs'
+require 'digest'
+require 'json'
 require 'yaml'
 
 module ForemanRelease
+  class SecretSnapshot
+    attr_reader :expiration
+
+    def initialize(versions:, expiration: nil)
+      @versions = versions
+      @expiration = expiration
+    end
+
+    def fingerprint(documents)
+      requirements = ManifestRequirements.new(documents).secrets
+      inputs = requirements.map do |name, keys|
+        [name, keys, @versions.fetch(name)]
+      end
+      Digest::SHA256.hexdigest(JSON.generate(inputs))
+    rescue KeyError => error
+      raise InvalidRelease, "Secret snapshot is missing #{error.key}"
+    end
+  end
+
   class ClusterPreflight
     DEFAULT_STORAGE_ANNOTATIONS = %w[
       storageclass.kubernetes.io/is-default-class
@@ -24,9 +45,9 @@ module ForemanRelease
       requirements.cluster_resources.each do |kind, name, contract|
         validate_resource!(namespace, kind, name, contract)
       end
-      validate_secret_requirements!(requirements, namespace)
+      snapshot = validate_secret_requirements!(requirements, namespace)
       validate_server_dry_run!(documents, namespace)
-      true
+      snapshot
     end
 
     def validate_secrets!(documents, namespace)
@@ -36,8 +57,14 @@ module ForemanRelease
     private
 
     def validate_secret_requirements!(requirements, namespace)
+      versions = {}
       expirations = requirements.secrets.each_with_object([]) do |(name, keys), found|
         secret = required_resource(namespace, 'secret', name)
+        resource_version = secret.dig('metadata', 'resourceVersion').to_s
+        if resource_version.empty?
+          raise InvalidRelease, "Secret #{namespace}/#{name} has no resourceVersion"
+        end
+        versions[name] = resource_version
         missing = keys.reject { |key| secret.fetch('data', {}).key?(key) }
         raise InvalidRelease, "Secret #{namespace}/#{name} is missing keys: #{missing.join(', ')}" unless missing.empty?
 
@@ -47,7 +74,7 @@ module ForemanRelease
         )
         found << expiration if expiration
       end
-      expirations.min
+      SecretSnapshot.new(versions: versions, expiration: expirations.min)
     end
 
     def validate_server_dry_run!(documents, namespace)

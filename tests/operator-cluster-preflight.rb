@@ -158,16 +158,25 @@ client.objects = {
   },
   ['platform', 'persistentvolumeclaim', 'imported-content'] => {'metadata' => {'name' => 'imported-content'}},
   ['platform', 'serviceaccount', 'external-runtime'] => {'metadata' => {'name' => 'external-runtime'}},
-  ['platform', 'secret', 'database'] => {'data' => {'password' => 'encoded'}},
-  ['platform', 'secret', 'ingress-ca'] => {'data' => {'ca.crt' => 'encoded'}},
-  ['platform', 'secret', 'ingress-tls'] => {'data' => {'tls.crt' => 'encoded', 'tls.key' => 'encoded'}}
+  ['platform', 'secret', 'database'] => {
+    'metadata' => {'resourceVersion' => '11'}, 'data' => {'password' => 'encoded'}
+  },
+  ['platform', 'secret', 'ingress-ca'] => {
+    'metadata' => {'resourceVersion' => '12'}, 'data' => {'ca.crt' => 'encoded'}
+  },
+  ['platform', 'secret', 'ingress-tls'] => {
+    'metadata' => {'resourceVersion' => '13'}, 'data' => {'tls.crt' => 'encoded', 'tls.key' => 'encoded'}
+  }
 }
 runner = PreflightRunner.new
 certificate_validator = PreflightCertificateValidator.new
 preflight = ForemanRelease::ClusterPreflight.new(
   client, runner: runner, certificate_validator: certificate_validator
 )
-raise 'valid cluster dependencies were rejected' unless preflight.validate!(documents, 'platform')
+snapshot = preflight.validate!(documents, 'platform')
+unless snapshot.fingerprint(documents).match?(/\A[0-9a-f]{64}\z/)
+  raise 'valid cluster dependencies did not produce a Secret input fingerprint'
+end
 validated_certificate_secrets = certificate_validator.calls.map { |arguments| arguments.take(2) }
 unless validated_certificate_secrets.include?(%w[platform ingress-ca]) &&
        validated_certificate_secrets.include?(%w[platform ingress-tls])
@@ -186,13 +195,17 @@ raise 'preflight did not submit the complete rendered manifest' unless dry_run.l
 
 runner.calls.clear
 certificate_validator.calls.clear
-preflight.validate_secrets!(documents, 'platform')
+original_fingerprint = preflight.validate_secrets!(documents, 'platform').fingerprint(documents)
 raise 'Secret-only audit unexpectedly ran admission dry-run' unless runner.calls.empty?
 unless certificate_validator.calls.map { |arguments| arguments.take(2) }.include?(%w[platform ingress-tls])
   raise 'Secret-only audit did not validate certificate inputs'
 end
+client.objects[['platform', 'secret', 'database']]['metadata']['resourceVersion'] = '14'
+rotated_fingerprint = preflight.validate_secrets!(documents, 'platform').fingerprint(documents)
+raise 'Secret resourceVersion change did not alter the input fingerprint' if rotated_fingerprint == original_fingerprint
+client.objects[['platform', 'secret', 'database']]['metadata']['resourceVersion'] = '11'
 
-client.objects[['platform', 'secret', 'database']] = {'data' => {}}
+client.objects[['platform', 'secret', 'database']] = {'metadata' => {'resourceVersion' => '15'}, 'data' => {}}
 begin
   preflight.validate!(documents, 'platform')
   raise 'missing Secret key was accepted'
@@ -200,7 +213,9 @@ rescue ForemanRelease::InvalidRelease => error
   raise unless error.message.include?('database is missing keys: password')
 end
 
-client.objects[['platform', 'secret', 'database']] = {'data' => {'password' => 'encoded'}}
+client.objects[['platform', 'secret', 'database']] = {
+  'metadata' => {'resourceVersion' => '16'}, 'data' => {'password' => 'encoded'}
+}
 client.objects.delete([nil, 'ingressclass', 'nginx'])
 begin
   preflight.validate!(documents, 'platform')

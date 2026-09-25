@@ -335,6 +335,25 @@ jq --exit-status --arg operation "${repair_operation}" '
 [[ "$(kubectl --namespace "${namespace}" get configmap "${configmap_name}" \
   --output=jsonpath='{.metadata.labels.app\.kubernetes\.io/component}')" == "${configmap_component}" ]]
 
+secret_rotation_operation="$(jq --raw-output '.status.operation.id' <<<"${drift_repaired}")"
+secret_rotation_application_uids_before="$(application_workload_pod_uids)"
+secret_rotation_execution_uids_before="$(execution_pod_uids)"
+kubectl --namespace "${namespace}" annotate secret foreman-runtime \
+  "foreman-kubernetes.io/operator-rotation-test=${secret_rotation_operation}" \
+  --overwrite >/dev/null
+secret_repair_started="$(wait_for_operation_change "${secret_rotation_operation}" 180)"
+secret_repair_operation="$(jq --raw-output '.status.operation.id' <<<"${secret_repair_started}")"
+secret_repaired="$(wait_for_release_phase Ready "${adopted_generation}" 1800)"
+jq --exit-status --arg operation "${secret_repair_operation}" '
+  .status.operation.id == $operation and
+  .status.operation.type == "Repair" and
+  (.status.operation.applicationSecretsSha256 | test("^[0-9a-f]{64}$")) and
+  (.status.operation.executionProxySecretsSha256 | test("^[0-9a-f]{64}$")) and
+  any(.status.operation.driftedResources[]?; . == "SecretInputs/application:modified")' \
+  <<<"${secret_repaired}" >/dev/null
+[[ "$(application_workload_pod_uids)" != "${secret_rotation_application_uids_before}" ]]
+[[ "$(execution_pod_uids)" != "${secret_rotation_execution_uids_before}" ]]
+
 pvc_name="$(kubectl --namespace "${namespace}" get persistentvolumeclaims \
   --selector="app.kubernetes.io/instance=${application_release}" \
   --output=json | jq --exit-status --raw-output '.items[0].metadata.name')"
@@ -364,6 +383,7 @@ mkdir -p "$(dirname "${output_file}")"
 jq --null-input \
   --argjson blocked "${blocked}" \
   --argjson drift_repaired "${drift_repaired}" \
+  --argjson secret_repaired "${secret_repaired}" \
   --argjson stateful_blocked "${stateful_blocked}" \
   --argjson ready "${ready}" \
   --arg failed_job "${failed_job}" \
@@ -374,6 +394,7 @@ jq --null-input \
   '{
     blockedStatus: $blocked.status,
     driftRepairStatus: $drift_repaired.status,
+    secretRotationStatus: $secret_repaired.status,
     statefulDriftStatus: $stateful_blocked.status,
     readyStatus: $ready.status,
     failedMigrationJob: $failed_job,
@@ -384,4 +405,4 @@ jq --null-input \
     }
   }' >"${output_file}"
 
-echo 'ForemanRelease handled migration failure, leader takeover, stateless repair, stateful drift, and certificate observation.'
+echo 'ForemanRelease handled migration failure, leader takeover, stateless and Secret repair, stateful drift, and certificate observation.'

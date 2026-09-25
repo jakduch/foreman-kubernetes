@@ -299,6 +299,12 @@ spec:
                     executionProxyProfileSha256:
                       type: string
                       pattern: ^[0-9a-f]{64}$
+                    applicationSecretsSha256:
+                      type: string
+                      pattern: ^[0-9a-f]{64}$
+                    executionProxySecretsSha256:
+                      type: string
+                      pattern: ^[0-9a-f]{64}$
                     timedOutPhase:
                       type: string
                     timeoutSeconds:

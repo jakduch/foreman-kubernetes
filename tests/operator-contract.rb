@@ -80,7 +80,11 @@ operation = status_schema.dig('properties', 'operation', 'properties')
 unless operation.dig('sourceSets', 'type') == 'array' && operation.dig('sourceSets', 'uniqueItems') == true
   raise 'operation status does not retain validated source compatibility sets'
 end
-%w[applicationValuesSha256 executionProxyValuesSha256 applicationProfileSha256 executionProxyProfileSha256].each do |digest|
+%w[
+  applicationValuesSha256 executionProxyValuesSha256
+  applicationProfileSha256 executionProxyProfileSha256
+  applicationSecretsSha256 executionProxySecretsSha256
+].each do |digest|
   raise "operation status does not retain #{digest}" unless operation.dig(digest, 'pattern') == '^[0-9a-f]{64}$'
 end
 raise 'operation status does not retain timeout evidence' unless operation.dig('timeoutSeconds', 'minimum') == 1 &&

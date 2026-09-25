@@ -30,6 +30,8 @@ module ForemanRelease
       'applicationProfileSha256' => :application_profile,
       'executionProxyProfileSha256' => :execution_proxy_profile
     }.freeze
+    APPLICATION_SECRETS_DIGEST = 'applicationSecretsSha256'
+    EXECUTION_SECRETS_DIGEST = 'executionProxySecretsSha256'
     MIGRATION_DEPENDENCY_TYPES = {
       'ConfigMap' => 'configmap',
       'PersistentVolumeClaim' => 'persistentvolumeclaim',
@@ -77,18 +79,26 @@ module ForemanRelease
       source_sets = installed_compatibility_sets(resource)
       context = resolve_context(resource, source_sets: source_sets)
       with_value_files(context) do |application_values, execution_values|
-        lint_chart(@application_chart, application_values, context.profiles.application_path, resource, operation)
-        lint_chart(@execution_chart, execution_values, context.profiles.execution_proxy_path, resource, operation)
+        lint_chart(
+          @application_chart, application_values, context.profiles.application_path,
+          resource, operation, APPLICATION_SECRETS_DIGEST
+        )
+        lint_chart(
+          @execution_chart, execution_values, context.profiles.execution_proxy_path,
+          resource, operation, EXECUTION_SECRETS_DIGEST
+        )
         application = render_chart(
           application_release(resource), @application_chart, application_values,
-          context.profiles.application_path, resource, operation
+          context.profiles.application_path, resource, operation, APPLICATION_SECRETS_DIGEST
         )
         execution = render_chart(
           execution_release(resource), @execution_chart, execution_values,
-          context.profiles.execution_proxy_path, resource, operation
+          context.profiles.execution_proxy_path, resource, operation, EXECUTION_SECRETS_DIGEST
         )
         validate_rendered_contract!(application, execution)
-        @preflight.validate!(application + execution, resource.dig('metadata', 'namespace'))
+        snapshot = @preflight.validate!(application + execution, resource.dig('metadata', 'namespace'))
+        context.digests[APPLICATION_SECRETS_DIGEST] = snapshot.fingerprint(application)
+        context.digests[EXECUTION_SECRETS_DIGEST] = snapshot.fingerprint(execution)
       end
 
       Observation.new(
@@ -173,7 +183,8 @@ module ForemanRelease
 
     def audit_ready(resource, operation)
       drift = []
-      rendered = []
+      application_rendered = []
+      execution_rendered = []
       [
         [application_release(resource), operation['applicationRevision']],
         [execution_release(resource), operation['executionProxyRevision']]
@@ -190,13 +201,25 @@ module ForemanRelease
         end
       end
 
-      with_rendered_application(resource, operation) do |_context, _values_path, resources|
-        rendered.concat(resources)
+      with_rendered_application(resource, operation, verify_secret_inputs: false) do |_context, _values_path, resources|
+        application_rendered.concat(resources)
         drift.concat(declared_resource_drift(resource, resources))
       end
-      with_rendered_execution(resource, operation) do |_context, _values_path, resources|
-        rendered.concat(resources)
+      with_rendered_execution(resource, operation, verify_secret_inputs: false) do |_context, _values_path, resources|
+        execution_rendered.concat(resources)
         drift.concat(declared_resource_drift(resource, resources))
+      end
+
+      namespace = resource.dig('metadata', 'namespace')
+      secret_snapshots = [
+        [APPLICATION_SECRETS_DIGEST, 'application', application_rendered],
+        [EXECUTION_SECRETS_DIGEST, 'execution-proxy', execution_rendered]
+      ].map do |digest_key, label, resources|
+        snapshot = @preflight.validate_secrets!(resources, namespace)
+        actual = snapshot.fingerprint(resources)
+        expected = operation[digest_key].to_s
+        drift << "SecretInputs/#{label}:modified" if expected.empty? || expected != actual
+        snapshot
       end
 
       drift = drift.uniq.sort
@@ -216,7 +239,7 @@ module ForemanRelease
         )
       end
 
-      certificate_expiry = @preflight.validate_secrets!(rendered, resource.dig('metadata', 'namespace'))
+      certificate_expiry = secret_snapshots.map(&:expiration).compact.min
       details = if certificate_expiry
                   {'certificateExpiryTimestamp' => certificate_expiry.utc.iso8601}
                 else
@@ -428,24 +451,26 @@ module ForemanRelease
       sources.uniq
     end
 
-    def with_rendered_application(resource, operation)
+    def with_rendered_application(resource, operation, verify_secret_inputs: true)
       context = resolve_context(resource, operation)
       with_value_files(context) do |application_values, _execution_values|
         rendered = render_chart(
           application_release(resource), @application_chart, application_values,
-          context.profiles.application_path, resource, operation
+          context.profiles.application_path, resource, operation, APPLICATION_SECRETS_DIGEST
         )
+        validate_secret_inputs!(resource, operation, rendered, APPLICATION_SECRETS_DIGEST) if verify_secret_inputs
         yield context, application_values, rendered
       end
     end
 
-    def with_rendered_execution(resource, operation)
+    def with_rendered_execution(resource, operation, verify_secret_inputs: true)
       context = resolve_context(resource, operation)
       with_value_files(context) do |_application_values, execution_values|
         rendered = render_chart(
           execution_release(resource), @execution_chart, execution_values,
-          context.profiles.execution_proxy_path, resource, operation
+          context.profiles.execution_proxy_path, resource, operation, EXECUTION_SECRETS_DIGEST
         )
+        validate_secret_inputs!(resource, operation, rendered, EXECUTION_SECRETS_DIGEST) if verify_secret_inputs
         yield context, execution_values, rendered
       end
     end
@@ -464,33 +489,47 @@ module ForemanRelease
       path
     end
 
-    def lint_chart(chart, values_path, profile_path, resource, operation)
+    def lint_chart(chart, values_path, profile_path, resource, operation, secret_digest_key)
       @runner.run(
         'helm', 'lint', chart, '--values', values_path, '--values', profile_path,
-        *operation_arguments(resource, operation)
+        *operation_arguments(resource, operation, secret_digest_key)
       )
     end
 
-    def render_chart(release_name, chart, values_path, profile_path, resource, operation = nil)
+    def render_chart(release_name, chart, values_path, profile_path, resource, operation = nil, secret_digest_key = nil)
       output = @runner.run(
         'helm', 'template', release_name, chart,
         '--namespace', resource.dig('metadata', 'namespace'),
         '--values', values_path, '--values', profile_path,
-        *operation_arguments(resource, operation)
+        *operation_arguments(resource, operation, secret_digest_key)
       )
       YAML.load_stream(output).compact
     rescue Psych::Exception => error
       raise InvalidRelease, "Helm rendered invalid YAML: #{error.message}"
     end
 
-    def operation_arguments(resource, operation = nil)
+    def operation_arguments(resource, operation = nil, secret_digest_key = nil)
       id = operation&.fetch('id', nil).to_s
       return [] if id.empty?
 
-      [
+      arguments = [
         '--set-string', "releaseOperation.id=#{id}",
         '--set-string', "releaseOperation.ownerUid=#{resource.dig('metadata', 'uid')}"
       ]
+      secret_digest = operation[secret_digest_key].to_s if secret_digest_key
+      arguments.concat(['--set-string', "secretRolloutToken=#{secret_digest}"]) unless secret_digest.to_s.empty?
+      arguments
+    end
+
+    def validate_secret_inputs!(resource, operation, rendered, digest_key)
+      expected = operation[digest_key].to_s
+      raise InvalidRelease, "release input #{digest_key} was not pinned during validation" if expected.empty?
+
+      snapshot = @preflight.validate_secrets!(rendered, resource.dig('metadata', 'namespace'))
+      actual = snapshot.fingerprint(rendered)
+      return if actual == expected
+
+      raise InvalidRelease, "release input #{digest_key} changed during operation"
     end
 
     def validate_rendered_contract!(application, execution)
@@ -593,7 +632,8 @@ module ForemanRelease
       matches && expressions
     end
 
-    def upgrade(release_name, chart, values_path, profile_path, resource, operation, skip_migration_jobs: false)
+    def upgrade(release_name, chart, values_path, profile_path, resource, operation, secret_digest_key,
+                skip_migration_jobs: false)
       phase_arguments = if skip_migration_jobs
                           ['--set', 'releaseOperation.skipMigrationJobs=true']
                         else
@@ -605,7 +645,7 @@ module ForemanRelease
         '--history-max', '10',
         '--values', values_path, '--values', profile_path,
         *phase_arguments,
-        *operation_arguments(resource, operation)
+        *operation_arguments(resource, operation, secret_digest_key)
       )
     end
 
@@ -613,6 +653,7 @@ module ForemanRelease
       upgrade(
         application_release(resource), @application_chart, values_path,
         context.profiles.application_path, resource, operation,
+        APPLICATION_SECRETS_DIGEST,
         skip_migration_jobs: true
       )
       Observation.new(
@@ -625,7 +666,8 @@ module ForemanRelease
     def submit_execution_release(resource, operation, context, values_path, message)
       upgrade(
         execution_release(resource), @execution_chart, values_path,
-        context.profiles.execution_proxy_path, resource, operation
+        context.profiles.execution_proxy_path, resource, operation,
+        EXECUTION_SECRETS_DIGEST
       )
       Observation.new(
         state: :pending,

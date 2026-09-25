@@ -76,17 +76,21 @@ execution-proxy renders. It compares chart-declared labels, annotations,
 configuration payloads, and spec fields while ignoring status, server defaults,
 and additional admission-injected fields. The interval is bounded by `spec.driftCheckSeconds`
 (60 seconds by default). The same audit re-reads every external Secret and
-revalidates required certificate dates, key pairs, and colocated trust chains.
+revalidates required certificate dates, key pairs, trust chains, and DNS
+identities. Each release records a SHA-256 fingerprint of required Secret
+names, keys, and Kubernetes resource versions without storing Secret contents.
 An unusable Secret records a drift-audit error and raises the monitoring alert,
-but never causes the controller to rewrite credentials or interrupt running
-Pods. A missing or modified stateless object, or an out-of-band Helm revision,
-starts a new uniquely sequenced `Repair` operation. It repeats
+but never interrupts running Pods. A valid Secret update, missing or modified
+stateless object, or out-of-band Helm revision starts a new uniquely sequenced
+`Repair` operation. It repeats
 preflight, Lease fencing, both rollouts, registration, and smoke verification,
 but deliberately skips database migrations because the compatibility set was
-already migrated. Changed values Secret content still fails the pinned-input
-check and must be applied explicitly with `spec.reconcileToken`. A missing or
-modified PVC enters `Blocked` instead: silently creating or rewriting storage
-is not a valid recovery procedure.
+already migrated. The Secret fingerprint is supplied as the chart's rollout
+token, including for file-level `subPath` mounts. A Secret change during an
+active operation fails the pinned-input check. Changed values Secret content
+also remains explicit through `spec.reconcileToken`. A missing or modified PVC
+enters `Blocked` instead: silently creating or rewriting storage is not a valid
+recovery procedure.
 
 The adapter boundary now includes three concrete, tested primitives:
 
