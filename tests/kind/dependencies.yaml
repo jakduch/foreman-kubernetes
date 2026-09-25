@@ -219,11 +219,43 @@ data:
     )
   python-module.py: |
     VERSION = "1.0.0"
+  oci-config.json: |-
+    {"architecture":"amd64","config":{},"os":"linux","rootfs":{"diff_ids":[],"type":"layers"}}
+  oci-manifest.json: |-
+    {"schemaVersion":2,"mediaType":"application/vnd.oci.image.manifest.v1+json","config":{"mediaType":"application/vnd.oci.image.config.v1+json","size":90,"digest":"sha256:067c4dd72da4d166811c210f3d96a24e0f1c7ed7f02f905f6f78e03d500f7c59"},"layers":[]}
+  oci-tags.json: |-
+    {"name":"foreman-kubernetes-fixture","tags":["1.0.0"]}
   nginx.conf: |
     server {
       listen 8080;
       server_name _;
       root /usr/share/nginx/html;
+
+      location = /v2/ {
+        default_type application/json;
+        add_header Docker-Distribution-Api-Version "registry/2.0" always;
+        return 200 '{}';
+      }
+
+      location ~ ^/v2/.+/manifests/ {
+        default_type application/vnd.oci.image.manifest.v1+json;
+        add_header Docker-Distribution-Api-Version "registry/2.0" always;
+        add_header Docker-Content-Digest "sha256:ee2cdbe59e4f2fd7d147f75965389f494b67b1b33107f3b8d487eef5f41b1f36" always;
+        try_files $uri =404;
+      }
+
+      location ~ ^/v2/.+/blobs/ {
+        default_type application/vnd.oci.image.config.v1+json;
+        add_header Docker-Distribution-Api-Version "registry/2.0" always;
+        add_header Docker-Content-Digest "sha256:067c4dd72da4d166811c210f3d96a24e0f1c7ed7f02f905f6f78e03d500f7c59" always;
+        try_files $uri =404;
+      }
+
+      location ~ ^/v2/.+/tags/list$ {
+        default_type application/json;
+        add_header Docker-Distribution-Api-Version "registry/2.0" always;
+        try_files $uri =404;
+      }
 
       location ~ /json$ {
         default_type application/json;
@@ -514,6 +546,17 @@ spec:
               EOF
               cat "${rpm_repomd_entries}" >> "${rpm_root}/repodata/repomd.xml"
               printf '%s\n' '</repomd>' >> "${rpm_root}/repodata/repomd.xml"
+
+              oci_name=foreman-kubernetes-fixture
+              oci_tag=1.0.0
+              oci_config_digest=067c4dd72da4d166811c210f3d96a24e0f1c7ed7f02f905f6f78e03d500f7c59
+              oci_manifest_digest=ee2cdbe59e4f2fd7d147f75965389f494b67b1b33107f3b8d487eef5f41b1f36
+              oci_root="/served/v2/${oci_name}"
+              mkdir -p "${oci_root}/blobs" "${oci_root}/manifests" "${oci_root}/tags"
+              cp /source/oci-config.json "${oci_root}/blobs/sha256:${oci_config_digest}"
+              cp /source/oci-manifest.json "${oci_root}/manifests/${oci_tag}"
+              cp /source/oci-manifest.json "${oci_root}/manifests/sha256:${oci_manifest_digest}"
+              cp /source/oci-tags.json "${oci_root}/tags/list"
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:

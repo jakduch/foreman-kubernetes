@@ -139,12 +139,15 @@ by default. The opt-in amd64 drill now creates a self-contained Python source
 distribution, synchronizes it through Katello, checks indexed metadata and the
 public PyPI package, publishes it in a Content View, and verifies the same state
 after clean-namespace
-recovery. The same lifecycle now creates an unsigned deterministic APT
+recovery. The same lifecycle now creates an unsigned deterministic OCI image
+fixture, synchronizes its tag and manifest through Katello, verifies the
+published registry manifest over the mTLS compatibility route, and checks the
+same state after clean recovery. It also creates an unsigned deterministic APT
 repository, synchronizes its Debian package through Katello, includes it in the
 published Content View, and verifies both the library and published package
 after clean recovery. A minimal repository built from Katello's own `squirrel`
 RPM fixture now covers the same synchronization, publication, metadata, and
-recovery boundary for RPM content. All three plugin statuses remain
+recovery boundary for RPM content. All four plugin statuses remain
 `integration-drill-implemented-unrun` until the complete amd64 drill passes; a
 package and a correct route alone are not support evidence.
 

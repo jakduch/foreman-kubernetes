@@ -24,6 +24,9 @@ rpm_package_release="0.8"
 rpm_package_arch="noarch"
 rpm_package_filename="squirrel-0.3-0.8.noarch.rpm"
 rpm_package_checksum="251768bdd15f13d78487c27638aa6aecd01551e253756093cde1c0ae878a17d2"
+container_upstream_name="foreman-kubernetes-fixture"
+container_tag="1.0.0"
+container_manifest_digest="sha256:ee2cdbe59e4f2fd7d147f75965389f494b67b1b33107f3b8d487eef5f41b1f36"
 
 foreman_pod() {
   kubectl --namespace "${namespace}" get pod \
@@ -149,6 +152,33 @@ assert_public_python_content() {
   assert_equal "${downloaded_checksum}" "${expected_checksum}" "published Python package checksum"
 }
 
+assert_registry_manifest() {
+  local repository_name="$1"
+  local description="$2"
+  local headers="${temporary_directory}/container-manifest-headers"
+  local manifest="${temporary_directory}/container-manifest.json"
+  local response_digest
+  local manifest_digest
+
+  curl --fail --silent --show-error \
+    --cacert "${temporary_directory}/ca.crt" \
+    --cert "${temporary_directory}/foreman-client.crt" \
+    --key "${temporary_directory}/foreman-client.key" \
+    --resolve content.test:8443:127.0.0.1 \
+    --header 'Accept: application/vnd.oci.image.manifest.v1+json' \
+    --dump-header "${headers}" \
+    --output "${manifest}" \
+    "https://content.test:8443/pulpcore_registry/v2/${repository_name}/manifests/${container_tag}"
+
+  response_digest="$(tr -d '\r' < "${headers}" | \
+    awk -F': ' 'tolower($1) == "docker-content-digest" { print $2 }' | tail -n 1)"
+  assert_equal "${response_digest}" "${container_manifest_digest}" \
+    "${description} registry response digest"
+  manifest_digest="sha256:$(openssl dgst -sha256 -r "${manifest}" | awk '{print $1}')"
+  assert_equal "${manifest_digest}" "${container_manifest_digest}" \
+    "${description} registry manifest checksum"
+}
+
 seed_content_lifecycle() {
   local activation_key
   local activation_key_id
@@ -158,6 +188,11 @@ seed_content_lifecycle() {
   local content_view_id
   local content_view_version
   local content_view_version_id
+  local container_manifests
+  local container_repository
+  local container_repository_id
+  local container_repository_name
+  local container_tags
   local deb_package_checksum
   local deb_packages
   local deb_repository
@@ -174,6 +209,9 @@ seed_content_lifecycle() {
   local published_python_repository_id
   local published_python_relative_path
   local published_deb_repository_id
+  local published_container_repository
+  local published_container_repository_id
+  local published_container_repository_name
   local published_rpm_repository_id
   local published_repository
   local published_repository_id
@@ -336,13 +374,55 @@ seed_content_lifecycle() {
   assert_equal "$(jq --exit-status --raw-output '.results[0].checksum' <<<"${rpm_packages}")" \
     "${rpm_package_checksum}" "synced RPM package checksum"
 
+  container_repository="$(foreman_api POST /katello/api/repositories "$(
+    jq --compact-output --null-input \
+      --argjson product_id "${product_id}" \
+      --arg upstream_name "${container_upstream_name}" \
+      --arg tag "${container_tag}" '{
+      product_id: $product_id,
+      repository: {
+        name: "Kubernetes Integration Container",
+        label: "Kubernetes_Integration_Container",
+        content_type: "docker",
+        download_policy: "immediate",
+        unprotected: true,
+        url: "http://content-source.foreman.svc.cluster.local",
+        docker_upstream_name: $upstream_name,
+        include_tags: [$tag]
+      }
+    }'
+  )")"
+  container_repository_id="$(jq --exit-status --raw-output '.id' <<<"${container_repository}")"
+  container_repository_name="$(jq --exit-status --raw-output \
+    '.container_repository_name' <<<"${container_repository}")"
+
+  sync_task="$(foreman_api POST "/katello/api/repositories/${container_repository_id}/sync" '{}')"
+  wait_for_task "$(task_id_from <<<"${sync_task}")"
+
+  container_tags="$(foreman_api GET \
+    "/katello/api/repositories/${container_repository_id}/docker_tags?per_page=all")"
+  assert_equal "$(jq --raw-output '.total' <<<"${container_tags}")" "1" \
+    "synced container tag count"
+  assert_equal "$(jq --exit-status --raw-output '.results[0].name' <<<"${container_tags}")" \
+    "${container_tag}" "synced container tag"
+  assert_equal "$(jq --exit-status --raw-output '.results[0].manifest.digest' <<<"${container_tags}")" \
+    "${container_manifest_digest}" "synced container tag manifest digest"
+  container_manifests="$(foreman_api GET \
+    "/katello/api/repositories/${container_repository_id}/docker_manifests?per_page=all")"
+  assert_equal "$(jq --raw-output '.total' <<<"${container_manifests}")" "1" \
+    "synced container manifest count"
+  assert_equal "$(jq --exit-status --raw-output '.results[0].digest' <<<"${container_manifests}")" \
+    "${container_manifest_digest}" "synced container manifest digest"
+  assert_registry_manifest "${container_repository_name}" "library container"
+
   content_view="$(foreman_api POST /katello/api/content_views "$(
     jq --compact-output --null-input \
       --argjson organization_id "${organization_id}" \
       --argjson repository_id "${repository_id}" \
       --argjson python_repository_id "${python_repository_id}" \
       --argjson deb_repository_id "${deb_repository_id}" \
-      --argjson rpm_repository_id "${rpm_repository_id}" '{
+      --argjson rpm_repository_id "${rpm_repository_id}" \
+      --argjson container_repository_id "${container_repository_id}" '{
         organization_id: $organization_id,
         content_view: {
           name: "Kubernetes Integration View",
@@ -351,7 +431,8 @@ seed_content_lifecycle() {
             $repository_id,
             $python_repository_id,
             $deb_repository_id,
-            $rpm_repository_id
+            $rpm_repository_id,
+            $container_repository_id
           ]
         }
       }'
@@ -401,6 +482,21 @@ seed_content_lifecycle() {
     "published RPM package count"
   assert_equal "$(jq --exit-status --raw-output '.results[0].checksum' <<<"${rpm_packages}")" \
     "${rpm_package_checksum}" "published RPM package checksum"
+  published_container_repository_id="$(jq --exit-status --raw-output \
+    --argjson repository_id "${container_repository_id}" \
+    '.repositories[] | select(.library_instance_id == $repository_id) | .id' \
+    <<<"${content_view_version}")"
+  published_container_repository="$(foreman_api GET \
+    "/katello/api/repositories/${published_container_repository_id}")"
+  published_container_repository_name="$(jq --exit-status --raw-output \
+    '.container_repository_name' <<<"${published_container_repository}")"
+  container_tags="$(foreman_api GET \
+    "/katello/api/repositories/${published_container_repository_id}/docker_tags?per_page=all")"
+  assert_equal "$(jq --raw-output '.total' <<<"${container_tags}")" "1" \
+    "published container tag count"
+  assert_equal "$(jq --exit-status --raw-output '.results[0].manifest.digest' <<<"${container_tags}")" \
+    "${container_manifest_digest}" "published container tag manifest digest"
+  assert_registry_manifest "${published_container_repository_name}" "published container"
 
   library_environment="$(foreman_api GET \
     "/katello/api/organizations/${organization_id}/environments?library=true")"
@@ -441,6 +537,8 @@ seed_content_lifecycle() {
     --argjson deb_repository_id "${deb_repository_id}" \
     --arg deb_package_checksum "${deb_package_checksum}" \
     --argjson rpm_repository_id "${rpm_repository_id}" \
+    --argjson container_repository_id "${container_repository_id}" \
+    --arg container_repository_name "${container_repository_name}" \
     --argjson content_view_id "${content_view_id}" \
     --argjson content_view_version_id "${content_view_version_id}" \
     --argjson published_repository_id "${published_repository_id}" \
@@ -449,6 +547,8 @@ seed_content_lifecycle() {
     --arg published_python_relative_path "${published_python_relative_path}" \
     --argjson published_deb_repository_id "${published_deb_repository_id}" \
     --argjson published_rpm_repository_id "${published_rpm_repository_id}" \
+    --argjson published_container_repository_id "${published_container_repository_id}" \
+    --arg published_container_repository_name "${published_container_repository_name}" \
     --argjson content_view_environment_id "${content_view_environment_id}" \
     --argjson activation_key_id "${activation_key_id}" '{
       organization_id: $organization_id,
@@ -461,6 +561,8 @@ seed_content_lifecycle() {
       deb_repository_id: $deb_repository_id,
       deb_package_checksum: $deb_package_checksum,
       rpm_repository_id: $rpm_repository_id,
+      container_repository_id: $container_repository_id,
+      container_repository_name: $container_repository_name,
       content_view_id: $content_view_id,
       content_view_version_id: $content_view_version_id,
       published_repository_id: $published_repository_id,
@@ -469,6 +571,8 @@ seed_content_lifecycle() {
       published_python_relative_path: $published_python_relative_path,
       published_deb_repository_id: $published_deb_repository_id,
       published_rpm_repository_id: $published_rpm_repository_id,
+      published_container_repository_id: $published_container_repository_id,
+      published_container_repository_name: $published_container_repository_name,
       content_view_environment_id: $content_view_environment_id,
       activation_key_id: $activation_key_id
     }' >"${state_file}"
@@ -482,6 +586,11 @@ assert_content_lifecycle() {
   local content_view_id
   local content_view_version
   local content_view_version_id
+  local container_manifests
+  local container_repository
+  local container_repository_id
+  local container_repository_name
+  local container_tags
   local deb_package_checksum
   local deb_packages
   local deb_repository
@@ -493,6 +602,9 @@ assert_content_lifecycle() {
   local published_python_relative_path
   local published_deb_repository_id
   local published_rpm_repository_id
+  local published_container_repository
+  local published_container_repository_id
+  local published_container_repository_name
   local published_repository_id
   local published_relative_path
   local python_package_checksum
@@ -511,11 +623,12 @@ assert_content_lifecycle() {
     .organization_id and .product_id and .repository_id and .relative_path and
     .python_repository_id and .python_relative_path and .python_package_checksum and
     .deb_repository_id and .deb_package_checksum and
-    .rpm_repository_id and
+    .rpm_repository_id and .container_repository_id and .container_repository_name and
     .content_view_id and .content_view_version_id and .published_repository_id and
     .published_relative_path and .published_python_repository_id and
     .published_python_relative_path and .published_deb_repository_id and
-    .published_rpm_repository_id and
+    .published_rpm_repository_id and .published_container_repository_id and
+    .published_container_repository_name and
     .content_view_environment_id and .activation_key_id
   ' "${state_file}" >/dev/null
 
@@ -529,6 +642,8 @@ assert_content_lifecycle() {
   deb_repository_id="$(jq --raw-output '.deb_repository_id' "${state_file}")"
   deb_package_checksum="$(jq --raw-output '.deb_package_checksum' "${state_file}")"
   rpm_repository_id="$(jq --raw-output '.rpm_repository_id' "${state_file}")"
+  container_repository_id="$(jq --raw-output '.container_repository_id' "${state_file}")"
+  container_repository_name="$(jq --raw-output '.container_repository_name' "${state_file}")"
   content_view_id="$(jq --raw-output '.content_view_id' "${state_file}")"
   content_view_version_id="$(jq --raw-output '.content_view_version_id' "${state_file}")"
   published_repository_id="$(jq --raw-output '.published_repository_id' "${state_file}")"
@@ -541,6 +656,10 @@ assert_content_lifecycle() {
     '.published_deb_repository_id' "${state_file}")"
   published_rpm_repository_id="$(jq --raw-output \
     '.published_rpm_repository_id' "${state_file}")"
+  published_container_repository_id="$(jq --raw-output \
+    '.published_container_repository_id' "${state_file}")"
+  published_container_repository_name="$(jq --raw-output \
+    '.published_container_repository_name' "${state_file}")"
   content_view_environment_id="$(jq --raw-output '.content_view_environment_id' "${state_file}")"
   activation_key_id="$(jq --raw-output '.activation_key_id' "${state_file}")"
 
@@ -610,6 +729,27 @@ assert_content_lifecycle() {
   assert_equal "$(jq --exit-status --raw-output '.results[0].checksum' <<<"${rpm_packages}")" \
     "${rpm_package_checksum}" "restored RPM package checksum"
 
+  container_repository="$(foreman_api GET "/katello/api/repositories/${container_repository_id}")"
+  assert_equal "$(jq --raw-output '.id' <<<"${container_repository}")" \
+    "${container_repository_id}" "restored container repository"
+  assert_equal "$(jq --raw-output '.container_repository_name' <<<"${container_repository}")" \
+    "${container_repository_name}" "restored container repository name"
+  container_tags="$(foreman_api GET \
+    "/katello/api/repositories/${container_repository_id}/docker_tags?per_page=all")"
+  assert_equal "$(jq --raw-output '.total' <<<"${container_tags}")" "1" \
+    "restored container tag count"
+  assert_equal "$(jq --exit-status --raw-output '.results[0].name' <<<"${container_tags}")" \
+    "${container_tag}" "restored container tag"
+  assert_equal "$(jq --exit-status --raw-output '.results[0].manifest.digest' <<<"${container_tags}")" \
+    "${container_manifest_digest}" "restored container tag manifest digest"
+  container_manifests="$(foreman_api GET \
+    "/katello/api/repositories/${container_repository_id}/docker_manifests?per_page=all")"
+  assert_equal "$(jq --raw-output '.total' <<<"${container_manifests}")" "1" \
+    "restored container manifest count"
+  assert_equal "$(jq --exit-status --raw-output '.results[0].digest' <<<"${container_manifests}")" \
+    "${container_manifest_digest}" "restored container manifest digest"
+  assert_registry_manifest "${container_repository_name}" "restored library container"
+
   content_view="$(foreman_api GET "/katello/api/content_views/${content_view_id}")"
   assert_equal "$(jq --raw-output '.latest_version' <<<"${content_view}")" "1.0" \
     "restored content view version"
@@ -625,6 +765,9 @@ assert_content_lifecycle() {
   assert_equal "$(jq --argjson repository_id "${rpm_repository_id}" \
     '[.repository_ids[] | select(. == $repository_id)] | length' <<<"${content_view}")" \
     "1" "restored content view RPM repository count"
+  assert_equal "$(jq --argjson repository_id "${container_repository_id}" \
+    '[.repository_ids[] | select(. == $repository_id)] | length' <<<"${content_view}")" \
+    "1" "restored content view container repository count"
 
   content_view_version="$(foreman_api GET "/katello/api/content_view_versions/${content_view_version_id}")"
   assert_equal "$(jq --argjson published_repository_id "${published_repository_id}" \
@@ -658,6 +801,20 @@ assert_content_lifecycle() {
     "restored published RPM package count"
   assert_equal "$(jq --exit-status --raw-output '.results[0].checksum' <<<"${rpm_packages}")" \
     "${rpm_package_checksum}" "restored published RPM package checksum"
+  assert_equal "$(jq --argjson published_repository_id "${published_container_repository_id}" \
+    '[.repositories[].id | select(. == $published_repository_id)] | length' \
+    <<<"${content_view_version}")" "1" "restored published container repository count"
+  published_container_repository="$(foreman_api GET \
+    "/katello/api/repositories/${published_container_repository_id}")"
+  assert_equal "$(jq --raw-output '.container_repository_name' <<<"${published_container_repository}")" \
+    "${published_container_repository_name}" "restored published container repository name"
+  container_tags="$(foreman_api GET \
+    "/katello/api/repositories/${published_container_repository_id}/docker_tags?per_page=all")"
+  assert_equal "$(jq --raw-output '.total' <<<"${container_tags}")" "1" \
+    "restored published container tag count"
+  assert_equal "$(jq --exit-status --raw-output '.results[0].manifest.digest' <<<"${container_tags}")" \
+    "${container_manifest_digest}" "restored published container tag manifest digest"
+  assert_registry_manifest "${published_container_repository_name}" "restored published container"
 
   activation_key="$(foreman_api GET "/katello/api/activation_keys/${activation_key_id}")"
   assert_equal "$(jq --exit-status --raw-output \

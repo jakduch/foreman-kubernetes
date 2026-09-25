@@ -41,10 +41,12 @@
   target; the task must become terminal and a fresh command must then succeed,
   without claiming transparent continuation of the interrupted SSH process;
 - absence of a public Pulp administrative API route;
-- Katello file and Python content lifecycles against an in-cluster deterministic
-  source: organization and product creation, repository synchronization,
-  metadata indexing, public Pulp and PyPI package delivery, Content View
-  publication, and Activation Key assignment;
+- Katello file, Python, OCI container, Debian, and RPM content lifecycles against
+  an in-cluster deterministic source: organization and product creation,
+  repository synchronization, metadata indexing, public Pulp, PyPI, and OCI
+  registry delivery, Content View publication, and Activation Key assignment;
+- container tags and manifests are checked through Pulp and the published
+  registry manifest is fetched through the client-certificate compatibility route;
 - an encrypted Restic backup of all three PostgreSQL databases, Pulp storage,
   and the declared Secret escrow;
 - restoration after deliberately changing independent probes, deleting the

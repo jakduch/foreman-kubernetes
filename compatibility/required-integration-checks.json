@@ -18,6 +18,7 @@
     "pulp-debian-lifecycle",
     "pulp-python-lifecycle",
     "pulp-rpm-lifecycle",
+    "pulp-container-lifecycle",
     "pulp-api-content-request-continuity",
     "rex-success-failure-cancel",
     "proxy-interruption",
