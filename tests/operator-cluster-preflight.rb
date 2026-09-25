@@ -53,6 +53,19 @@ class PreflightRunner
   end
 end
 
+class PreflightCertificateValidator
+  attr_reader :calls
+
+  def initialize
+    @calls = []
+  end
+
+  def validate_secret!(*arguments)
+    @calls << arguments
+    true
+  end
+end
+
 documents = [
   {
     'apiVersion' => 'v1',
@@ -140,8 +153,16 @@ client.objects = {
   ['platform', 'secret', 'ingress-tls'] => {'data' => {'tls.crt' => 'encoded', 'tls.key' => 'encoded'}}
 }
 runner = PreflightRunner.new
-preflight = ForemanRelease::ClusterPreflight.new(client, runner: runner)
+certificate_validator = PreflightCertificateValidator.new
+preflight = ForemanRelease::ClusterPreflight.new(
+  client, runner: runner, certificate_validator: certificate_validator
+)
 raise 'valid cluster dependencies were rejected' unless preflight.validate!(documents, 'platform')
+validated_certificate_secrets = certificate_validator.calls.map { |arguments| arguments.take(2) }
+unless validated_certificate_secrets.include?(%w[platform ingress-ca]) &&
+       validated_certificate_secrets.include?(%w[platform ingress-tls])
+  raise 'preflight did not validate referenced certificate Secrets'
+end
 dry_run = runner.calls.fetch(0)
 expected_command = %w[kubectl --namespace platform apply --dry-run=server --filename -]
 raise 'preflight did not use a server-side admission dry-run' unless dry_run.first == expected_command

@@ -21,9 +21,11 @@ abort 'operator has no leader Lease name' unless environment.any? { |entry| entr
 abort 'operator has no leader Lease duration' unless environment.any? { |entry| entry['name'] == 'LEADER_LEASE_DURATION_SECONDS' }
 command_timeout = environment.find { |entry| entry['name'] == 'COMMAND_TIMEOUT_SECONDS' }
 command_grace = environment.find { |entry| entry['name'] == 'COMMAND_TERMINATION_GRACE_SECONDS' }
+certificate_validity = environment.find { |entry| entry['name'] == 'CERTIFICATE_MINIMUM_VALIDITY_SECONDS' }
 release_lease = environment.find { |entry| entry['name'] == 'RELEASE_LEASE_DURATION_SECONDS' }
 abort 'operator commands have no execution deadline' unless command_timeout&.fetch('value') == '60'
 abort 'operator commands have no termination grace period' unless command_grace&.fetch('value') == '5'
+abort 'operator certificates have no minimum remaining validity' unless certificate_validity&.fetch('value') == '86400'
 abort 'operation Lease does not outlive bounded commands' unless release_lease&.fetch('value') == '300'
 health_port = environment.find { |entry| entry['name'] == 'HEALTH_PORT' }
 readiness_staleness = environment.find { |entry| entry['name'] == 'READINESS_MAX_STALENESS_SECONDS' }

@@ -109,7 +109,9 @@ Script before the final application and external mTLS smoke gates run.
 Before the Lease is acquired, `ClusterPreflight` derives dependencies from the
 exact combined render. It verifies referenced Secret keys, external PVCs and
 ServiceAccounts, explicit or default StorageClasses, the required IngressClass
-controller, referenced PriorityClasses, and metrics API availability. The
+controller, referenced PriorityClasses, and metrics API availability. Required
+X.509 inputs are parsed and must remain valid for the configured safety window;
+known certificate/key pairs and colocated CA chains are verified as well. The
 complete render must then pass Kubernetes server-side admission dry-run before
 the operation can acquire its mutation Lease. The manual install and upgrade
 scripts use the same `ManifestRequirements` implementation, so their preflight

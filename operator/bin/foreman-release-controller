@@ -7,6 +7,8 @@ root = Pathname.new(ENV.fetch('FOREMAN_KUBERNETES_ROOT', File.expand_path('../..
 $LOAD_PATH.unshift(root.join('operator/lib').to_s)
 
 require 'foreman_release/controller'
+require 'foreman_release/certificate_validator'
+require 'foreman_release/cluster_preflight'
 require 'foreman_release/controller_status'
 require 'foreman_release/event_recorder'
 require 'foreman_release/health_server'
@@ -23,6 +25,7 @@ poll_seconds = Integer(ENV.fetch('POLL_SECONDS', '5'))
 lease_duration = Integer(ENV.fetch('RELEASE_LEASE_DURATION_SECONDS', '300'))
 command_timeout = Integer(ENV.fetch('COMMAND_TIMEOUT_SECONDS', '60'))
 command_termination_grace = Integer(ENV.fetch('COMMAND_TERMINATION_GRACE_SECONDS', '5'))
+certificate_minimum_validity = Integer(ENV.fetch('CERTIFICATE_MINIMUM_VALIDITY_SECONDS', '86400'))
 health_port = Integer(ENV.fetch('HEALTH_PORT', '9393'))
 readiness_max_staleness = Integer(ENV.fetch('READINESS_MAX_STALENESS_SECONDS', '180'))
 leader_lease_duration = Integer(ENV.fetch('LEADER_LEASE_DURATION_SECONDS', '30'))
@@ -52,12 +55,21 @@ leader_elector = ForemanRelease::LeaderElector.new(
   identity: pod_uid,
   lease_manager: leader_lease_manager
 )
+certificate_validator = ForemanRelease::CertificateValidator.new(
+  minimum_validity_seconds: certificate_minimum_validity
+)
+preflight = ForemanRelease::ClusterPreflight.new(
+  kubernetes,
+  runner: runner,
+  certificate_validator: certificate_validator
+)
 adapter = ForemanRelease::RuntimeAdapter.new(
   root: root,
   lease_identity: pod_uid,
   runner: runner,
   kubernetes_client: kubernetes,
-  lease_manager: lease_manager
+  lease_manager: lease_manager,
+  preflight: preflight
 )
 machine = ForemanRelease::StateMachine.load(root.join('operator/release-state-machine.json'))
 reconciler = ForemanRelease::Reconciler.new(

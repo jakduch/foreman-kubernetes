@@ -13,6 +13,7 @@ controller:
   pollSeconds: 5
   commandTimeoutSeconds: 60
   commandTerminationGraceSeconds: 5
+  certificateMinimumValiditySeconds: 86400
   releaseLeaseDurationSeconds: 300
   leaderLeaseName: foreman-release-controller-leader
   leaderLeaseDurationSeconds: 30

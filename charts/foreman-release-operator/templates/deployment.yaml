@@ -74,6 +74,8 @@ spec:
               value: {{ .Values.controller.commandTimeoutSeconds | quote }}
             - name: COMMAND_TERMINATION_GRACE_SECONDS
               value: {{ .Values.controller.commandTerminationGraceSeconds | quote }}
+            - name: CERTIFICATE_MINIMUM_VALIDITY_SECONDS
+              value: {{ .Values.controller.certificateMinimumValiditySeconds | quote }}
             - name: HEALTH_PORT
               value: {{ .Values.health.port | quote }}
             - name: READINESS_MAX_STALENESS_SECONDS

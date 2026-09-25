@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative 'command_runner'
+require_relative 'certificate_validator'
 require_relative 'manifest_requirements'
 require_relative 'release_inputs'
 require 'yaml'
@@ -12,9 +13,10 @@ module ForemanRelease
       storageclass.beta.kubernetes.io/is-default-class
     ].freeze
 
-    def initialize(kubernetes_client, runner: CommandRunner.new)
+    def initialize(kubernetes_client, runner: CommandRunner.new, certificate_validator: CertificateValidator.new)
       @kubernetes_client = kubernetes_client
       @runner = runner
+      @certificate_validator = certificate_validator
     end
 
     def validate!(documents, namespace)
@@ -26,6 +28,8 @@ module ForemanRelease
         secret = required_resource(namespace, 'secret', name)
         missing = keys.reject { |key| secret.fetch('data', {}).key?(key) }
         raise InvalidRelease, "Secret #{namespace}/#{name} is missing keys: #{missing.join(', ')}" unless missing.empty?
+
+        @certificate_validator.validate_secret!(namespace, name, secret, keys)
       end
       validate_server_dry_run!(documents, namespace)
       true

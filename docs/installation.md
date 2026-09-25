@@ -100,7 +100,16 @@ kubectl apply --server-side \
 Preflight follows Secret-backed environment variables, projected keys, and
 file-level `subPath` mounts. A Secret that exists but lacks a certificate or
 key consumed through an unfiltered Secret volume is rejected before any
-release mutation.
+release mutation. Every required X.509 identity must be parseable, already
+valid, and valid for at least another 24 hours by default. A CA rotation bundle
+may retain expired roots but must contain at least one certificate valid beyond
+that window. Known certificate and private-key pairs must match, and a leaf
+stored beside its CA bundle must verify against that bundle. Set
+`controller.certificateMinimumValiditySeconds` on the operator chart to use a
+stricter rotation window. The manual guarded scripts accept the equivalent
+`CERTIFICATE_MINIMUM_VALIDITY_SECONDS` environment variable; reducing it to
+zero removes only the remaining-lifetime buffer, not parsing, key, or trust
+checks.
 
 Store the two environment value documents in one same-namespace Secret. They
 may reference the normal runtime credential Secrets; their contents are not

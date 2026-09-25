@@ -98,7 +98,14 @@ check_required_secrets() {
   local namespace="$2"
   local repo_root="$3"
   local required_secrets secret_name secret_keys secret_json secret_key
+  local certificate_minimum_validity_seconds
   local -a keys
+
+  certificate_minimum_validity_seconds="${CERTIFICATE_MINIMUM_VALIDITY_SECONDS:-86400}"
+  [[ "${certificate_minimum_validity_seconds}" =~ ^[0-9]+$ ]] || {
+    echo 'CERTIFICATE_MINIMUM_VALIDITY_SECONDS must be a non-negative integer' >&2
+    return 1
+  }
 
   echo 'Preflight: checking externally managed Secrets and referenced keys'
   required_secrets="$(ruby "${repo_root}/scripts/required-secrets.rb" \
@@ -119,6 +126,9 @@ check_required_secrets() {
         return 1
       }
     done
+    ruby "${repo_root}/scripts/validate-secret-certificates.rb" \
+      "${namespace}" "${secret_name}" "${secret_keys}" \
+      "${certificate_minimum_validity_seconds}" <<<"${secret_json}" || return 1
   done <<<"${required_secrets}"
 }
 
