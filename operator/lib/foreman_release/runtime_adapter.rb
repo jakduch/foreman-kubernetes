@@ -216,11 +216,16 @@ module ForemanRelease
         )
       end
 
-      @preflight.validate_secrets!(rendered, resource.dig('metadata', 'namespace'))
+      certificate_expiry = @preflight.validate_secrets!(rendered, resource.dig('metadata', 'namespace'))
+      details = if certificate_expiry
+                  {'certificateExpiryTimestamp' => certificate_expiry.utc.iso8601}
+                else
+                  {}
+                end
       Observation.new(
         state: :succeeded,
         message: 'all declared release resources and external Secret inputs are usable',
-        details: {}
+        details: details
       )
     end
 

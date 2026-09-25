@@ -162,11 +162,12 @@ end
 
 class RuntimePreflight
   attr_reader :calls, :secret_calls
-  attr_accessor :secret_error
+  attr_accessor :certificate_expiry, :secret_error
 
   def initialize
     @calls = []
     @secret_calls = []
+    @certificate_expiry = Time.utc(2026, 10, 25, 12, 0, 0)
   end
 
   def validate!(documents, namespace)
@@ -176,6 +177,8 @@ class RuntimePreflight
   def validate_secrets!(documents, namespace)
     @secret_calls << [documents, namespace]
     raise ForemanRelease::InvalidRelease, secret_error if secret_error
+
+    certificate_expiry
   end
 end
 
@@ -504,6 +507,9 @@ ForemanRelease::RuntimeAdapter::DRIFT_RESOURCE_TYPES.each do |kind, type|
 end
 audit = adapter.audit_ready(resource, operation)
 raise "complete Ready release was reported as drifted: #{audit.message}" unless audit.state == :succeeded
+unless audit.details == {'certificateExpiryTimestamp' => '2026-10-25T12:00:00Z'}
+  raise 'Ready audit did not report the earliest certificate expiry'
+end
 unless preflight.secret_calls.length == 1 &&
        preflight.secret_calls.first.first.length == all_rendered.length &&
        preflight.secret_calls.first.last == 'platform'

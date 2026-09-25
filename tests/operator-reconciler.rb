@@ -33,6 +33,8 @@ class FakeAdapter
                    {migrationJobs: %w[job-a job-b job-c]}
                  elsif method == :audit_ready && %i[drifted unsafe_drift].include?(state)
                    {driftedResources: ['Service/foreman']}
+                 elsif method == :audit_ready && state == :succeeded
+                   {certificateExpiryTimestamp: '2026-10-24T12:00:00Z'}
                  else
                    {}
                  end
@@ -108,6 +110,9 @@ raise 'cleanup did not record its retention limit' unless release.dig('status', 
 raise 'ready reconciliation did not record the set' unless release.dig('status', 'currentSet') == 'candidate-1'
 raise 'ready reconciliation did not audit declared resources' unless reconciler.reconcile(release) == :idle
 raise 'successful drift check was not checkpointed' unless release.dig('status', 'lastDriftCheckAt') == '2026-09-24T12:00:00Z'
+unless release.dig('status', 'certificateExpiryTimestamp') == '2026-10-24T12:00:00Z'
+  raise 'successful drift check did not publish certificate expiry'
+end
 
 release['spec']['reconcileToken'] = 'rotate-certificates'
 release['metadata']['generation'] = 2

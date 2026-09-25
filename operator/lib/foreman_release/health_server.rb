@@ -119,7 +119,13 @@ module ForemanRelease
         identity = %i[namespace name].map do |key|
           %(#{key}="#{escape_label(release.fetch(key))}")
         end.join(',')
-        <<~RELEASE
+        certificate_expiry = if release.fetch(:certificate_expiry_timestamp_seconds)
+                               "foreman_release_certificate_expiry_timestamp_seconds{#{identity}} " \
+                                 "#{release.fetch(:certificate_expiry_timestamp_seconds)}\n"
+                             else
+                               ''
+                             end
+        <<~RELEASE + certificate_expiry
           foreman_release_status{#{labels}} 1
           foreman_release_metadata_generation{#{identity}} #{release.fetch(:generation)}
           foreman_release_observed_generation{#{identity}} #{release.fetch(:observed_generation)}
@@ -138,6 +144,8 @@ module ForemanRelease
         # TYPE foreman_release_observed_generation gauge
         # HELP foreman_release_drift_check_healthy Whether the most recent Ready drift audit completed successfully.
         # TYPE foreman_release_drift_check_healthy gauge
+        # HELP foreman_release_certificate_expiry_timestamp_seconds Earliest usable release certificate expiry as Unix time.
+        # TYPE foreman_release_certificate_expiry_timestamp_seconds gauge
         # HELP foreman_release_deleting Whether ForemanRelease deletion is waiting for safe finalization.
         # TYPE foreman_release_deleting gauge
       METRICS

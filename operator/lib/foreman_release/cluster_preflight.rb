@@ -31,19 +31,20 @@ module ForemanRelease
 
     def validate_secrets!(documents, namespace)
       validate_secret_requirements!(ManifestRequirements.new(documents), namespace)
-      true
     end
 
     private
 
     def validate_secret_requirements!(requirements, namespace)
-      requirements.secrets.each do |name, keys|
+      expirations = requirements.secrets.each_with_object([]) do |(name, keys), found|
         secret = required_resource(namespace, 'secret', name)
         missing = keys.reject { |key| secret.fetch('data', {}).key?(key) }
         raise InvalidRelease, "Secret #{namespace}/#{name} is missing keys: #{missing.join(', ')}" unless missing.empty?
 
-        @certificate_validator.validate_secret!(namespace, name, secret, keys)
+        expiration = @certificate_validator.validate_secret!(namespace, name, secret, keys)
+        found << expiration if expiration
       end
+      expirations.min
     end
 
     def validate_server_dry_run!(documents, namespace)

@@ -83,6 +83,16 @@ data:
           "targets": [{"expr": "min by (namespace, name) (foreman_release_drift_check_healthy)", "refId": "A"}],
           "title": "Ready drift audits",
           "type": "stat"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "fieldConfig": {"defaults": {"decimals": 1, "thresholds": {"mode": "absolute", "steps": [{"color": "red"}, {"color": "orange", "value": 1}, {"color": "green", "value": 7}]}, "unit": "d"}, "overrides": []},
+          "gridPos": {"h": 5, "w": 24, "x": 0, "y": 18},
+          "id": 8,
+          "options": {"colorMode": "background", "graphMode": "none", "reduceOptions": {"calcs": ["lastNotNull"], "values": false}, "textMode": "auto"},
+          "targets": [{"expr": "(min by (namespace, name) (foreman_release_certificate_expiry_timestamp_seconds) - time()) / 86400", "refId": "A"}],
+          "title": "Earliest certificate lifetime",
+          "type": "stat"
         }
       ],
       "refresh": "30s",

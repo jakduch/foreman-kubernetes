@@ -44,6 +44,9 @@ module ForemanRelease
           generation: Integer(resource.dig('metadata', 'generation') || 0),
           observed_generation: Integer(resource.dig('status', 'observedGeneration') || 0),
           drift_check_healthy: resource.dig('status', 'lastDriftCheckError').to_s.empty?,
+          certificate_expiry_timestamp_seconds: timestamp_seconds(
+            resource.dig('status', 'certificateExpiryTimestamp')
+          ),
           deleting: !resource.dig('metadata', 'deletionTimestamp').nil?
         }
       end
@@ -80,6 +83,14 @@ module ForemanRelease
     end
 
     private
+
+    def timestamp_seconds(value)
+      return nil if value.to_s.empty?
+
+      Time.iso8601(value).to_f
+    rescue ArgumentError, TypeError
+      nil
+    end
 
     def update(&block)
       @mutex.synchronize(&block)

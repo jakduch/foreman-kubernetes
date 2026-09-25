@@ -32,7 +32,7 @@ module ForemanRelease
     def validate_secret!(namespace, name, secret, required_keys)
       data = secret.fetch('data', {})
       certificate_keys = Array(required_keys).grep(CERTIFICATE_KEY)
-      return true if certificate_keys.empty?
+      return nil if certificate_keys.empty?
 
       now = @clock.call.utc
       decoded = {}
@@ -41,10 +41,10 @@ module ForemanRelease
         decoded[key] = pem
         [key, parse_certificates(pem, namespace, name, key)]
       end
-      validate_validity!(certificates, required_keys, namespace, name, now)
+      earliest_expiry = validate_validity!(certificates, required_keys, namespace, name, now)
       validate_key_pairs!(data, decoded, certificates, required_keys, namespace, name)
-      validate_trust_pairs!(certificates, namespace, name, now)
-      true
+      trust_expiry = validate_trust_pairs!(certificates, namespace, name, now)
+      [earliest_expiry, trust_expiry].compact.min
     rescue KeyError => error
       raise InvalidRelease, "Secret #{namespace}/#{name} is missing key #{error.key}"
     end
@@ -68,9 +68,12 @@ module ForemanRelease
 
     def validate_validity!(certificates, required_keys, namespace, name, now)
       required_until = now + @minimum_validity_seconds
-      certificates.each do |key, chain|
+      expirations = certificates.map do |key, chain|
         if trust_bundle?(key, required_keys)
-          next if chain.any? { |certificate| certificate.not_before <= now && certificate.not_after > required_until }
+          usable = chain.select do |certificate|
+            certificate.not_before <= now && certificate.not_after > required_until
+          end
+          next usable.map(&:not_after).max unless usable.empty?
 
           raise InvalidRelease,
                 "Secret #{namespace}/#{name} key #{key} has no certificate valid through " \
@@ -88,7 +91,9 @@ module ForemanRelease
                 "Secret #{namespace}/#{name} key #{key} expires at #{certificate.not_after.utc.iso8601}, " \
                 "before the #{@minimum_validity_seconds}-second safety window"
         end
+        chain.map(&:not_after).min
       end
+      expirations.min
     end
 
     def trust_bundle?(key, required_keys)
@@ -118,18 +123,32 @@ module ForemanRelease
     end
 
     def validate_trust_pairs!(certificates, namespace, name, now)
-      TRUST_PAIRS.each do |leaf_key, ca_key|
+      expirations = TRUST_PAIRS.each_with_object([]) do |(leaf_key, ca_key), found|
         next unless certificates.key?(leaf_key) && certificates.key?(ca_key)
 
         leaf_chain = certificates.fetch(leaf_key)
-        store = OpenSSL::X509::Store.new
-        store.time = now
-        certificates.fetch(ca_key).each { |certificate| store.add_cert(certificate) }
-        next if store.verify(leaf_chain.first, leaf_chain.drop(1))
+        trust_chain = verified_chain(leaf_chain, certificates.fetch(ca_key), now)
+        unless trust_chain
+          raise InvalidRelease,
+                "Secret #{namespace}/#{name} key #{leaf_key} is not trusted by #{ca_key}"
+        end
+        unless verified_chain(leaf_chain, certificates.fetch(ca_key), now + @minimum_validity_seconds)
+          raise InvalidRelease,
+                "Secret #{namespace}/#{name} key #{leaf_key} will not remain trusted by #{ca_key} " \
+                "through the #{@minimum_validity_seconds}-second safety window"
+        end
 
-        raise InvalidRelease,
-              "Secret #{namespace}/#{name} key #{leaf_key} is not trusted by #{ca_key}: #{store.error_string}"
+        found << trust_chain.map(&:not_after).min
       end
+      expirations.min
+    end
+
+    def verified_chain(leaf_chain, trust_anchors, time)
+      store = OpenSSL::X509::Store.new
+      store.time = time
+      trust_anchors.each { |certificate| store.add_cert(certificate) }
+      context = OpenSSL::X509::StoreContext.new(store, leaf_chain.first, leaf_chain.drop(1))
+      context.verify ? context.chain : nil
     end
   end
 end

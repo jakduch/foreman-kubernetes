@@ -21,7 +21,8 @@ wedged or unreachable Kubernetes API therefore leaves Service endpoints
 without triggering an immediate liveness restart. Metrics expose only process
 state, current leader role, cycle counters, and the last successful timestamp,
 plus each observed release phase, generation convergence, and drift-audit
-health. Metric labels are
+health. A successful Ready audit also publishes the earliest usable certificate
+expiry for each release. Metric labels are
 limited to namespace, release name, and the fixed phase vocabulary; they never
 contain release specs, Secret contents, or command output.
 The metrics Service keeps NotReady candidates discoverable. An opt-in
@@ -38,10 +39,11 @@ peers, which are then admitted only to that port. The separate optional egress
 policy permits DNS and an explicit Kubernetes API destination and has no
 permissive fallback.
 The same opt-in rule group alerts on a `Blocked` release, a failed drift audit,
-and a generation that remains unobserved for ten minutes. An independent
+a generation that remains unobserved for ten minutes, and the earliest
+certificate entering seven-day warning or 24-hour critical windows. An independent
 opt-in Grafana dashboard ConfigMap visualizes controller health, cycle outcomes,
 release phases, blocked releases, generation convergence, and drift-audit
-health. Its discovery labels are configurable and the chart still does not
+health plus remaining certificate lifetime. Its discovery labels are configurable and the chart still does not
 install Grafana or a sidecar.
 Every persisted phase transition and pause/resume condition also emits a
 namespaced `events.k8s.io/v1` Event, so `kubectl describe` exposes release

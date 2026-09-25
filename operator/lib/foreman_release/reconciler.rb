@@ -294,6 +294,13 @@ module ForemanRelease
         audited['lastDriftCheckAt'] = @clock.call
         audited['lastDriftCheckMessage'] = observation.message || 'declared release resources are present'
         audited.delete('lastDriftCheckError')
+        certificate_expiry = (observation.details || {})['certificateExpiryTimestamp'] ||
+          (observation.details || {})[:certificateExpiryTimestamp]
+        if certificate_expiry
+          audited['certificateExpiryTimestamp'] = certificate_expiry
+        else
+          audited.delete('certificateExpiryTimestamp')
+        end
         @status_writer.call(resource, audited)
         :idle
       when :drifted

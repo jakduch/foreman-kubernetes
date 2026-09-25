@@ -229,6 +229,9 @@ spec:
                   type: string
                 lastDriftCheckError:
                   type: string
+                certificateExpiryTimestamp:
+                  type: string
+                  format: date-time
                 historyPrunedThroughOperation:
                   type: string
                 historyPrunedLimit:

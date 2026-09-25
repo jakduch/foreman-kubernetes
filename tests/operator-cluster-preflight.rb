@@ -62,7 +62,7 @@ class PreflightCertificateValidator
 
   def validate_secret!(*arguments)
     @calls << arguments
-    true
+    nil
   end
 end
 
@@ -170,7 +170,7 @@ raise 'preflight did not submit the complete rendered manifest' unless dry_run.l
 
 runner.calls.clear
 certificate_validator.calls.clear
-raise 'Secret-only audit failed' unless preflight.validate_secrets!(documents, 'platform')
+preflight.validate_secrets!(documents, 'platform')
 raise 'Secret-only audit unexpectedly ran admission dry-run' unless runner.calls.empty?
 unless certificate_validator.calls.map { |arguments| arguments.take(2) }.include?(%w[platform ingress-tls])
   raise 'Secret-only audit did not validate certificate inputs'

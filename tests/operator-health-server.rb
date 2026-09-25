@@ -27,7 +27,8 @@ status.releases_observed([
     'status' => {
       'phase' => 'Blocked',
       'observedGeneration' => 3,
-      'lastDriftCheckError' => 'cannot list Services'
+      'lastDriftCheckError' => 'cannot list Services',
+      'certificateExpiryTimestamp' => '2026-10-25T00:00:00Z'
     }
   }
 ])
@@ -45,6 +46,9 @@ unless metrics.include?('foreman_release_metadata_generation{namespace="platform
 end
 unless metrics.include?('foreman_release_drift_check_healthy{namespace="platform",name="foreman"} 0')
   raise 'metrics omitted failed Ready drift audit'
+end
+unless metrics.include?('foreman_release_certificate_expiry_timestamp_seconds{namespace="platform",name="foreman"} 1792886400.0')
+  raise 'metrics omitted the earliest certificate expiry'
 end
 
 status.cycle_failed
