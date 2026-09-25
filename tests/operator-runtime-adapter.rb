@@ -509,6 +509,21 @@ unless preflight.secret_calls.length == 1 &&
        preflight.secret_calls.first.last == 'platform'
   raise 'Ready audit did not revalidate the combined external Secret inventory'
 end
+
+live_deployments = kubernetes.resources('platform', 'deployments')
+injected_deployment = Marshal.load(Marshal.dump(live_deployments.first))
+injected_deployment['metadata']['annotations'] ||= {}
+injected_deployment['metadata']['annotations']['admission.example.test/injected'] = 'true'
+injected_deployment.dig('spec', 'template', 'spec', 'containers') << {
+  'name' => 'admission-sidecar',
+  'image' => 'example.invalid/sidecar@sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff'
+}
+kubernetes.replace('deployments', [injected_deployment] + live_deployments.drop(1))
+unless adapter.audit_ready(resource, operation).state == :succeeded
+  raise 'additional admission-injected fields were reported as chart drift'
+end
+kubernetes.replace('deployments', live_deployments)
+
 preflight.secret_error = 'certificate expires before the safety window'
 begin
   adapter.audit_ready(resource, operation)
@@ -518,6 +533,21 @@ rescue ForemanRelease::InvalidRelease => error
 ensure
   preflight.secret_error = nil
 end
+
+configmaps = kubernetes.resources('platform', 'configmaps')
+modified_configmap = Marshal.load(Marshal.dump(configmaps.first))
+modified_key = modified_configmap.fetch('data').keys.first
+modified_configmap['data'][modified_key] = "#{modified_configmap['data'][modified_key]}\n# out-of-band change"
+kubernetes.replace('configmaps', [modified_configmap] + configmaps.drop(1))
+configuration_drift = adapter.audit_ready(resource, operation)
+unless configuration_drift.state == :drifted &&
+       configuration_drift.details.fetch('driftedResources').include?(
+         "ConfigMap/#{modified_configmap.dig('metadata', 'name')}:modified"
+       )
+  raise 'out-of-band ConfigMap mutation was not detected'
+end
+kubernetes.replace('configmaps', configmaps)
+
 revision_drift = adapter.audit_ready(
   resource,
   operation.merge('applicationRevision' => 1, 'executionProxyRevision' => 4)
@@ -528,6 +558,18 @@ unless revision_drift.state == :drifted &&
 end
 
 claims = kubernetes.resources('platform', 'persistentvolumeclaims')
+modified_claim = Marshal.load(Marshal.dump(claims.first))
+modified_claim['spec']['accessModes'] = ['ReadOnlyMany']
+kubernetes.replace('persistentvolumeclaims', [modified_claim] + claims.drop(1))
+stateful_mutation = adapter.audit_ready(resource, operation)
+unless stateful_mutation.state == :unsafe_drift &&
+       stateful_mutation.details.fetch('driftedResources').include?(
+         "PersistentVolumeClaim/#{modified_claim.dig('metadata', 'name')}:modified"
+       )
+  raise 'out-of-band PVC mutation was selected for automatic repair'
+end
+kubernetes.replace('persistentvolumeclaims', claims)
+
 missing_claim = claims.first
 kubernetes.replace('persistentvolumeclaims', claims.drop(1))
 stateful_drift = adapter.audit_ready(resource, operation)

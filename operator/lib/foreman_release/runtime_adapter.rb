@@ -172,47 +172,47 @@ module ForemanRelease
     end
 
     def audit_ready(resource, operation)
-      missing = []
+      drift = []
       rendered = []
       [
         [application_release(resource), operation['applicationRevision']],
         [execution_release(resource), operation['executionProxyRevision']]
       ].each do |release_name, expected_revision|
         unless helm_release_exists?(resource, release_name)
-          missing << "HelmRelease/#{release_name}"
+          drift << "HelmRelease/#{release_name}"
           next
         end
         next unless expected_revision
 
         actual_revision = helm_revision(resource, release_name)
         if actual_revision != Integer(expected_revision)
-          missing << "HelmRevision/#{release_name}:expected-#{expected_revision}-actual-#{actual_revision}"
+          drift << "HelmRevision/#{release_name}:expected-#{expected_revision}-actual-#{actual_revision}"
         end
       end
 
       with_rendered_application(resource, operation) do |_context, _values_path, resources|
         rendered.concat(resources)
-        missing.concat(missing_declared_resources(resource, resources))
+        drift.concat(declared_resource_drift(resource, resources))
       end
       with_rendered_execution(resource, operation) do |_context, _values_path, resources|
         rendered.concat(resources)
-        missing.concat(missing_declared_resources(resource, resources))
+        drift.concat(declared_resource_drift(resource, resources))
       end
 
-      missing = missing.uniq.sort
-      stateful = missing.grep(/\APersistentVolumeClaim\//)
+      drift = drift.uniq.sort
+      stateful = drift.grep(/\APersistentVolumeClaim\//)
       unless stateful.empty?
         return Observation.new(
           state: :unsafe_drift,
-          message: "stateful release resources are missing and require recovery: #{stateful.join(', ')}",
-          details: {'driftedResources' => missing}
+          message: "stateful release resources are missing or modified and require recovery: #{stateful.join(', ')}",
+          details: {'driftedResources' => drift}
         )
       end
-      unless missing.empty?
+      unless drift.empty?
         return Observation.new(
           state: :drifted,
-          message: "declared release resources are missing: #{missing.join(', ')}",
-          details: {'driftedResources' => missing}
+          message: "declared release resources are missing or modified: #{drift.join(', ')}",
+          details: {'driftedResources' => drift}
         )
       end
 
@@ -799,14 +799,64 @@ module ForemanRelease
       match ? [Integer(match[1]), Integer(match[2] || 0)] : [-1, -1]
     end
 
-    def missing_declared_resources(resource, rendered)
+    def declared_resource_drift(resource, rendered)
       namespace = resource.dig('metadata', 'namespace')
       rendered.group_by { |item| item['kind'] }.flat_map do |kind, expected|
         type = DRIFT_RESOURCE_TYPES[kind]
         next [] unless type
 
-        live_names = expected_names(@kubernetes_client.resources(namespace, type))
-        (expected_names(expected) - live_names).map { |name| "#{kind}/#{name}" }
+        live_by_name = @kubernetes_client.resources(namespace, type).to_h do |item|
+          [item.dig('metadata', 'name'), item]
+        end
+        expected.flat_map do |item|
+          name = item.dig('metadata', 'name')
+          live = live_by_name[name]
+          next ["#{kind}/#{name}"] unless live
+          next [] if managed_subset?(managed_projection(item), live)
+
+          ["#{kind}/#{name}:modified"]
+        end
+      end
+    end
+
+    def managed_projection(resource)
+      metadata = %w[labels annotations].each_with_object({}) do |field, projected|
+        projected[field] = resource.dig('metadata', field) if resource.dig('metadata', field)
+      end
+      projection = {'metadata' => metadata}
+      case resource.fetch('kind')
+      when 'ConfigMap'
+        %w[data binaryData immutable].each do |field|
+          projection[field] = resource[field] if resource.key?(field)
+        end
+      when 'ServiceAccount'
+        %w[automountServiceAccountToken imagePullSecrets].each do |field|
+          projection[field] = resource[field] if resource.key?(field)
+        end
+      else
+        projection['spec'] = resource.fetch('spec', {})
+      end
+      projection
+    end
+
+    def managed_subset?(expected, actual)
+      case expected
+      when Hash
+        actual.is_a?(Hash) && expected.all? do |key, value|
+          actual.key?(key) && managed_subset?(value, actual[key])
+        end
+      when Array
+        return false unless actual.is_a?(Array)
+
+        if expected.all? { |item| item.is_a?(Hash) }
+          expected.all? do |item|
+            actual.any? { |candidate| candidate.is_a?(Hash) && managed_subset?(item, candidate) }
+          end
+        else
+          expected == actual
+        end
+      else
+        expected == actual
       end
     end
 

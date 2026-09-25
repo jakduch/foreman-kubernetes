@@ -195,15 +195,17 @@ controller reapplies the same release with migration Jobs suppressed. Change
 `spec.paused=true` to stop at the next safe phase boundary; it never terminates
 an active migration or rollout.
 
-While `Ready`, the controller checks for missing Helm-managed objects and
-out-of-band Helm revisions every `spec.driftCheckSeconds` (60 seconds by
+While `Ready`, the controller checks for missing or modified Helm-managed
+objects and out-of-band Helm revisions every `spec.driftCheckSeconds` (60 seconds by
 default). It also revalidates every external Secret and TLS identity, so an
 expired or incorrectly rotated certificate appears in `lastDriftCheckError`
 and the drift-audit alert without an unsafe automatic credential change.
-Missing stateless resources or a changed Helm revision start a
+Missing or modified stateless resources or a changed Helm revision start a
 uniquely identified repair: the normal preflight, lock, rollout, registration,
 and smoke gates run again, while schema migrations remain skipped. A missing
-PVC instead enters `Blocked` and requires explicit storage recovery. The check
+PVC instead enters `Blocked` and requires explicit storage recovery. Declared
+fields are compared while Kubernetes defaults, status, and additional
+admission-injected fields are ignored. The check
 never adopts changed values Secret content; update `spec.reconcileToken` when
 that change is intentional.
 

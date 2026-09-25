@@ -68,19 +68,21 @@ suppressed, instead of waiting until the phase timeout. This repairs partial
 resource deletion without re-running a schema change.
 After a release is `Ready`, the controller also audits both recorded Helm
 revisions and every non-Job object declared by the exact application and
-execution-proxy renders. The interval is bounded by `spec.driftCheckSeconds`
+execution-proxy renders. It compares chart-declared labels, annotations,
+configuration payloads, and spec fields while ignoring status, server defaults,
+and additional admission-injected fields. The interval is bounded by `spec.driftCheckSeconds`
 (60 seconds by default). The same audit re-reads every external Secret and
 revalidates required certificate dates, key pairs, and colocated trust chains.
 An unusable Secret records a drift-audit error and raises the monitoring alert,
 but never causes the controller to rewrite credentials or interrupt running
-Pods. A missing release or stateless object, or an out-of-band Helm revision,
+Pods. A missing or modified stateless object, or an out-of-band Helm revision,
 starts a new uniquely sequenced `Repair` operation. It repeats
 preflight, Lease fencing, both rollouts, registration, and smoke verification,
 but deliberately skips database migrations because the compatibility set was
 already migrated. Changed values Secret content still fails the pinned-input
-check and must be applied explicitly with `spec.reconcileToken`. A missing PVC
-enters `Blocked` instead: silently creating empty replacement storage is not a
-valid recovery procedure.
+check and must be applied explicitly with `spec.reconcileToken`. A missing or
+modified PVC enters `Blocked` instead: silently creating or rewriting storage
+is not a valid recovery procedure.
 
 The adapter boundary now includes three concrete, tested primitives:
 
