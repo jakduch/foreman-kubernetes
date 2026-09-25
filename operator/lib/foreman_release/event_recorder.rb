@@ -67,6 +67,9 @@ module ForemanRelease
         }
       end
 
+      audit = drift_audit_description(previous_status, current_status)
+      return audit if audit
+
       condition = changed_condition(previous_status, current_status)
       return unless condition
 
@@ -75,6 +78,26 @@ module ForemanRelease
         note: "#{condition.fetch('type')}=#{condition.fetch('status')}: #{condition.fetch('message', '')}",
         type: condition.fetch('type') == 'Degraded' && condition.fetch('status') == 'True' ? 'Warning' : 'Normal'
       }
+    end
+
+    def drift_audit_description(previous_status, current_status)
+      previous_error = previous_status['lastDriftCheckError'].to_s
+      current_error = current_status['lastDriftCheckError'].to_s
+      return if previous_error == current_error
+
+      if current_error.empty?
+        {
+          reason: 'ReadyAuditRecovered',
+          note: current_status['lastDriftCheckMessage'] || 'Ready release audit recovered',
+          type: 'Normal'
+        }
+      else
+        {
+          reason: 'ReadyAuditFailed',
+          note: current_error,
+          type: 'Warning'
+        }
+      end
     end
 
     def relevant_condition(status)

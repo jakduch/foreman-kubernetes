@@ -101,6 +101,34 @@ blocked_event = client.calls.last.fetch(2)
 raise 'blocked release did not emit a warning' unless blocked_event['type'] == 'Warning'
 raise 'blocked release did not expose the failure' unless blocked_event['note'] == 'profile is invalid'
 
+ready = {
+  'phase' => 'Ready',
+  'lastDriftCheckMessage' => 'declared release resources are present'
+}
+failed_audit = ready.merge(
+  'lastDriftCheckMessage' => 'Ready drift audit could not be completed',
+  'lastDriftCheckError' => 'certificate in Secret foreman-tls has expired'
+)
+publisher.call(release(ready), failed_audit)
+audit_event = client.calls.last.fetch(2)
+raise 'failed Ready audit did not emit a warning' unless audit_event['type'] == 'Warning'
+raise 'failed Ready audit used the wrong reason' unless audit_event['reason'] == 'ReadyAuditFailed'
+unless audit_event['note'] == 'certificate in Secret foreman-tls has expired'
+  raise 'failed Ready audit did not expose its status error'
+end
+
+audit_calls = client.calls.length
+publisher.call(release(failed_audit), Marshal.load(Marshal.dump(failed_audit)))
+raise 'unchanged Ready audit failure emitted a duplicate Event' unless client.calls.length == audit_calls + 1
+
+publisher.call(release(failed_audit), ready)
+recovered_event = client.calls.last.fetch(2)
+raise 'recovered Ready audit did not emit a normal Event' unless recovered_event['type'] == 'Normal'
+raise 'recovered Ready audit used the wrong reason' unless recovered_event['reason'] == 'ReadyAuditRecovered'
+unless recovered_event['note'] == 'declared release resources are present'
+  raise 'recovered Ready audit did not preserve its status message'
+end
+
 client.fail_events = true
 result = publisher.call(release(preflight), blocked)
 raise 'Event failure discarded a successful status write' unless result.dig('status', 'phase') == 'Blocked'

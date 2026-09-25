@@ -47,9 +47,11 @@ health plus remaining certificate lifetime. Its discovery labels are configurabl
 install Grafana or a sidecar.
 Every persisted phase transition and pause/resume condition also emits a
 namespaced `events.k8s.io/v1` Event, so `kubectl describe` exposes release
-progress without reading controller logs. Status remains authoritative: Event
-publication is best-effort and an unavailable Event API cannot block or repeat
-a release operation.
+progress without reading controller logs. A Ready audit failure emits one
+deduplicated Warning even though it deliberately leaves the release available;
+clearing that failure emits a recovery Event. Status remains authoritative:
+Event publication is best-effort and an unavailable Event API cannot block or
+repeat a release operation.
 
 `operator/lib/foreman_release/reconciler.rb` turns the transition contract into
 an idempotent reconciliation loop behind a side-effect adapter. It persists a
