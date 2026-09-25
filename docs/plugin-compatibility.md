@@ -139,9 +139,12 @@ by default. The opt-in amd64 drill now creates a self-contained Python source
 distribution, synchronizes it through Katello, checks indexed metadata and the
 public PyPI package, publishes it in a Content View, and verifies the same state
 after clean-namespace
-recovery. Its status remains `integration-drill-implemented-unrun` until that
-complete drill passes; a package and a correct route alone are not support
-evidence.
+recovery. The same lifecycle now creates an unsigned deterministic APT
+repository, synchronizes its Debian package through Katello, includes it in the
+published Content View, and verifies both the library and published package
+after clean recovery. Both plugin statuses remain
+`integration-drill-implemented-unrun` until the complete amd64 drill passes; a
+package and a correct route alone are not support evidence.
 
 ## Smart Proxy placement
 

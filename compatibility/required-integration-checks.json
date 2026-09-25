@@ -15,6 +15,7 @@
     "pulp-s3-direct-download",
     "pulp-s3-credential-rotation",
     "pulp-s3-version-recovery",
+    "pulp-debian-lifecycle",
     "pulp-python-lifecycle",
     "pulp-api-content-request-continuity",
     "rex-success-failure-cancel",

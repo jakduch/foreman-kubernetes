@@ -36,7 +36,7 @@ end
 abort 'kind integration dependencies have no content-source Deployment' unless deployment
 
 pod_spec = deployment.dig('spec', 'template', 'spec')
-builder = pod_spec.fetch('initContainers').find { |container| container['name'] == 'build-python-source' }
+builder = pod_spec.fetch('initContainers').find { |container| container['name'] == 'build-content-source' }
 abort 'content source has no Python package builder' unless builder
 builder_script = builder.fetch('command').last
 %w[PKG-INFO setup.py sha256sum simple/foreman-kubernetes-pkg pypi/foreman-kubernetes-pkg/json].each do |contract|

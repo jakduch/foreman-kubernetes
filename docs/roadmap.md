@@ -49,6 +49,13 @@
 
 ## Implemented, pending integration proof
 
+- The Katello content lifecycle now builds a deterministic local APT repository
+  and Debian package alongside its File and Python fixtures. It synchronizes the
+  package, publishes it in the same Content View, and verifies library and
+  published content again after clean-namespace recovery. Promotion records
+  require this Debian workflow, but it remains unverified until the amd64 drill
+  has run against the pinned images.
+
 - Foreman KubeVirt now has an opt-in external qualification path. It reads the
   bearer token and CA from files, stores no credential in its state artifact,
   compares the plugin's selected API version with live cluster discovery,

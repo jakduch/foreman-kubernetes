@@ -131,7 +131,7 @@
     { "name": "pulp_file", "enabledByDefault": true, "status": "chart-wired-integration-pending" },
     { "name": "pulp_ansible", "enabledByDefault": false, "status": "chart-wired-integration-pending" },
     { "name": "pulp_container", "enabledByDefault": true, "status": "chart-wired-integration-pending" },
-    { "name": "pulp_deb", "enabledByDefault": true, "status": "chart-wired-integration-pending" },
+    { "name": "pulp_deb", "enabledByDefault": true, "status": "integration-drill-implemented-unrun" },
     { "name": "pulp_ostree", "enabledByDefault": false, "status": "chart-wired-integration-pending" },
     { "name": "pulp_python", "enabledByDefault": false, "status": "integration-drill-implemented-unrun" },
     { "name": "pulp_rpm", "enabledByDefault": true, "status": "chart-wired-integration-pending" },

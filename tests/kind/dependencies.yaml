@@ -270,7 +270,7 @@ spec:
         seccompProfile:
           type: RuntimeDefault
       initContainers:
-        - name: build-python-source
+        - name: build-content-source
           image: nginxinc/nginx-unprivileged:stable-alpine
           command:
             - /bin/sh
@@ -344,6 +344,87 @@ spec:
               EOF
               cp /served/pypi/foreman-kubernetes-pkg/json \
                 /served/pypi/foreman-kubernetes-pkg/1.0.0/json
+
+              deb_root="${temporary_root}/foreman-kubernetes-deb"
+              deb_filename=foreman-kubernetes-deb_1.0.0_all.deb
+              deb_pool=pool/main/f/foreman-kubernetes-deb
+              mkdir -p \
+                "${deb_root}/control" \
+                "${deb_root}/data/usr/share/foreman-kubernetes" \
+                "/served/debian/${deb_pool}" \
+                /served/debian/dists/stable/main/binary-amd64
+              cat > "${deb_root}/control/control" <<'EOF'
+              Package: foreman-kubernetes-deb
+              Version: 1.0.0
+              Architecture: all
+              Maintainer: Foreman Kubernetes Integration
+              Installed-Size: 1
+              Section: admin
+              Priority: optional
+              Description: deterministic Foreman Kubernetes Debian fixture
+              EOF
+              printf '%s\n' foreman-kubernetes-debian-fixture \
+                > "${deb_root}/data/usr/share/foreman-kubernetes/debian-fixture"
+              printf '2.0\n' > "${deb_root}/debian-binary"
+              tar -C "${deb_root}/control" -czf "${deb_root}/control.tar.gz" .
+              tar -C "${deb_root}/data" -czf "${deb_root}/data.tar.gz" .
+              deb_path="/served/debian/${deb_pool}/${deb_filename}"
+              printf '!<arch>\n' > "${deb_path}"
+              for deb_member in debian-binary control.tar.gz data.tar.gz; do
+                deb_member_path="${deb_root}/${deb_member}"
+                deb_member_size="$(wc -c < "${deb_member_path}" | tr -d ' ')"
+                printf '%-16s%-12s%-6s%-6s%-8s%-10s`\n' \
+                  "${deb_member}/" 0 0 0 100644 "${deb_member_size}" >> "${deb_path}"
+                cat "${deb_member_path}" >> "${deb_path}"
+                if [ "$((deb_member_size % 2))" -ne 0 ]; then
+                  printf '\n' >> "${deb_path}"
+                fi
+              done
+
+              deb_size="$(wc -c < "${deb_path}" | tr -d ' ')"
+              deb_md5="$(md5sum "${deb_path}" | awk '{print $1}')"
+              deb_sha1="$(sha1sum "${deb_path}" | awk '{print $1}')"
+              deb_sha256="$(sha256sum "${deb_path}" | awk '{print $1}')"
+              packages=/served/debian/dists/stable/main/binary-amd64/Packages
+              cat > "${packages}" <<EOF
+              Package: foreman-kubernetes-deb
+              Version: 1.0.0
+              Architecture: all
+              Maintainer: Foreman Kubernetes Integration
+              Installed-Size: 1
+              Filename: ${deb_pool}/${deb_filename}
+              Size: ${deb_size}
+              MD5sum: ${deb_md5}
+              SHA1: ${deb_sha1}
+              SHA256: ${deb_sha256}
+              Section: admin
+              Priority: optional
+              Description: deterministic Foreman Kubernetes Debian fixture
+
+              EOF
+              gzip -c "${packages}" > "${packages}.gz"
+              packages_size="$(wc -c < "${packages}" | tr -d ' ')"
+              packages_gz_size="$(wc -c < "${packages}.gz" | tr -d ' ')"
+              packages_md5="$(md5sum "${packages}" | awk '{print $1}')"
+              packages_gz_md5="$(md5sum "${packages}.gz" | awk '{print $1}')"
+              packages_sha256="$(sha256sum "${packages}" | awk '{print $1}')"
+              packages_gz_sha256="$(sha256sum "${packages}.gz" | awk '{print $1}')"
+              cat > /served/debian/dists/stable/Release <<EOF
+              Origin: Foreman Kubernetes Integration
+              Label: Foreman Kubernetes Integration
+              Suite: stable
+              Codename: stable
+              Date: Fri, 25 Sep 2026 00:00:00 +0000
+              Architectures: amd64
+              Components: main
+              Description: deterministic Foreman Kubernetes Debian repository
+              MD5Sum:
+               ${packages_md5} ${packages_size} main/binary-amd64/Packages
+               ${packages_gz_md5} ${packages_gz_size} main/binary-amd64/Packages.gz
+              SHA256:
+               ${packages_sha256} ${packages_size} main/binary-amd64/Packages
+               ${packages_gz_sha256} ${packages_gz_size} main/binary-amd64/Packages.gz
+              EOF
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
