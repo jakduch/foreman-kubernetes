@@ -12,6 +12,7 @@
     "foremanKubevirtCompatibilityPatchCommit": "60d6c1f8ff3497d39c63e3359ea1e8539e2a0a70",
     "foremanKubevirtValidationPatchCommit": "49d4822c9be3459e02406b36e4ffc6d69e9d9044",
     "foremanKubevirtVolumePatchCommit": "abab1b52d2ccc5dff1db33f9034138442af48c65",
+    "foremanKubevirtDocumentationPatchCommit": "2eac240d9722e7881185a940523e8dc816524208",
     "fogKubevirtUpstreamCommit": "d3277fa121609c5a2c949f3518f5f1bb07ef6447",
     "fogKubevirtNamespacePatchCommit": "98c874ad35d74005297b6385ede267ac78e35662",
     "smartProxyCommit": "c2af3d35497058fd7dc8146dcbca3adf60334b9e",

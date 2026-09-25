@@ -70,6 +70,12 @@ treated as a boot disk and skipped during image provisioning. If a later PVC
 creation fails, every PVC already created by that request must be removed before
 the error is returned. The prepared tests cover both behaviors.
 
+The upstream credential guide in the reviewed revision still recommends a
+cluster-admin identity and legacy automatically generated ServiceAccount token
+Secrets. The local documentation patch replaces that with a dedicated,
+least-privilege ServiceAccount, bounded TokenRequest tokens, current CA export,
+and explicit rotation guidance.
+
 An opt-in external-cluster drill is prepared for that later qualification. It
 registers the compute resource through Foreman's API without retaining token or
 CA material in its state artifact, requires Foreman and the cluster discovery

@@ -124,19 +124,22 @@ if Dir.exist?(upstream)
     'foremanctlCommit' => foremanctl,
     'foremanWebhooksCommit' => foreman_webhooks,
     'foremanVirtWhoConfigureCommit' => foreman_virt_who_configure,
-    'foremanKubevirtVolumePatchCommit' => foreman_kubevirt,
+    'foremanKubevirtDocumentationPatchCommit' => foreman_kubevirt,
     'fogKubevirtNamespacePatchCommit' => fog_kubevirt
   }
   expected_revisions.each do |key, path|
     raise "#{key} snapshot is stale" unless revision(path) == matrix.dig('snapshot', key)
   end
-  unless revision(foreman_kubevirt, 'HEAD^') == matrix.dig('snapshot', 'foremanKubevirtValidationPatchCommit')
+  unless revision(foreman_kubevirt, 'HEAD^') == matrix.dig('snapshot', 'foremanKubevirtVolumePatchCommit')
+    raise 'foremanKubevirtVolumePatchCommit snapshot is stale'
+  end
+  unless revision(foreman_kubevirt, 'HEAD^^') == matrix.dig('snapshot', 'foremanKubevirtValidationPatchCommit')
     raise 'foremanKubevirtValidationPatchCommit snapshot is stale'
   end
-  unless revision(foreman_kubevirt, 'HEAD^^') == matrix.dig('snapshot', 'foremanKubevirtCompatibilityPatchCommit')
+  unless revision(foreman_kubevirt, 'HEAD^^^') == matrix.dig('snapshot', 'foremanKubevirtCompatibilityPatchCommit')
     raise 'foremanKubevirtCompatibilityPatchCommit snapshot is stale'
   end
-  unless revision(foreman_kubevirt, 'HEAD^^^') == matrix.dig('snapshot', 'foremanKubevirtUpstreamCommit')
+  unless revision(foreman_kubevirt, 'HEAD^^^^') == matrix.dig('snapshot', 'foremanKubevirtUpstreamCommit')
     raise 'foremanKubevirtUpstreamCommit snapshot is stale'
   end
   unless revision(fog_kubevirt, 'HEAD^') == matrix.dig('snapshot', 'fogKubevirtUpstreamCommit')
