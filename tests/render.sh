@@ -122,7 +122,13 @@ helm template release-controller "${operator_chart}" --namespace foreman \
   --set monitoring.prometheusRule.enabled=true \
   --set monitoring.grafanaDashboard.enabled=true \
   --set-string monitoring.serviceMonitor.labels.release=platform-monitoring \
-  --set-string monitoring.prometheusRule.labels.release=platform-monitoring > "${rendered_operator_monitoring}"
+  --set-string monitoring.prometheusRule.labels.release=platform-monitoring \
+  --set-json 'networkPolicy.ingress.peers=[{"namespaceSelector":{"matchLabels":{"kubernetes.io/metadata.name":"monitoring"}},"podSelector":{"matchLabels":{"app.kubernetes.io/name":"prometheus"}}}]' > "${rendered_operator_monitoring}"
+if helm template release-controller "${operator_chart}" --namespace foreman \
+  --set monitoring.serviceMonitor.enabled=true >/dev/null 2>&1; then
+  echo 'operator monitoring accepted ingress isolation without a Prometheus peer' >&2
+  exit 1
+fi
 if helm template release-controller "${operator_chart}" --namespace foreman \
   --set networkPolicy.egress.enabled=true >/dev/null 2>&1; then
   echo 'operator egress isolation accepted an unspecified Kubernetes API endpoint' >&2

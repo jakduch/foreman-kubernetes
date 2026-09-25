@@ -7,7 +7,9 @@ abort "usage: #{$PROGRAM_NAME} RENDERED_MANIFEST" unless ARGV.length == 1
 
 documents = YAML.load_stream(File.read(ARGV.fetch(0))).compact
 deployment = documents.find { |item| item['kind'] == 'Deployment' }
-policy = documents.find { |item| item['kind'] == 'NetworkPolicy' }
+policy = documents.find do |item|
+  item['kind'] == 'NetworkPolicy' && Array(item.dig('spec', 'policyTypes')).include?('Egress')
+end
 abort 'operator egress NetworkPolicy is missing' unless policy
 unless policy.dig('spec', 'podSelector', 'matchLabels') == deployment.dig('spec', 'selector', 'matchLabels')
   abort 'operator egress policy does not select the controller Pods'

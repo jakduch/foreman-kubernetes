@@ -38,6 +38,15 @@ abort 'operator metrics Service is missing' unless service
 metrics_port = Array(service.dig('spec', 'ports')).find { |port| port['name'] == 'metrics' }
 abort 'operator metrics Service does not target health port' unless metrics_port&.fetch('targetPort') == 'health'
 
+ingress_policy = documents.find do |item|
+  item['kind'] == 'NetworkPolicy' && Array(item.dig('spec', 'policyTypes')).include?('Ingress')
+end
+abort 'operator metrics port has no ingress isolation' unless ingress_policy
+unless ingress_policy.dig('spec', 'podSelector', 'matchLabels') == deployment.dig('spec', 'selector', 'matchLabels')
+  abort 'operator ingress policy does not select the controller Pods'
+end
+abort 'operator metrics are admitted without an explicit peer' if ingress_policy.fetch('spec').key?('ingress')
+
 pdb = documents.find { |item| item['kind'] == 'PodDisruptionBudget' }
 abort 'operator PodDisruptionBudget is missing' unless pdb
 abort 'operator disruption budget can evict every candidate' unless pdb.dig('spec', 'maxUnavailable') == 1

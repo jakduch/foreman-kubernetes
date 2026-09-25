@@ -69,6 +69,24 @@ dashboard = monitoring_documents.find do |item|
 end
 abort 'enabled Grafana dashboard is missing' unless dashboard
 abort 'Grafana sidecar discovery label is missing' unless dashboard.dig('metadata', 'labels', 'grafana_dashboard') == '1'
+
+ingress_policy = monitoring_documents.find do |item|
+  item['kind'] == 'NetworkPolicy' && Array(item.dig('spec', 'policyTypes')).include?('Ingress')
+end
+abort 'operator metrics ingress policy is missing' unless ingress_policy
+unless ingress_policy.dig('spec', 'podSelector', 'matchLabels') == service.dig('spec', 'selector')
+  abort 'operator metrics ingress policy does not select the controller'
+end
+ingress_rule = Array(ingress_policy.dig('spec', 'ingress')).first
+prometheus_peer = Array(ingress_rule&.fetch('from', nil)).first
+unless prometheus_peer&.dig('namespaceSelector', 'matchLabels', 'kubernetes.io/metadata.name') == 'monitoring' &&
+    prometheus_peer&.dig('podSelector', 'matchLabels', 'app.kubernetes.io/name') == 'prometheus'
+  abort 'operator metrics ingress is not restricted to the declared Prometheus peer'
+end
+unless Array(ingress_rule['ports']) == [{ 'protocol' => 'TCP', 'port' => 9393 }]
+  abort 'operator metrics ingress exposes an unexpected port'
+end
+
 dashboard_json = dashboard.dig('data', 'foreman-release-operator.json')
 abort 'Grafana dashboard payload is missing' if dashboard_json.to_s.empty?
 parsed_dashboard = JSON.parse(dashboard_json)

@@ -103,8 +103,20 @@
     "networkPolicy": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["egress"],
+      "required": ["ingress", "egress"],
       "properties": {
+        "ingress": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["enabled", "peers"],
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "peers": {
+              "type": "array",
+              "items": { "$ref": "#/definitions/networkPolicyPeer" }
+            }
+          }
+        },
         "egress": {
           "type": "object",
           "additionalProperties": false,

@@ -41,6 +41,11 @@ monitoring:
       grafana_dashboard: "1"
 
 networkPolicy:
+  ingress:
+    # The health endpoint remains available to kubelet probes. Declare the
+    # Prometheus source explicitly before enabling the ServiceMonitor.
+    enabled: true
+    peers: []
   egress:
     # Enable only after identifying the in-cluster Kubernetes Service address
     # or another API endpoint by selector or CIDR.
