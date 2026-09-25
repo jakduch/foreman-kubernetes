@@ -70,6 +70,9 @@ require_old_credentials_rejected() {
   fi
 }
 
+kind_node="${KIND_CLUSTER_NAME:-foreman-stack-e2e}-control-plane"
+docker exec "${kind_node}" \
+  install -d -m 0770 -o 1000 -g 1000 /var/local/foreman-kind-object-storage
 kubectl apply --filename="${repo_root}/tests/kind/object-storage.yaml" >/dev/null
 kubectl --namespace "${namespace}" rollout status \
   deployment/object-storage --timeout=10m >/dev/null

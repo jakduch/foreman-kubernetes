@@ -562,6 +562,14 @@ install_dependencies() {
   kubectl apply --filename="${repo_root}/tests/kind/execution-target.yaml"
   "${repo_root}/tests/kind/publish-ansible-content.sh" "${ansible_revision}"
   kubectl --namespace "${namespace}" rollout status deployment/execution-target --timeout=5m
+  kubectl label namespace "${namespace}" \
+    pod-security.kubernetes.io/enforce=restricted \
+    pod-security.kubernetes.io/enforce-version=v1.34 \
+    pod-security.kubernetes.io/audit=restricted \
+    pod-security.kubernetes.io/audit-version=v1.34 \
+    pod-security.kubernetes.io/warn=restricted \
+    pod-security.kubernetes.io/warn-version=v1.34 \
+    --overwrite >/dev/null
 }
 
 configure_cluster_dns() {

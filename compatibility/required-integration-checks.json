@@ -16,6 +16,7 @@
     "proxy-interruption",
     "ansible-command-role-replacement",
     "restricted-egress",
+    "restricted-pod-security-admission",
     "clean-namespace-recovery",
     "identity-rotation",
     "failed-migration-roll-forward",

@@ -39,21 +39,31 @@ spec:
         app: execution-target
     spec:
       automountServiceAccountToken: false
+      securityContext:
+        runAsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: sshd
           image: foreman-kubernetes-ssh-target:test
           imagePullPolicy: Never
           ports:
             - name: ssh
-              containerPort: 22
+              containerPort: 2222
           readinessProbe:
             tcpSocket:
               port: ssh
             periodSeconds: 3
           securityContext:
             allowPrivilegeEscalation: false
-            seccompProfile:
-              type: RuntimeDefault
+            capabilities:
+              drop:
+                - ALL
+            runAsGroup: 1000
+            runAsNonRoot: true
+            runAsUser: 1000
           resources:
             requests:
               cpu: 10m

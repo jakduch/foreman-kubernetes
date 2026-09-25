@@ -245,6 +245,15 @@ The installer performs these gates before changing application resources:
    field conflicts reject the release before migrations start;
 8. it rejects maintenance-only renders that omit normal migration workloads.
 
+The application and execution namespaces should enforce the Kubernetes
+`restricted` Pod Security Standard. Select an enforcement version supported by
+the cluster and pin it deliberately, together with matching audit and warning
+labels. The full integration environment uses `v1.34` because that is its
+default pinned Kubernetes version; this is an admission contract, not a reason
+to copy that version onto older clusters. External databases, caches, brokers,
+object stores, and infrastructure Smart Proxies remain outside the chart's
+namespace and must be secured by their respective operators.
+
 It then applies only the Helm-adoptable migration dependencies and three
 one-hour, operation-labelled migration Jobs. Application Deployments are not
 submitted until all three Jobs complete. The installer applies the application

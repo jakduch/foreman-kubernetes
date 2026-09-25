@@ -80,6 +80,7 @@ ruby "${repo_root}/tests/kind-image-runtime-contract.rb"
 ruby "${repo_root}/tests/kind-candlepin-job-contract.rb"
 ruby "${repo_root}/tests/kind-operator-release-contract.rb"
 ruby "${repo_root}/tests/kind-object-storage-contract.rb"
+ruby "${repo_root}/tests/kind-pod-security-contract.rb"
 ruby "${repo_root}/tests/kind-python-content-contract.rb"
 bash "${repo_root}/tests/collect-diagnostics.sh"
 

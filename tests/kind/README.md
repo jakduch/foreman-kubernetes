@@ -83,7 +83,12 @@
   S3-compatible endpoint: bucket versioning, multipart upload, byte-for-byte
   SDK and signed-URL reads, delete marker verification, permanent cleanup of
   every probe version, rejection of a retired key, and a complete repeat after
-  credential rotation.
+  credential rotation;
+- Kubernetes `restricted` Pod Security admission for every application,
+  execution-proxy, migration, test, recovery, and controller Pod created after
+  the disposable dependencies are ready. The broker, object-storage emulator,
+  and SSH target are recreated under the same policy during their lifecycle
+  drills, so the assertion covers admission after installation as well.
 
 The test is intentionally opt-in because it downloads the real application images and needs substantially more CPU, memory, and time than chart rendering:
 
@@ -116,6 +121,12 @@ built because execution and controller tests remain active.
 The S3 qualification fixture uses the signed upstream SeaweedFS 4.47 image by
 immutable multi-platform digest. It is test infrastructure only; production
 deployments still provide and operate their own versioned bucket.
+
+The `foreman` namespace is labelled for `restricted` enforcement, audit, and
+warnings at the Kubernetes 1.34 policy version before Helm creates any product
+workload. The version intentionally matches the default pinned kind node. When
+testing another node image, keep the selected policy version supported by that
+cluster instead of weakening enforcement.
 
 By default the harness resolves the paired, digest-pinned nightly candidate
 from `compatibility/release-sets.json` and uses a digest-pinned Kubernetes 1.34
