@@ -9,9 +9,9 @@
 3. Run the clean-namespace recovery drill on amd64 before calling disaster recovery verified.
 4. Prove restricted workload security contexts and opt-in egress policies in the amd64 integration environment before making egress isolation a default.
 5. Add optional public routes for additional Pulp plugins only when their route and authentication contracts are covered by tests.
-6. Exercise the S3-compatible Pulp backend against a real versioned object
-   store, including direct downloads, multipart uploads, credential rotation,
-   and a coordinated database/bucket restore.
+6. Retain a successful amd64 run of the prepared versioned, multipart Pulp S3
+   qualification, then extend it to direct downloads, credential rotation, and
+   a coordinated database/bucket restore against a production provider.
 7. Promote packaged plugins individually from the machine-readable inventory;
    each needs migrations, runtime dependencies, one real workflow, restart,
    scale, and recovery proof.
@@ -46,6 +46,10 @@
   real failed migration remains blocked without a retry-token change, deletes
   the active leader, and requires the standby to complete the authorized retry
   and final managed-host execution.
+- A chart-owned Helm test and the full-stack workflow now exercise the exact
+  Pulp image against a digest-pinned S3-compatible endpoint, including bucket
+  versioning, multipart write/read integrity, delete-marker visibility, and
+  cleanup, with a separate retained evidence record.
 - One-shot, maintenance-gated recovery Jobs produce encrypted Restic snapshots
   of all three databases, Foreman's LDAP avatars, Pulp filesystem storage, and
   both releases' Secrets plus execution Dynflow/runner and Ansible-content

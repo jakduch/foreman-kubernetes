@@ -298,6 +298,37 @@ spec:
         - protocol: TCP
           port: {{ .Values.pulp.api.port }}
 {{- end }}
+{{- if and .Values.smokeTest.enabled (not .Values.maintenance.enabled) (eq .Values.pulp.storage.backend "s3") }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "foreman-stack.fullname" . }}-pulp-object-storage-test-egress
+  labels:
+    {{- include "foreman-stack.componentLabels" (dict "root" . "component" "pulp-object-storage-test-egress") | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: pulp-object-storage-test
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - {{- toYaml $dns | nindent 10 }}
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to:
+        {{- toYaml $pulpExternal.peers | nindent 8 }}
+      ports:
+        {{- range $pulpExternal.ports }}
+        - protocol: TCP
+          port: {{ . }}
+        {{- end }}
+{{- end }}
 {{- if or .Values.backup.enabled .Values.restore.enabled }}
 ---
 apiVersion: networking.k8s.io/v1

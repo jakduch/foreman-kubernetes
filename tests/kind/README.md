@@ -78,7 +78,11 @@
   retry through both application and execution-proxy verification;
 - removal of the temporary adoption permissions after the controller has
   labelled both releases, plus another successful managed-host job through the
-  controller-owned result.
+  controller-owned result;
+- a chart-owned Pulp storage probe against a digest-pinned, disposable
+  S3-compatible endpoint: bucket versioning, multipart upload, byte-for-byte
+  read, delete marker verification, and permanent cleanup of every probe
+  version.
 
 The test is intentionally opt-in because it downloads the real application images and needs substantially more CPU, memory, and time than chart rendering:
 
@@ -107,6 +111,10 @@ permits only the generated short-lived public key for its unprivileged
 `SKIP_RECOVERY_TEST=1` for a faster diagnostic run that omits the recovery
 toolbox build and recovery drill; the SSH target and release operator are still
 built because execution and controller tests remain active.
+
+The S3 qualification fixture uses the signed upstream SeaweedFS 4.47 image by
+immutable multi-platform digest. It is test infrastructure only; production
+deployments still provide and operate their own versioned bucket.
 
 By default the harness resolves the paired, digest-pinned nightly candidate
 from `compatibility/release-sets.json` and uses a digest-pinned Kubernetes 1.34

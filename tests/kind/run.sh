@@ -17,6 +17,7 @@ content_lifecycle_state="${temporary_directory}/content-lifecycle.json"
 image_runtime_contract_file="${IMAGE_RUNTIME_CONTRACT_FILE:-artifacts/image-runtime-contract.json}"
 candlepin_job_delivery_file="${CANDLEPIN_JOB_DELIVERY_FILE:-artifacts/candlepin-job-delivery.json}"
 operator_release_evidence_file="${OPERATOR_RELEASE_EVIDENCE_FILE:-artifacts/operator-release.json}"
+pulp_object_storage_evidence_file="${PULP_OBJECT_STORAGE_EVIDENCE_FILE:-artifacts/pulp-object-storage.json}"
 foreman_database_url_backup=""
 candlepin_database_password_backup=""
 application_secret_rollout_token=initial
@@ -1008,6 +1009,12 @@ ruby "${repo_root}/tests/kind/image-runtime-contract.rb" \
   "${image_profile}" \
   "${execution_proxy_image_profile}" \
   "${image_runtime_contract_file}"
+
+NAMESPACE="${namespace}" \
+  COMPATIBILITY_SET="${compatibility_set}" \
+  IMAGE_PROFILE="${image_profile}" \
+  PULP_OBJECT_STORAGE_EVIDENCE_FILE="${pulp_object_storage_evidence_file}" \
+  "${repo_root}/tests/kind/object-storage.sh"
 
 pulp_api_status="$(curl --silent --output /dev/null --write-out '%{http_code}' \
   --cacert "${temporary_directory}/ca.crt" \

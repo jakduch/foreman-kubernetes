@@ -17,6 +17,7 @@ jobs:
       IMAGE_RUNTIME_CONTRACT_FILE: artifacts/image-runtime-contract.json
       CANDLEPIN_JOB_DELIVERY_FILE: artifacts/candlepin-job-delivery.json
       OPERATOR_RELEASE_EVIDENCE_FILE: artifacts/operator-release.json
+      PULP_OBJECT_STORAGE_EVIDENCE_FILE: artifacts/pulp-object-storage.json
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: azure/setup-helm@bf6a7d304bc2fdb57e0331155b7ebf2c504acf0a # v4
@@ -41,6 +42,7 @@ jobs:
             artifacts/image-runtime-contract.json
             artifacts/candlepin-job-delivery.json
             artifacts/operator-release.json
+            artifacts/pulp-object-storage.json
           if-no-files-found: error
           retention-days: 90
       - name: Collect failure diagnostics
@@ -54,6 +56,8 @@ jobs:
           kubectl --namespace foreman logs deployment/execution-foreman-execution-proxy --all-containers > artifacts/execution-proxy.log 2>&1 || true
           kubectl --namespace foreman logs deployment/execution-target --all-containers > artifacts/execution-target.log 2>&1 || true
           kubectl --namespace foreman logs job/execution-ansible-content-loader > artifacts/execution-ansible-content-loader.log 2>&1 || true
+          kubectl --namespace foreman logs deployment/object-storage > artifacts/object-storage.log 2>&1 || true
+          kubectl --namespace foreman logs job/foreman-foreman-stack-pulp-object-storage-test > artifacts/pulp-object-storage-test.log 2>&1 || true
           kubectl --namespace foreman get foremanrelease foreman -o yaml > artifacts/foreman-release.yaml 2>&1 || true
           kubectl --namespace foreman logs --selector=app.kubernetes.io/name=foreman-release-operator --all-containers --prefix > artifacts/release-operator.log 2>&1 || true
           kind export logs artifacts/kind --name foreman-stack-e2e || true

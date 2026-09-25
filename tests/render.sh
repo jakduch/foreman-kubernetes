@@ -32,6 +32,7 @@ rendered_secret_rotation="$(mktemp)"
 rendered_monitoring="$(mktemp)"
 rendered_monitoring_maintenance="$(mktemp)"
 rendered_s3="$(mktemp)"
+rendered_s3_egress="$(mktemp)"
 rendered_azure_identity="$(mktemp)"
 rendered_s3_backup="$(mktemp)"
 rendered_smtp="$(mktemp)"
@@ -53,7 +54,7 @@ rendered_scheduled_backup="$(mktemp)"
 rendered_scheduled_execution="$(mktemp)"
 rendered_execution_scheduled_backup="$(mktemp)"
 rendered_scheduled_operator="$(mktemp)"
-trap 'rm -f "${rendered}" "${rendered_ingress}" "${rendered_execution_registration}" "${rendered_ingress_overrides}" "${rendered_minimal_pulp_ingress}" "${rendered_all_pulp_ingress}" "${rendered_backup}" "${rendered_backup_execution}" "${rendered_restore}" "${rendered_egress}" "${rendered_egress_backup}" "${rendered_egress_backup_local}" "${rendered_singletons}" "${rendered_ha}" "${rendered_candlepin_port}" "${rendered_foreman_service_port}" "${rendered_foreman_secret_contract}" "${rendered_database_tls_disabled}" "${rendered_image_pull_secrets}" "${rendered_no_migrations}" "${rendered_release_operation}" "${rendered_release_application}" "${rendered_manual_migration_stage}" "${rendered_secret_rotation}" "${rendered_monitoring}" "${rendered_monitoring_maintenance}" "${rendered_s3}" "${rendered_azure_identity}" "${rendered_s3_backup}" "${rendered_smtp}" "${rendered_smtp_backup}" "${rendered_kind}" "${rendered_kind_backup}" "${rendered_execution}" "${rendered_execution_egress}" "${rendered_execution_kind}" "${rendered_execution_operation}" "${rendered_execution_secret_rotation}" "${rendered_execution_monitoring}" "${rendered_execution_maintenance}" "${rendered_operator}" "${rendered_operator_monitoring}" "${rendered_operator_egress}" "${rendered_scheduled_stack}" "${rendered_scheduled_backup}" "${rendered_scheduled_execution}" "${rendered_execution_scheduled_backup}" "${rendered_scheduled_operator}"' EXIT
+trap 'rm -f "${rendered}" "${rendered_ingress}" "${rendered_execution_registration}" "${rendered_ingress_overrides}" "${rendered_minimal_pulp_ingress}" "${rendered_all_pulp_ingress}" "${rendered_backup}" "${rendered_backup_execution}" "${rendered_restore}" "${rendered_egress}" "${rendered_egress_backup}" "${rendered_egress_backup_local}" "${rendered_singletons}" "${rendered_ha}" "${rendered_candlepin_port}" "${rendered_foreman_service_port}" "${rendered_foreman_secret_contract}" "${rendered_database_tls_disabled}" "${rendered_image_pull_secrets}" "${rendered_no_migrations}" "${rendered_release_operation}" "${rendered_release_application}" "${rendered_manual_migration_stage}" "${rendered_secret_rotation}" "${rendered_monitoring}" "${rendered_monitoring_maintenance}" "${rendered_s3}" "${rendered_s3_egress}" "${rendered_azure_identity}" "${rendered_s3_backup}" "${rendered_smtp}" "${rendered_smtp_backup}" "${rendered_kind}" "${rendered_kind_backup}" "${rendered_execution}" "${rendered_execution_egress}" "${rendered_execution_kind}" "${rendered_execution_operation}" "${rendered_execution_secret_rotation}" "${rendered_execution_monitoring}" "${rendered_execution_maintenance}" "${rendered_operator}" "${rendered_operator_monitoring}" "${rendered_operator_egress}" "${rendered_scheduled_stack}" "${rendered_scheduled_backup}" "${rendered_scheduled_execution}" "${rendered_execution_scheduled_backup}" "${rendered_scheduled_operator}"' EXIT
 
 ruby "${repo_root}/tests/yaml-duplicates.rb"
 ruby "${repo_root}/tests/workflow-action-pins.rb" "${repo_root}/.github/workflows"
@@ -78,6 +79,7 @@ ruby "${repo_root}/tests/kind-release-sequencing.rb"
 ruby "${repo_root}/tests/kind-image-runtime-contract.rb"
 ruby "${repo_root}/tests/kind-candlepin-job-contract.rb"
 ruby "${repo_root}/tests/kind-operator-release-contract.rb"
+ruby "${repo_root}/tests/kind-object-storage-contract.rb"
 ruby "${repo_root}/tests/kind-python-content-contract.rb"
 bash "${repo_root}/tests/collect-diagnostics.sh"
 
@@ -348,6 +350,9 @@ helm template test "${chart}" \
 helm template test "${chart}" \
   --values "${repo_root}/examples/pulp-s3-values.yaml" > "${rendered_s3}"
 helm template test "${chart}" \
+  --values "${repo_root}/tests/egress-values.yaml" \
+  --values "${repo_root}/examples/pulp-s3-values.yaml" > "${rendered_s3_egress}"
+helm template test "${chart}" \
   --values "${repo_root}/tests/pulp-azure-workload-identity-values.yaml" > "${rendered_azure_identity}"
 helm template test "${chart}" \
   --values "${repo_root}/profiles/nightly-candidate-2026-09-23.yaml" \
@@ -390,6 +395,7 @@ for manifest in \
   "${rendered_release_operation}" \
   "${rendered_secret_rotation}" \
   "${rendered_s3}" \
+  "${rendered_s3_egress}" \
   "${rendered_azure_identity}" \
   "${rendered_smtp}" \
   "${rendered_backup}" \
@@ -841,8 +847,8 @@ grep -q 'name: PULP_STORAGES__default__OPTIONS__location' "${rendered_s3}"
 grep -q 'name: PULP_STORAGES__default__OPTIONS__endpoint_url' "${rendered_s3}"
 grep -q 'name: PULP_REDIRECT_TO_OBJECT_STORAGE' "${rendered_s3}"
 grep -q 'name: PULP_STORAGES__default__OPTIONS__access_key' "${rendered_s3}"
-if [[ "$(grep -c 'name: PULP_STORAGES__default__OPTIONS__access_key' "${rendered_s3}")" -ne 3 ]]; then
-  echo 'static object credentials must be exposed only to the three Pulp runtime roles' >&2
+if [[ "$(grep -c 'name: PULP_STORAGES__default__OPTIONS__access_key' "${rendered_s3}")" -ne 4 ]]; then
+  echo 'static object credentials must be exposed only to Pulp runtime roles and the S3 test' >&2
   exit 1
 fi
 grep -q 'name: pulp-object-storage-ca' "${rendered_s3}"
@@ -850,10 +856,12 @@ grep -q 'mountPath: /etc/pulp/object-storage/ca.crt' "${rendered_s3}"
 grep -q 'mountPath: /var/lib/pulp/tmp' "${rendered_s3}"
 grep -q 'sizeLimit: 20Gi' "${rendered_s3}"
 grep -q 'eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/foreman-pulp' "${rendered_s3}"
-if [[ "$(grep -c 'serviceAccountName: test-foreman-stack-pulp$' "${rendered_s3}")" -ne 3 ]]; then
-  echo 'only Pulp API, content, and worker Deployments should use the object-storage identity' >&2
+if [[ "$(grep -c 'serviceAccountName: test-foreman-stack-pulp$' "${rendered_s3}")" -ne 4 ]]; then
+  echo 'only Pulp runtime roles and the S3 test should use the object-storage identity' >&2
   exit 1
 fi
+ruby "${repo_root}/tests/pulp-object-storage-test-contract.rb" \
+  "${rendered}" "${rendered_s3}" "${rendered_s3_egress}"
 ruby "${repo_root}/tests/pulp-service-account-rollout-contract.rb" \
   "${rendered}" "${rendered_s3}" "${rendered_azure_identity}"
 grep -q 'name: PULP_STORAGE_BACKEND' "${rendered_s3_backup}"
