@@ -87,13 +87,14 @@ networkPolicy:
           - 61616
 ```
 
-The disposable amd64 drill now queues a real owner-healing job through
-Katello's authenticated Candlepin client, requires one successful execution
-attempt on exactly one live Candlepin pod, restarts Artemis completely, and
-then requires another one-attempt job without replacing either Candlepin pod.
-The report is retained with the integration evidence. It remains an
-implemented-but-unrun contract until the pinned image workflow completes.
+The disposable amd64 drill now sends concurrent, CA-verified HTTPS requests
+directly to both pod IPs while retaining the Service certificate hostname. It
+then queues a real owner-healing job through Katello's authenticated Candlepin
+client, requires one successful execution attempt on exactly one live
+Candlepin pod, restarts Artemis completely, and requires another one-attempt
+job without replacing either Candlepin pod. The report is retained with the
+integration evidence. It remains an implemented-but-unrun contract until the
+pinned image workflow completes.
 
-Before production use, the remaining live proof is concurrent requests through
-both pods, Quartz trigger failover during a running trigger, a failed migration,
-and a `Recreate` upgrade.
+Before production use, the remaining live proof is Quartz trigger failover
+during a running trigger, a failed migration, and a `Recreate` upgrade.

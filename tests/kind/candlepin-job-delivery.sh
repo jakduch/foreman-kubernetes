@@ -9,6 +9,8 @@ fi
 output_file="$1"
 namespace="${NAMESPACE:-foreman}"
 owner_label="Kubernetes_Integration"
+candlepin_service="foreman-foreman-stack-candlepin"
+candlepin_port="24443"
 
 foreman_pod() {
   kubectl --namespace "${namespace}" get pod \
@@ -27,6 +29,80 @@ candlepin_pod_uids() {
   kubectl --namespace "${namespace}" get pods \
     --selector=app.kubernetes.io/component=candlepin \
     --output=json | jq --raw-output '.items[].metadata.uid' | sort
+}
+
+candlepin_pods_with_ips() {
+  kubectl --namespace "${namespace}" get pods \
+    --selector=app.kubernetes.io/component=candlepin \
+    --output=json | jq --raw-output \
+      '.items[] | select(.status.phase == "Running") | [.metadata.name, .status.podIP] | @tsv' | sort
+}
+
+probe_candlepin_pod() {
+  local pod_name="$1"
+  local pod_ip="$2"
+
+  kubectl --namespace "${namespace}" exec "$(foreman_pod)" -- \
+    env \
+      "CANDLEPIN_POD_NAME=${pod_name}" \
+      "CANDLEPIN_POD_IP=${pod_ip}" \
+      "CANDLEPIN_SERVICE_NAME=${candlepin_service}" \
+      "CANDLEPIN_SERVICE_PORT=${candlepin_port}" \
+      CANDLEPIN_REQUEST_COUNT=4 \
+    bin/rails runner '
+      require "json"
+      require "openssl"
+      require "socket"
+
+      host = ENV.fetch("CANDLEPIN_SERVICE_NAME")
+      store = OpenSSL::X509::Store.new
+      store.add_file("/etc/foreman/katello-default-ca.crt")
+      requests = Integer(ENV.fetch("CANDLEPIN_REQUEST_COUNT")).times.map do
+        Thread.new do
+          socket = TCPSocket.new(ENV.fetch("CANDLEPIN_POD_IP"), Integer(ENV.fetch("CANDLEPIN_SERVICE_PORT")))
+          context = OpenSSL::SSL::SSLContext.new
+          context.cert_store = store
+          context.verify_mode = OpenSSL::SSL::VERIFY_PEER
+          tls = OpenSSL::SSL::SSLSocket.new(socket, context)
+          tls.hostname = host
+          tls.connect
+          tls.post_connection_check(host)
+          tls.write("GET /candlepin/status HTTP/1.1\r\nHost: #{host}\r\nConnection: close\r\n\r\n")
+          response = tls.read
+          status, body = response.split("\r\n\r\n", 2)
+          abort "Candlepin request failed: #{status}" unless status&.start_with?("HTTP/1.1 200")
+          abort "Candlepin is not in NORMAL mode: #{body}" unless body&.match?(/"mode"\s*:\s*"NORMAL"/)
+        ensure
+          tls&.close
+          socket&.close
+        end
+      end
+      requests.each(&:value)
+      puts "CANDLEPIN_POD_READY=#{ENV.fetch("CANDLEPIN_POD_NAME")}"
+    '
+}
+
+assert_concurrent_request_service() {
+  local pod_count=0
+  local pod_name
+  local pod_ip
+  local pid
+  local -a pids=()
+
+  while IFS=$'\t' read -r pod_name pod_ip; do
+    [[ -n "${pod_name}" && -n "${pod_ip}" ]] || continue
+    pod_count=$((pod_count + 1))
+    probe_candlepin_pod "${pod_name}" "${pod_ip}" >/dev/null &
+    pids+=("$!")
+  done < <(candlepin_pods_with_ips)
+
+  if [[ "${pod_count}" -ne 2 ]]; then
+    echo "Candlepin has ${pod_count} running request pods, expected 2" >&2
+    exit 1
+  fi
+  for pid in "${pids[@]}"; do
+    wait "${pid}"
+  done
 }
 
 start_job() {
@@ -89,6 +165,8 @@ assert_single_delivery() {
   fi
 }
 
+assert_concurrent_request_service
+
 first_job="$(start_job)"
 first_job="$(wait_for_job "$(jq --exit-status --raw-output '.id' <<<"${first_job}")")"
 assert_single_delivery "${first_job}" "job before broker restart"
@@ -134,11 +212,13 @@ jq --null-input \
   --argjson first_job "${first_job}" \
   --argjson second_job "${second_job}" \
   --arg candlepin_pod_uids "${candlepin_uids_after}" \
+  --arg candlepin_pods "$(candlepin_pod_names)" \
   '{
     schemaVersion: 1,
     brokerRestarted: true,
     candlepinPodsRestarted: false,
     candlepinPodUids: ($candlepin_pod_uids | split("\n")),
+    requestServicePods: ($candlepin_pods | split("\n")),
     jobs: [$first_job, $second_job]
   }' >"${output_file}"
 
