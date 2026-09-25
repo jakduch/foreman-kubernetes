@@ -64,7 +64,7 @@ cluster_role = documents.find { |item| item['kind'] == 'ClusterRole' }
 abort 'operator cluster preflight role is missing' unless cluster_role
 cluster_rules = Array(cluster_role['rules'])
 cluster_resources = cluster_rules.flat_map { |rule| Array(rule['resources']) }.sort
-expected_cluster_resources = %w[apiservices customresourcedefinitions ingressclasses storageclasses]
+expected_cluster_resources = %w[apiservices customresourcedefinitions ingressclasses priorityclasses storageclasses]
 abort "unexpected cluster-scoped resources: #{cluster_resources.join(', ')}" unless cluster_resources == expected_cluster_resources
 cluster_verbs = cluster_rules.flat_map { |rule| Array(rule['verbs']) }.uniq.sort
 abort 'cluster preflight permissions are not read-only' unless cluster_verbs == %w[get list]

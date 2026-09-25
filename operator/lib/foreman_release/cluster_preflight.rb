@@ -53,6 +53,8 @@ module ForemanRelease
         end
       when 'CustomResourceDefinition'
         required_resource(nil, 'customresourcedefinition', name)
+      when 'PriorityClass'
+        required_resource(nil, 'priorityclass', name)
       when 'PersistentVolumeClaim', 'ServiceAccount'
         required_resource(namespace, kind.downcase, name)
       else

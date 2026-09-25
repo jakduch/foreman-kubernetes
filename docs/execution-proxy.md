@@ -43,6 +43,11 @@ directories. `Recreate` prevents two pods from owning it during a rollout. A
 restart can retain the Dynflow plan and runner files, but site-loss recovery of
 an in-flight command is not yet claimed. Treat Foreman as the job source of
 truth and retry interrupted jobs after validating their target-side effects.
+Use `scheduling.nodeSelector` and `scheduling.tolerations` when these RWO claims
+can attach only to a dedicated node pool. The same settings reach the smoke
+Job, so successful release validation proves that the selected pool can also
+run its operational gates. A configured `scheduling.priorityClassName` must
+refer to an existing cluster-scoped PriorityClass and is checked by preflight.
 
 The chart overrides the image's shell-form command so Smart Proxy runs directly
 as PID 1 and receives Kubernetes termination signals. A short `preStop` drain

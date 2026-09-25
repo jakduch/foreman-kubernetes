@@ -85,3 +85,13 @@ silently giving up the requested failure separation. Ensure every eligible
 production node carries the configured topology labels. Installations with
 custom failure-domain labels can replace `affinity.topologyKeys`; keeping both
 a zone-level and node-level key is recommended.
+
+For a dedicated node pool, set all three fields under `scheduling`: a selector
+for the pool label, tolerations matching only its intentional taints, and an
+existing PriorityClass when Foreman must preempt lower-priority workloads.
+Capacity the selected pool for rollout surges plus simultaneous migration or
+smoke Jobs; scheduling policy applies to those Jobs as well as Deployments.
+Keep the release operator on a separately configured pool so it can diagnose a
+mislabelled or exhausted application pool. The execution proxy is a singleton
+with RWO storage and `Recreate` rollout semantics, so its eligible nodes must
+all be able to attach both the state and Ansible content claims.

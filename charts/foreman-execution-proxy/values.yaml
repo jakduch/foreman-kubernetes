@@ -146,6 +146,13 @@ networkPolicy:
       ports:
         - 22
 
+# Pin both the long-running proxy and its smoke test to nodes that can mount
+# the singleton RWO state and Ansible claims.
+scheduling:
+  priorityClassName: ""
+  nodeSelector: {}
+  tolerations: []
+
 resources:
   requests:
     cpu: 250m

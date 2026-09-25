@@ -22,6 +22,7 @@ spec:
       labels:
         {{- include "foreman-stack.podLabels" (dict "root" . "component" "execution-proxy-registration") | nindent 8 }}
     spec:
+      {{- include "foreman-stack.scheduling" . | nindent 6 }}
       restartPolicy: Never
       serviceAccountName: {{ include "foreman-stack.serviceAccountName" . }}
       automountServiceAccountToken: false

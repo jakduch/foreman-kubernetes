@@ -16,6 +16,7 @@ spec:
       labels:
         {{- include "foreman-stack.podLabels" (dict "root" . "component" "pulp-registration") | nindent 8 }}
     spec:
+      {{- include "foreman-stack.scheduling" . | nindent 6 }}
       restartPolicy: OnFailure
       serviceAccountName: {{ include "foreman-stack.serviceAccountName" . }}
       automountServiceAccountToken: false

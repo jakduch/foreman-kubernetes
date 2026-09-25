@@ -65,6 +65,7 @@ spec:
       annotations:
         checksum/secrets: {{ $root.Values.secretRolloutToken | sha256sum }}
     spec:
+      {{- include "foreman-stack.scheduling" $root | nindent 6 }}
       serviceAccountName: {{ include "foreman-stack.pulpServiceAccountName" $root }}
       automountServiceAccountToken: false
       terminationGracePeriodSeconds: {{ $service.terminationGrace }}
@@ -215,6 +216,7 @@ spec:
       annotations:
         checksum/secrets: {{ .Values.secretRolloutToken | sha256sum }}
     spec:
+      {{- include "foreman-stack.scheduling" . | nindent 6 }}
       serviceAccountName: {{ include "foreman-stack.pulpServiceAccountName" . }}
       automountServiceAccountToken: false
       {{- include "foreman-stack.imagePullSecrets" . | nindent 6 }}

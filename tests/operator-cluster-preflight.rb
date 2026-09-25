@@ -81,6 +81,7 @@ documents = [
     'spec' => {
       'template' => {
         'spec' => {
+          'priorityClassName' => 'foreman-platform-critical',
           'serviceAccountName' => 'external-runtime',
           'containers' => [
             {
@@ -111,6 +112,9 @@ client.objects = {
   },
   [nil, 'customresourcedefinition', 'prometheusrules.monitoring.coreos.com'] => {
     'metadata' => {'name' => 'prometheusrules.monitoring.coreos.com'}
+  },
+  [nil, 'priorityclass', 'foreman-platform-critical'] => {
+    'metadata' => {'name' => 'foreman-platform-critical'}
   },
   ['platform', 'persistentvolumeclaim', 'imported-content'] => {'metadata' => {'name' => 'imported-content'}},
   ['platform', 'serviceaccount', 'external-runtime'] => {'metadata' => {'name' => 'external-runtime'}},
@@ -145,6 +149,17 @@ begin
   raise 'missing PrometheusRule CRD was accepted'
 rescue ForemanRelease::InvalidRelease => error
   raise unless error.message.include?('required customresourcedefinition prometheusrules.monitoring.coreos.com')
+end
+
+client.objects[[nil, 'customresourcedefinition', 'prometheusrules.monitoring.coreos.com']] = {
+  'metadata' => {'name' => 'prometheusrules.monitoring.coreos.com'}
+}
+client.objects.delete([nil, 'priorityclass', 'foreman-platform-critical'])
+begin
+  preflight.validate!(documents, 'platform')
+  raise 'missing PriorityClass was accepted'
+rescue ForemanRelease::InvalidRelease => error
+  raise unless error.message.include?('required priorityclass foreman-platform-critical does not exist')
 end
 
 puts 'Operator preflight validates rendered cluster resources and Secret keys.'

@@ -43,3 +43,17 @@ platform.theforeman.org/compatibility-set: controller-runtime
 {{- $raw -}}
 {{- end -}}
 {{- end }}
+
+{{- define "foreman-release-operator.scheduling" -}}
+{{- with .Values.scheduling.priorityClassName }}
+priorityClassName: {{ . | quote }}
+{{- end }}
+{{- with .Values.scheduling.nodeSelector }}
+nodeSelector:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- with .Values.scheduling.tolerations }}
+tolerations:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- end }}

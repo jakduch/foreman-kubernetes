@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft-07/schema#",
   "type": "object",
   "additionalProperties": false,
-  "required": ["nameOverride", "fullnameOverride", "imagePullSecrets", "secretRolloutToken", "platform", "releaseOperation", "ingress", "valkey", "sharedSecret", "serviceAccount", "smartProxy", "foreman", "candlepin", "pulp", "migrations", "smokeTest", "recurringTasks", "podDisruptionBudget", "monitoring", "networkPolicy", "affinity", "maintenance", "recovery", "backup", "restore"],
+  "required": ["nameOverride", "fullnameOverride", "imagePullSecrets", "secretRolloutToken", "platform", "releaseOperation", "ingress", "valkey", "sharedSecret", "serviceAccount", "smartProxy", "foreman", "candlepin", "pulp", "migrations", "smokeTest", "recurringTasks", "podDisruptionBudget", "monitoring", "networkPolicy", "affinity", "scheduling", "maintenance", "recovery", "backup", "restore"],
   "properties": {
     "nameOverride": { "type": "string" },
     "fullnameOverride": { "type": "string" },
@@ -634,6 +634,7 @@
         "whenUnsatisfiable": { "enum": ["DoNotSchedule", "ScheduleAnyway"] }
       }
     },
+    "scheduling": { "$ref": "#/definitions/scheduling" },
     "maintenance": {
       "type": "object",
       "additionalProperties": false,
@@ -882,6 +883,29 @@
     }
   ],
   "definitions": {
+    "scheduling": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["priorityClassName", "nodeSelector", "tolerations"],
+      "properties": {
+        "priorityClassName": { "type": "string" },
+        "nodeSelector": { "type": "object", "additionalProperties": { "type": "string" } },
+        "tolerations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "key": { "type": "string" },
+              "operator": { "enum": ["Equal", "Exists"] },
+              "value": { "type": "string" },
+              "effect": { "enum": ["NoSchedule", "PreferNoSchedule", "NoExecute"] },
+              "tolerationSeconds": { "type": "integer", "minimum": 0 }
+            }
+          }
+        }
+      }
+    },
     "serviceAccount": {
       "type": "object",
       "required": ["create", "name"],

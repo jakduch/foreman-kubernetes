@@ -73,6 +73,12 @@ check_required_cluster_resources() {
           return 1
         }
         ;;
+      PriorityClass)
+        kubectl get priorityclass "${resource_name}" >/dev/null || {
+          echo "required PriorityClass ${resource_name} does not exist" >&2
+          return 1
+        }
+        ;;
       PersistentVolumeClaim | ServiceAccount)
         kubectl --namespace "${namespace}" get "${resource_kind}" "${resource_name}" >/dev/null || {
           echo "required ${resource_kind} ${namespace}/${resource_name} does not exist" >&2

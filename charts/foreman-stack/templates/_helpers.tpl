@@ -83,6 +83,20 @@ imagePullSecrets:
 {{- end }}
 {{- end }}
 
+{{- define "foreman-stack.scheduling" -}}
+{{- with .Values.scheduling.priorityClassName }}
+priorityClassName: {{ . | quote }}
+{{- end }}
+{{- with .Values.scheduling.nodeSelector }}
+nodeSelector:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- with .Values.scheduling.tolerations }}
+tolerations:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- end }}
+
 {{- define "foreman-stack.restrictedContainerSecurityContext" -}}
 allowPrivilegeEscalation: false
 capabilities:

@@ -30,6 +30,7 @@ manifest = <<~YAML
   spec:
     template:
       spec:
+        priorityClassName: foreman-platform-critical
         serviceAccountName: external-runtime
         containers:
           - name: app
@@ -95,6 +96,7 @@ expected = <<~OUTPUT
   DefaultStorageClass\t
   IngressClass\tnginx\tk8s.io/ingress-nginx
   PersistentVolumeClaim\timported-content
+  PriorityClass\tforeman-platform-critical
   ServiceAccount\texternal-runtime
   StorageClass\tfast-rwx
 OUTPUT

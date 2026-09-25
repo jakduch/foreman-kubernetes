@@ -21,6 +21,9 @@ mix image profiles from different sets.
 - When a resource-based horizontal autoscaler is enabled, the aggregated
   `v1beta1.metrics.k8s.io` API must exist and report `Available=True` (normally
   provided by metrics-server).
+- When `scheduling.priorityClassName` is set, that cluster-scoped
+  `PriorityClass` must already exist. Guarded preflight verifies it before any
+  release mutation.
 
 The chart does not create production credentials. Copy the example values into
 deployment-owned files outside this repository and create the referenced
@@ -118,6 +121,15 @@ Lost chart-owned PVCs. Guarded preflight requires the `PrometheusRule` CRD
 before changing workloads. Application rules are deliberately absent from a
 maintenance revision, where the database-writing Deployments are expected to
 be stopped; controller alerts continue to report the release operation.
+
+All three charts expose `scheduling.nodeSelector`, `scheduling.tolerations`,
+and `scheduling.priorityClassName`. The application setting is deliberately
+applied to every web, worker, migration, recurring-task, smoke-test, and
+recovery Pod so a guarded release cannot strand an operational gate outside
+the node pool used by the long-running workloads. The execution chart applies
+the same policy to its singleton proxy and smoke test; select nodes that can
+attach both RWO claims. Configure the operator separately so a bad application
+node selector cannot also remove the controller needed to report the failure.
 
 The release controller is a privileged in-namespace client of the Kubernetes
 API. Set `networkPolicy.egress.enabled=true` only after listing the in-cluster
@@ -221,7 +233,8 @@ The installer performs these gates before changing application resources:
 4. it renders and lints both charts with deployment values followed by the
    authoritative digest-pinned image profiles;
 5. it verifies every referenced IngressClass, named or default StorageClass,
-   required resource Metrics API, external PVC, and external ServiceAccount;
+   PriorityClass, required resource Metrics API, external PVC, and external
+   ServiceAccount;
 6. it discovers every non-optional, externally managed Secret used by a Pod
    template and verifies both the Secret and each explicitly referenced key;
 7. it rejects maintenance-only renders that omit normal migration workloads.

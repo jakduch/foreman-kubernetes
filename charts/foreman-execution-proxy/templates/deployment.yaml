@@ -23,6 +23,7 @@ spec:
         checksum/config: {{ include (print $.Template.BasePath "/config.yaml") . | sha256sum }}
         checksum/secrets: {{ .Values.secretRolloutToken | sha256sum }}
     spec:
+      {{- include "foreman-execution-proxy.scheduling" . | nindent 6 }}
       serviceAccountName: {{ include "foreman-execution-proxy.serviceAccountName" . }}
       automountServiceAccountToken: false
       terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}

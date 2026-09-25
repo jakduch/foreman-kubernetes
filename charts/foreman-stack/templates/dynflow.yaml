@@ -49,6 +49,7 @@ spec:
         checksum/config: {{ include (print $root.Template.BasePath "/runtime-config.yaml") $root | sha256sum }}
         checksum/secrets: {{ $root.Values.secretRolloutToken | sha256sum }}
     spec:
+      {{- include "foreman-stack.scheduling" $root | nindent 6 }}
       terminationGracePeriodSeconds: {{ add $root.Values.foreman.dynflow.shutdownTimeoutSeconds 30 }}
       serviceAccountName: {{ include "foreman-stack.serviceAccountName" $root }}
       automountServiceAccountToken: false

@@ -29,6 +29,7 @@ spec:
           annotations:
             checksum/secrets: {{ $root.Values.secretRolloutToken | sha256sum }}
         spec:
+          {{- include "foreman-stack.scheduling" $root | nindent 10 }}
           restartPolicy: Never
           serviceAccountName: {{ include "foreman-stack.serviceAccountName" $root }}
           automountServiceAccountToken: false

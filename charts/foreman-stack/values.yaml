@@ -484,6 +484,13 @@ affinity:
   # Use DoNotSchedule in a production cluster that has enough failure domains.
   whenUnsatisfiable: ScheduleAnyway
 
+# Keep every release workload, including migrations, smoke tests, and recovery,
+# on nodes that can mount the same storage and reach the same dependencies.
+scheduling:
+  priorityClassName: ""
+  nodeSelector: {}
+  tolerations: []
+
 maintenance:
   # Removes all database-writing workloads while retaining Services, Ingresses,
   # configuration, and persistent storage. Required for backup and restore Jobs.

@@ -44,7 +44,11 @@ rendered_execution_monitoring="$(mktemp)"
 rendered_operator="$(mktemp)"
 rendered_operator_monitoring="$(mktemp)"
 rendered_operator_egress="$(mktemp)"
-trap 'rm -f "${rendered}" "${rendered_ingress}" "${rendered_execution_registration}" "${rendered_ingress_overrides}" "${rendered_minimal_pulp_ingress}" "${rendered_backup}" "${rendered_restore}" "${rendered_egress}" "${rendered_egress_backup}" "${rendered_egress_backup_local}" "${rendered_singletons}" "${rendered_ha}" "${rendered_candlepin_port}" "${rendered_foreman_service_port}" "${rendered_foreman_secret_contract}" "${rendered_database_tls_disabled}" "${rendered_image_pull_secrets}" "${rendered_no_migrations}" "${rendered_release_operation}" "${rendered_release_application}" "${rendered_manual_migration_stage}" "${rendered_secret_rotation}" "${rendered_monitoring}" "${rendered_monitoring_maintenance}" "${rendered_s3}" "${rendered_s3_backup}" "${rendered_smtp}" "${rendered_smtp_backup}" "${rendered_kind}" "${rendered_kind_backup}" "${rendered_execution}" "${rendered_execution_egress}" "${rendered_execution_kind}" "${rendered_execution_operation}" "${rendered_execution_secret_rotation}" "${rendered_execution_monitoring}" "${rendered_operator}" "${rendered_operator_monitoring}" "${rendered_operator_egress}"' EXIT
+rendered_scheduled_stack="$(mktemp)"
+rendered_scheduled_backup="$(mktemp)"
+rendered_scheduled_execution="$(mktemp)"
+rendered_scheduled_operator="$(mktemp)"
+trap 'rm -f "${rendered}" "${rendered_ingress}" "${rendered_execution_registration}" "${rendered_ingress_overrides}" "${rendered_minimal_pulp_ingress}" "${rendered_backup}" "${rendered_restore}" "${rendered_egress}" "${rendered_egress_backup}" "${rendered_egress_backup_local}" "${rendered_singletons}" "${rendered_ha}" "${rendered_candlepin_port}" "${rendered_foreman_service_port}" "${rendered_foreman_secret_contract}" "${rendered_database_tls_disabled}" "${rendered_image_pull_secrets}" "${rendered_no_migrations}" "${rendered_release_operation}" "${rendered_release_application}" "${rendered_manual_migration_stage}" "${rendered_secret_rotation}" "${rendered_monitoring}" "${rendered_monitoring_maintenance}" "${rendered_s3}" "${rendered_s3_backup}" "${rendered_smtp}" "${rendered_smtp_backup}" "${rendered_kind}" "${rendered_kind_backup}" "${rendered_execution}" "${rendered_execution_egress}" "${rendered_execution_kind}" "${rendered_execution_operation}" "${rendered_execution_secret_rotation}" "${rendered_execution_monitoring}" "${rendered_operator}" "${rendered_operator_monitoring}" "${rendered_operator_egress}" "${rendered_scheduled_stack}" "${rendered_scheduled_backup}" "${rendered_scheduled_execution}" "${rendered_scheduled_operator}"' EXIT
 
 ruby "${repo_root}/tests/yaml-duplicates.rb"
 ruby "${repo_root}/tests/workflow-action-pins.rb" "${repo_root}/.github/workflows"
@@ -79,6 +83,8 @@ if helm lint "${chart}" --set-string releaseOperation.id=orphan-operation >/dev/
 fi
 helm template test "${chart}" > "${rendered}"
 helm template test "${chart}" \
+  --values "${repo_root}/tests/scheduling-values.yaml" > "${rendered_scheduled_stack}"
+helm template test "${chart}" \
   --set monitoring.prometheusRule.enabled=true \
   --set-string monitoring.prometheusRule.labels.release=platform-monitoring > "${rendered_monitoring}"
 helm template test "${chart}" \
@@ -102,10 +108,14 @@ if helm template execution "${execution_chart}" \
 fi
 helm template execution "${execution_chart}" > "${rendered_execution}"
 helm template execution "${execution_chart}" \
+  --values "${repo_root}/tests/scheduling-values.yaml" > "${rendered_scheduled_execution}"
+helm template execution "${execution_chart}" \
   --set monitoring.prometheusRule.enabled=true \
   --set-string monitoring.prometheusRule.labels.release=platform-monitoring > "${rendered_execution_monitoring}"
 helm lint "${operator_chart}"
 helm template release-controller "${operator_chart}" --namespace foreman --include-crds > "${rendered_operator}"
+helm template release-controller "${operator_chart}" --namespace foreman \
+  --values "${repo_root}/tests/scheduling-values.yaml" > "${rendered_scheduled_operator}"
 helm template release-controller "${operator_chart}" --namespace foreman \
   --set monitoring.serviceMonitor.enabled=true \
   --set monitoring.prometheusRule.enabled=true \
@@ -207,6 +217,13 @@ helm template test "${chart}" \
   --set maintenance.enabled=true \
   --set backup.enabled=true \
   --set backup.requestId=20260924-120000 > "${rendered_backup}"
+helm template test "${chart}" \
+  --values "${repo_root}/profiles/nightly-candidate-2026-09-23.yaml" \
+  --values "${repo_root}/tests/recovery-image-values.yaml" \
+  --values "${repo_root}/tests/scheduling-values.yaml" \
+  --set maintenance.enabled=true \
+  --set backup.enabled=true \
+  --set backup.requestId=scheduled-backup > "${rendered_scheduled_backup}"
 helm template test "${chart}" \
   --values "${repo_root}/profiles/nightly-candidate-2026-09-23.yaml" \
   --values "${repo_root}/tests/recovery-image-values.yaml" \
@@ -374,6 +391,9 @@ ruby "${repo_root}/tests/disruption-budget-contract.rb" "${rendered}"
 ruby "${repo_root}/tests/rollout-strategy-contract.rb" "${rendered}"
 ruby "${repo_root}/tests/topology-spread-contract.rb" "${rendered}" ScheduleAnyway
 ruby "${repo_root}/tests/topology-spread-contract.rb" "${rendered_ingress}" DoNotSchedule
+ruby "${repo_root}/tests/scheduling-contract.rb" \
+  "${rendered_scheduled_stack}" "${rendered_scheduled_backup}" \
+  "${rendered_scheduled_execution}" "${rendered_scheduled_operator}"
 ruby "${repo_root}/tests/smtp-contract.rb" "${rendered_smtp}" "${rendered_smtp_backup}"
 ruby "${repo_root}/tests/recovery-storage-contract.rb" "${rendered_backup}" true
 ruby "${repo_root}/tests/recovery-storage-contract.rb" "${rendered_restore}" true

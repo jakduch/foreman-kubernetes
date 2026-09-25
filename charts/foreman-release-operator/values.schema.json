@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft-07/schema#",
   "type": "object",
   "additionalProperties": false,
-  "required": ["nameOverride", "fullnameOverride", "imagePullSecrets", "image", "controller", "health", "service", "monitoring", "networkPolicy", "serviceAccount", "rbac", "resources"],
+  "required": ["nameOverride", "fullnameOverride", "imagePullSecrets", "image", "controller", "health", "service", "monitoring", "networkPolicy", "serviceAccount", "rbac", "scheduling", "resources"],
   "allOf": [
     {
       "if": { "properties": { "serviceAccount": { "properties": { "create": { "const": false } } } } },
@@ -135,9 +135,33 @@
         "clusterPreflight": { "type": "boolean" }
       }
     },
+    "scheduling": { "$ref": "#/definitions/scheduling" },
     "resources": { "type": "object" }
   },
   "definitions": {
+    "scheduling": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["priorityClassName", "nodeSelector", "tolerations"],
+      "properties": {
+        "priorityClassName": { "type": "string" },
+        "nodeSelector": { "type": "object", "additionalProperties": { "type": "string" } },
+        "tolerations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "key": { "type": "string" },
+              "operator": { "enum": ["Equal", "Exists"] },
+              "value": { "type": "string" },
+              "effect": { "enum": ["NoSchedule", "PreferNoSchedule", "NoExecute"] },
+              "tolerationSeconds": { "type": "integer", "minimum": 0 }
+            }
+          }
+        }
+      }
+    },
     "networkPolicyPeer": {
       "type": "object",
       "minProperties": 1,

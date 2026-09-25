@@ -107,7 +107,8 @@ Script before the final application and external mTLS smoke gates run.
 Before the Lease is acquired, `ClusterPreflight` derives dependencies from the
 exact combined render. It verifies referenced Secret keys, external PVCs and
 ServiceAccounts, explicit or default StorageClasses, the required IngressClass
-controller, and metrics API availability. The manual install and upgrade
+controller, referenced PriorityClasses, and metrics API availability. The
+manual install and upgrade
 scripts use the same `ManifestRequirements` implementation, so their preflight
 inventory cannot drift from the controller.
 The chart's namespaced Role is checked against every resource kind rendered by

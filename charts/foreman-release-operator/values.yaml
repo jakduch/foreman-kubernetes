@@ -65,6 +65,11 @@ rbac:
   create: true
   clusterPreflight: true
 
+scheduling:
+  priorityClassName: ""
+  nodeSelector: {}
+  tolerations: []
+
 resources:
   requests:
     cpu: 50m

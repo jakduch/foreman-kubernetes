@@ -16,6 +16,7 @@ spec:
       labels:
         {{- include "foreman-execution-proxy.componentPodLabels" (dict "root" . "component" "smoke-test") | nindent 8 }}
     spec:
+      {{- include "foreman-execution-proxy.scheduling" . | nindent 6 }}
       restartPolicy: Never
       automountServiceAccountToken: false
       {{- with .Values.imagePullSecrets }}

@@ -75,3 +75,17 @@ runAsGroup: 991
 runAsNonRoot: true
 runAsUser: 991
 {{- end }}
+
+{{- define "foreman-execution-proxy.scheduling" -}}
+{{- with .Values.scheduling.priorityClassName }}
+priorityClassName: {{ . | quote }}
+{{- end }}
+{{- with .Values.scheduling.nodeSelector }}
+nodeSelector:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- with .Values.scheduling.tolerations }}
+tolerations:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- end }}
