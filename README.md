@@ -118,7 +118,7 @@ digest-pinned profiles, waits for schema Jobs, requires the application smoke
 test, and only then installs the paired execution proxy. Existing deployments
 must use the controlled upgrade helper instead.
 
-Static render checks are available as `tests/render.sh` and run in the lightweight pull-request workflow together with ShellCheck. The opt-in disposable integration harness under `tests/kind/` exercises a real install, the chart-owned application smoke test, mTLS Pulp registration, successful, failed, cancelled, and proxy-interrupted Remote Execution jobs, Ansible command execution, role discovery/import/assignment/execution through the egress-restricted central proxy, replacement of already imported role content, an explicit denied-destination probe, clean-namespace disaster recovery, full proxy TLS/client/SSH identity rotation, a failed migration with retained old workloads and roll-forward recovery, scaling, and controlled application and proxy upgrades while jobs are active. It cleans up the generated cluster and PKI by default and is not run for every change. A manual `Full integration` workflow provides the intended amd64 execution environment.
+Static render checks are available as `tests/render.sh` and run in the lightweight pull-request workflow together with ShellCheck. The opt-in disposable integration harness under `tests/kind/` exercises a real install, the chart-owned application smoke test, mTLS Pulp registration, successful, failed, cancelled, and proxy-interrupted Remote Execution jobs, Ansible command execution, role discovery/import/assignment/execution through the egress-restricted central proxy, replacement of already imported role content, Foreman Webhooks delivery, the Foreman-side virt-who configuration and recovery lifecycle, an explicit denied-destination probe, clean-namespace disaster recovery, full proxy TLS/client/SSH identity rotation, a failed migration with retained old workloads and roll-forward recovery, scaling, and controlled application and proxy upgrades while jobs are active. It cleans up the generated cluster and PKI by default and is not run for every change. A manual `Full integration` workflow provides the intended amd64 execution environment.
 
 Application and execution-proxy image profiles are paired in
 `compatibility/release-sets.json`. Declared sets are digest-pinned and remain
@@ -170,6 +170,7 @@ The sibling `foreman-kubernetes-upstream/` directory is intentionally not part o
 | Foreman Remote Execution | `master` | `be391fd9ef3140df707eed4f320ce2ebd572648d` |
 | Foreman Ansible | `master` | `7ffc9e37344011554347ca9429fffdcf1f81816e` |
 | Foreman Webhooks | `master` | `4ad5882f4b866cb55b0d1bb102010ddb1e448ebd` |
+| Foreman virt-who Configure | `master` | `78b9e78650013b6ef023a4163a7d47518024cd1d` |
 | foremanctl | `master` | `cb135b25817fba875061a7d4495fe14ad2bd474e` |
 | Smart Proxy | `develop` | `c2af3d35497058fd7dc8146dcbca3adf60334b9e` |
 | Smart Proxy Dynflow | `master` | `a07e3fa37aca20f2038e8f469f88c545c39276ff` |

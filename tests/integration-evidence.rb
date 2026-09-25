@@ -62,6 +62,9 @@ Dir.mktmpdir('foreman-kubernetes-evidence') do |directory|
   if partial_generated.fetch('checks').include?('foreman-webhooks-clean-recovery')
     abort 'partial evidence retained the skipped webhook recovery check'
   end
+  if partial_generated.fetch('checks').include?('virt-who-configuration-clean-recovery')
+    abort 'partial evidence retained the skipped virt-who configuration recovery check'
+  end
 
   undeclared_profile = work / 'undeclared-profile.yaml'
   FileUtils.cp(application_profile, undeclared_profile)

@@ -1,12 +1,13 @@
 {
   "snapshot": {
-    "reviewedOn": "2026-09-24",
+    "reviewedOn": "2026-09-25",
     "foremanOciImagesCommit": "3aca77e57e1ccf5498312bea4fb9a66c7c1a40cb",
     "pulpOciImagesCommit": "8a1bb6250901853f8666c997bf39343e7a54a5a6",
     "foremanctlCommit": "cb135b25817fba875061a7d4495fe14ad2bd474e",
     "foremanRemoteExecutionCommit": "be391fd9ef3140df707eed4f320ce2ebd572648d",
     "foremanAnsibleCommit": "7ffc9e37344011554347ca9429fffdcf1f81816e",
     "foremanWebhooksCommit": "4ad5882f4b866cb55b0d1bb102010ddb1e448ebd",
+    "foremanVirtWhoConfigureCommit": "78b9e78650013b6ef023a4163a7d47518024cd1d",
     "smartProxyCommit": "c2af3d35497058fd7dc8146dcbca3adf60334b9e",
     "smartProxyDynflowCommit": "a07e3fa37aca20f2038e8f469f88c545c39276ff",
     "smartProxyRemoteExecutionSshCommit": "1ad66baae4498f7f3a5e3cc939ddf20e188336d2",
@@ -80,8 +81,8 @@
       "name": "foreman_virt_who_configure",
       "enabledByDefault": false,
       "placement": "application-plus-external-service",
-      "status": "packaged-runtime-contract-missing",
-      "requires": ["virt-who-service"]
+      "status": "integration-drill-implemented-unrun",
+      "requires": ["external-virt-who-host", "katello", "candlepin"]
     }
   ],
   "pulp": [

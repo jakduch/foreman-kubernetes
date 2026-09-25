@@ -34,7 +34,7 @@ from the reviewed official image.
 | `foreman_kubevirt` | no | Foreman pods | KubeVirt credentials, egress, API test |
 | `foreman_rh_cloud` | no | Foreman pods | cloud credentials, egress, service workflow |
 | `foreman_webhooks` | no | Foreman and Dynflow pods | dedicated destination allow-list; delivery, failure, receiver replacement, and clean-recovery drill implemented but unrun |
-| `foreman_virt_who_configure` | no | Foreman plus external virt-who | external service lifecycle |
+| `foreman_virt_who_configure` | no | Foreman plus external virt-who host | configuration API, generated deployment script, report state, service-user cleanup, and clean-recovery drill implemented but unrun |
 
 The base image also installs compute-provider packages for libvirt, VMware,
 OpenStack, and EC2. These are not selected through `FOREMAN_ENABLED_PLUGINS`;
@@ -48,6 +48,18 @@ an HTTP 503 from the destination, corrects the URL, replaces the receiver Pod,
 and repeats delivery after clean database recovery. It deliberately does not
 claim automatic retry of a failed request: the reviewed plugin has no
 plugin-owned retry policy that this platform can promise.
+
+`foreman_virt_who_configure` is a Foreman-side configuration and reporting
+plugin, not a virt-who process supervisor. It creates a hidden, organization-
+scoped reporting identity and renders a root deployment script which installs
+and configures `virt-who` on a separate RPM-based host, writes
+`/etc/virt-who.d`, and controls the host's systemd service. The Kubernetes chart
+therefore enables only the Rails plugin and its migrations; it does not run
+that generated script, mount a host init system, or claim ownership of
+hypervisor connectivity. The prepared drill covers API validation, encrypted
+credential storage, script generation and regeneration, report-state updates,
+identity cleanup, and clean database recovery. A real external-host install and
+report into Candlepin is still required before support can be claimed.
 
 ## Pulp image
 

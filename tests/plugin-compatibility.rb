@@ -74,6 +74,7 @@ if Dir.exist?(upstream)
   pulp_images = File.join(upstream, 'pulp-oci-images')
   foremanctl = File.join(upstream, 'foremanctl')
   foreman_webhooks = File.join(upstream, 'foreman_webhooks')
+  foreman_virt_who_configure = File.join(upstream, 'foreman_virt_who_configure')
 
   foreman_containerfile = File.join(foreman_images, 'images/foreman/Containerfile')
   proxy_containerfile = File.join(foreman_images, 'images/foreman-proxy/Containerfile')
@@ -93,7 +94,8 @@ if Dir.exist?(upstream)
     'foremanOciImagesCommit' => foreman_images,
     'pulpOciImagesCommit' => pulp_images,
     'foremanctlCommit' => foremanctl,
-    'foremanWebhooksCommit' => foreman_webhooks
+    'foremanWebhooksCommit' => foreman_webhooks,
+    'foremanVirtWhoConfigureCommit' => foreman_virt_who_configure
   }
   expected_revisions.each do |key, path|
     raise "#{key} snapshot is stale" unless revision(path) == matrix.dig('snapshot', key)

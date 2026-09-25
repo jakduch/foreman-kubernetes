@@ -54,6 +54,10 @@
 - the complete Katello object graph, published file, Python package metadata,
   PyPI simple index, and package checksum after restoration, so the recovery
   check covers real application state in addition to probes;
+- Foreman virt-who Configure API validation, a libvirt configuration, its
+  encrypted hidden reporting identity, generated deployment script, endpoint
+  update, `unknown` to `ok` report state, cleanup, and preservation through the
+  same clean-namespace database restore;
 - execution-proxy re-registration and successful new jobs after the clean
   namespace restore and again after rotating its server TLS, Foreman client
   TLS, and SSH identities and restarting both ends of the SSH trust relation;
@@ -130,6 +134,13 @@ the receiver Pod, and repeats delivery after clean-namespace database restore.
 The receiver has a separate ingress policy that admits only the Foreman web and
 Dynflow worker components. This tests the plugin's real behavior without
 claiming an automatic retry policy the plugin does not implement.
+
+The virt-who Configure lifecycle exercises the Foreman plugin but does not run
+the generated script. That script expects an external RPM-based host with root,
+package repositories, and systemd, and the resulting virt-who process needs its
+own hypervisor and Foreman/Candlepin network paths. The disposable test proves
+configuration, credential, script, state, and recovery behavior without
+misrepresenting that external host as a chart-owned Kubernetes daemon.
 
 The web availability drill uses the host's existing `curl` and the public TLS
 ingress. It sends 640 dependency-aware requests while deleting one of two ready

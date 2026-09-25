@@ -20,6 +20,11 @@
    Foreman Webhooks now has that drill prepared, including HTTP failure
    visibility, destination correction, receiver replacement, and clean
    database recovery; the amd64 run is still pending.
+   Foreman virt-who Configure now has its application-side drill prepared:
+   invalid KubeVirt input, libvirt configuration, encrypted reporting identity,
+   generated external-host script, report state, cleanup, and clean recovery.
+   Execution of that script and a real Candlepin report remain an external-host
+   qualification step rather than a Kubernetes workload.
 8. Run the prepared central-execution drill against the pinned amd64 image,
    then extend it from prepared successful, failed, and cancelled SSH/Ansible
    jobs, content replacement, fresh jobs after identity rotation, and
@@ -29,6 +34,16 @@
    successful completion of the in-flight job, and a successful fresh job.
 
 ## Implemented, pending integration proof
+
+- Foreman virt-who Configure now has a prepared API lifecycle against the same
+  organization used by the Katello content drill. It verifies that invalid
+  KubeVirt input is rejected, ordinary API responses omit hypervisor passwords,
+  the hidden reporting identity is encrypted at rest and minimally assigned,
+  a libvirt endpoint update regenerates the deployment script, a report touch
+  changes state from `unknown` to `ok`, and all state survives clean namespace
+  recovery. Deleting the last configuration must also delete its service
+  identity. The test deliberately does not execute the generated RPM/systemd
+  script inside Kubernetes.
 
 - Foreman web request continuity now has a prepared public-ingress drill: eight
   concurrent clients issue 640 dependency-aware health requests while one of

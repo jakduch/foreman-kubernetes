@@ -38,6 +38,7 @@ foreman:
     - foreman_remote_execution
     - foreman_ansible
     - foreman_webhooks
+    - foreman_virt_who_configure
   existingDatabaseCaSecret: ""
   database:
     sslMode: disable
