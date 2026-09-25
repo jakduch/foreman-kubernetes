@@ -11,8 +11,10 @@ Do not promote the current packaged plugin yet. The reviewed release forces the
 obsolete `v1alpha3` API. The local upstream fix removes that override so
 `fog-kubevirt` uses the preferred version advertised by `/apis/kubevirt.io`.
 The reviewed fog client also lists NetworkAttachmentDefinitions cluster-wide;
-a second local fix scopes that request to the compute resource namespace. Both
-fixes are accompanied by a plugin validation fix that turns failed Kubernetes
+a second local fix scopes that request to the compute resource namespace. It
+also needs a fix that sends the grouped `kubevirt.io/v1` value in created VM
+objects rather than the URL-only `v1` version. These fixes are accompanied by a
+plugin validation fix that turns failed Kubernetes
 and KubeVirt probes into actionable model errors. The local series also fixes
 image data-disk selection and partial-PVC cleanup. All fixes and the external-
 cluster lifecycle must ship and pass before support is claimed.

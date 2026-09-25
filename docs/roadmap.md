@@ -28,7 +28,8 @@
    Foreman KubeVirt additionally remains blocked on shipping the prepared
    dynamic API-version discovery fix; the packaged plugin currently forces
    `v1alpha3`. Its fog dependency also needs the prepared namespace-scoping fix
-   so network attachment discovery does not require cluster-wide access. An
+   so network attachment discovery does not require cluster-wide access, plus
+   the request-body fix that emits `kubevirt.io/v1` rather than plain `v1`. An
    additional plugin fix makes failed Kubernetes and KubeVirt probes produce
    model validation errors instead of silently returning `false`. The patch
    series also preserves explicitly non-bootable image data disks and removes

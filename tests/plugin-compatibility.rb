@@ -93,6 +93,12 @@ end
 unless kubevirt_volume_blocker&.fetch('status') == 'local-fix-prepared'
   raise 'Foreman KubeVirt partial-volume blocker is missing from the compatibility matrix'
 end
+kubevirt_api_body_blocker = kubevirt.fetch('blockers').find do |blocker|
+  blocker.fetch('id') == 'grouped-vm-api-version'
+end
+unless kubevirt_api_body_blocker&.fetch('status') == 'local-fix-prepared'
+  raise 'Fog KubeVirt VM API-version blocker is missing from the compatibility matrix'
+end
 
 upstream = File.expand_path('../foreman-kubernetes-upstream', root)
 if Dir.exist?(upstream)
@@ -125,7 +131,7 @@ if Dir.exist?(upstream)
     'foremanWebhooksCommit' => foreman_webhooks,
     'foremanVirtWhoConfigureCommit' => foreman_virt_who_configure,
     'foremanKubevirtDocumentationPatchCommit' => foreman_kubevirt,
-    'fogKubevirtNamespacePatchCommit' => fog_kubevirt
+    'fogKubevirtApiVersionPatchCommit' => fog_kubevirt
   }
   expected_revisions.each do |key, path|
     raise "#{key} snapshot is stale" unless revision(path) == matrix.dig('snapshot', key)
@@ -142,7 +148,10 @@ if Dir.exist?(upstream)
   unless revision(foreman_kubevirt, 'HEAD^^^^') == matrix.dig('snapshot', 'foremanKubevirtUpstreamCommit')
     raise 'foremanKubevirtUpstreamCommit snapshot is stale'
   end
-  unless revision(fog_kubevirt, 'HEAD^') == matrix.dig('snapshot', 'fogKubevirtUpstreamCommit')
+  unless revision(fog_kubevirt, 'HEAD^') == matrix.dig('snapshot', 'fogKubevirtNamespacePatchCommit')
+    raise 'fogKubevirtNamespacePatchCommit snapshot is stale'
+  end
+  unless revision(fog_kubevirt, 'HEAD^^') == matrix.dig('snapshot', 'fogKubevirtUpstreamCommit')
     raise 'fogKubevirtUpstreamCommit snapshot is stale'
   end
 end

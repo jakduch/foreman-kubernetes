@@ -57,6 +57,12 @@ cluster permission. A second local upstream commit passes the configured
 namespace to the client and has a focused regression test. Least-privilege RBAC
 and promotion depend on shipping both fixes.
 
+The fog create request also uses the discovered URL version (`v1`) directly as
+the custom resource body's `apiVersion`. KubeVirt VirtualMachines require the
+grouped value (`kubevirt.io/v1`). The prepared fog patch composes the group and
+discovered version and verifies the exact request body before it reaches
+Kubernetes.
+
 Connection validation has a separate correctness gap: failed Kubernetes and
 KubeVirt probes return `false` without adding a model error. Rails does not use
 the return value of this after-validation callback to invalidate the compute
