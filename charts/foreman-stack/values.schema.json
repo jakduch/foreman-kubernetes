@@ -620,13 +620,14 @@
             },
             "external": {
               "type": "object",
-              "required": ["foreman", "pulp", "candlepin", "smtp", "webhooks"],
+              "required": ["foreman", "pulp", "candlepin", "smtp", "webhooks", "computeProviders"],
               "properties": {
                 "foreman": { "$ref": "#/definitions/networkPolicyDestination" },
                 "pulp": { "$ref": "#/definitions/networkPolicyDestination" },
                 "candlepin": { "$ref": "#/definitions/networkPolicyDestination" },
                 "smtp": { "$ref": "#/definitions/networkPolicyDestination" },
-                "webhooks": { "$ref": "#/definitions/networkPolicyDestination" }
+                "webhooks": { "$ref": "#/definitions/networkPolicyDestination" },
+                "computeProviders": { "$ref": "#/definitions/networkPolicyDestination" }
               }
             }
           }

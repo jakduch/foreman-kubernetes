@@ -160,6 +160,14 @@ DNS and the declared API ports; it does not filter kubelet health probes or
 Prometheus ingress. The chart refuses to enable isolation with an empty API
 destination.
 
+Optional compute-resource plugins run inside the Foreman and Dynflow pods. With
+egress isolation enabled, list their exact API selectors or CIDRs and ports in
+`networkPolicy.egress.external.computeProviders`. This covers direct KubeVirt,
+Google, Azure, and RH Cloud provider calls without opening the same destination
+to Pulp or Candlepin. If all selected provider clients are deliberately routed
+through the configured HTTP(S) proxy, the explicit provider destination may be
+empty. Enabling one of those plugins without either route is rejected.
+
 Two candidates run by default. A short namespaced leader Lease allows only the
 Pod whose UID is the current holder to list and reconcile releases; the standby
 takes over only after that Lease expires or is explicitly released. A separate

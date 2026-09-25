@@ -20,6 +20,7 @@ rendered_egress_backup_local="$(mktemp)"
 rendered_outbound_proxy="$(mktemp)"
 rendered_outbound_proxy_backup="$(mktemp)"
 rendered_webhooks="$(mktemp)"
+rendered_compute_provider="$(mktemp)"
 rendered_singletons="$(mktemp)"
 rendered_ha="$(mktemp)"
 rendered_candlepin_port="$(mktemp)"
@@ -57,7 +58,7 @@ rendered_scheduled_backup="$(mktemp)"
 rendered_scheduled_execution="$(mktemp)"
 rendered_execution_scheduled_backup="$(mktemp)"
 rendered_scheduled_operator="$(mktemp)"
-trap 'rm -f "${rendered}" "${rendered_ingress}" "${rendered_execution_registration}" "${rendered_ingress_overrides}" "${rendered_minimal_pulp_ingress}" "${rendered_all_pulp_ingress}" "${rendered_backup}" "${rendered_backup_execution}" "${rendered_restore}" "${rendered_egress}" "${rendered_egress_backup}" "${rendered_egress_backup_local}" "${rendered_outbound_proxy}" "${rendered_outbound_proxy_backup}" "${rendered_webhooks}" "${rendered_singletons}" "${rendered_ha}" "${rendered_candlepin_port}" "${rendered_foreman_service_port}" "${rendered_foreman_secret_contract}" "${rendered_database_tls_disabled}" "${rendered_image_pull_secrets}" "${rendered_no_migrations}" "${rendered_release_operation}" "${rendered_release_application}" "${rendered_manual_migration_stage}" "${rendered_secret_rotation}" "${rendered_monitoring}" "${rendered_monitoring_maintenance}" "${rendered_s3}" "${rendered_s3_egress}" "${rendered_azure_identity}" "${rendered_s3_backup}" "${rendered_smtp}" "${rendered_smtp_backup}" "${rendered_kind}" "${rendered_kind_backup}" "${rendered_execution}" "${rendered_execution_egress}" "${rendered_execution_kind}" "${rendered_execution_operation}" "${rendered_execution_secret_rotation}" "${rendered_execution_monitoring}" "${rendered_execution_maintenance}" "${rendered_operator}" "${rendered_operator_monitoring}" "${rendered_operator_egress}" "${rendered_scheduled_stack}" "${rendered_scheduled_backup}" "${rendered_scheduled_execution}" "${rendered_execution_scheduled_backup}" "${rendered_scheduled_operator}"' EXIT
+trap 'rm -f "${rendered}" "${rendered_ingress}" "${rendered_execution_registration}" "${rendered_ingress_overrides}" "${rendered_minimal_pulp_ingress}" "${rendered_all_pulp_ingress}" "${rendered_backup}" "${rendered_backup_execution}" "${rendered_restore}" "${rendered_egress}" "${rendered_egress_backup}" "${rendered_egress_backup_local}" "${rendered_outbound_proxy}" "${rendered_outbound_proxy_backup}" "${rendered_webhooks}" "${rendered_compute_provider}" "${rendered_singletons}" "${rendered_ha}" "${rendered_candlepin_port}" "${rendered_foreman_service_port}" "${rendered_foreman_secret_contract}" "${rendered_database_tls_disabled}" "${rendered_image_pull_secrets}" "${rendered_no_migrations}" "${rendered_release_operation}" "${rendered_release_application}" "${rendered_manual_migration_stage}" "${rendered_secret_rotation}" "${rendered_monitoring}" "${rendered_monitoring_maintenance}" "${rendered_s3}" "${rendered_s3_egress}" "${rendered_azure_identity}" "${rendered_s3_backup}" "${rendered_smtp}" "${rendered_smtp_backup}" "${rendered_kind}" "${rendered_kind_backup}" "${rendered_execution}" "${rendered_execution_egress}" "${rendered_execution_kind}" "${rendered_execution_operation}" "${rendered_execution_secret_rotation}" "${rendered_execution_monitoring}" "${rendered_execution_maintenance}" "${rendered_operator}" "${rendered_operator_monitoring}" "${rendered_operator_egress}" "${rendered_scheduled_stack}" "${rendered_scheduled_backup}" "${rendered_scheduled_execution}" "${rendered_execution_scheduled_backup}" "${rendered_scheduled_operator}"' EXIT
 
 ruby "${repo_root}/tests/yaml-duplicates.rb"
 ruby "${repo_root}/tests/workflow-action-pins.rb" "${repo_root}/.github/workflows"
@@ -231,6 +232,9 @@ helm lint "${chart}" \
 helm lint "${chart}" \
   --values "${repo_root}/tests/egress-values.yaml" \
   --values "${repo_root}/tests/webhooks-values.yaml"
+helm lint "${chart}" \
+  --values "${repo_root}/tests/egress-values.yaml" \
+  --values "${repo_root}/tests/compute-provider-values.yaml"
 helm lint "${chart}" --values "${repo_root}/tests/ha-values.yaml"
 helm lint "${chart}" --values "${repo_root}/examples/pulp-s3-values.yaml"
 helm lint "${chart}" --values "${repo_root}/tests/pulp-azure-workload-identity-values.yaml"
@@ -345,6 +349,10 @@ helm template test "${chart}" \
   --values "${repo_root}/tests/webhooks-values.yaml" \
   > "${rendered_webhooks}"
 helm template test "${chart}" \
+  --values "${repo_root}/tests/egress-values.yaml" \
+  --values "${repo_root}/tests/compute-provider-values.yaml" \
+  > "${rendered_compute_provider}"
+helm template test "${chart}" \
   --values "${repo_root}/tests/ha-values.yaml" > "${rendered_ha}"
 helm template test "${chart}" \
   --set candlepin.service.port=24443 > "${rendered_candlepin_port}"
@@ -423,6 +431,7 @@ for manifest in \
   "${rendered_outbound_proxy}" \
   "${rendered_outbound_proxy_backup}" \
   "${rendered_webhooks}" \
+  "${rendered_compute_provider}" \
   "${rendered_singletons}" \
   "${rendered_ha}" \
   "${rendered_candlepin_port}" \
@@ -513,6 +522,7 @@ ruby "${repo_root}/tests/smtp-contract.rb" "${rendered_smtp}" "${rendered_smtp_b
 ruby "${repo_root}/tests/outbound-proxy-contract.rb" \
   "${rendered_outbound_proxy}" "${rendered_outbound_proxy_backup}"
 ruby "${repo_root}/tests/webhook-egress-contract.rb" "${rendered_webhooks}"
+ruby "${repo_root}/tests/compute-provider-egress-contract.rb" "${rendered_compute_provider}"
 ruby "${repo_root}/tests/recovery-storage-contract.rb" "${rendered_backup}" true false
 ruby "${repo_root}/tests/recovery-storage-contract.rb" "${rendered_backup_execution}" true true
 ruby "${repo_root}/tests/recovery-storage-contract.rb" "${rendered_restore}" true false
@@ -1049,6 +1059,29 @@ helm template test "${chart}" \
   --values "${repo_root}/tests/webhooks-values.yaml" \
   --values "${repo_root}/tests/outbound-proxy-values.yaml" \
   --set-json 'networkPolicy.egress.external.webhooks.peers=[]' >/dev/null
+
+if helm template test "${chart}" \
+  --values "${repo_root}/tests/egress-values.yaml" \
+  --values "${repo_root}/tests/compute-provider-values.yaml" \
+  --set-json 'networkPolicy.egress.external.computeProviders.peers=[]' >/dev/null 2>&1; then
+  echo 'expected restricted compute provider without a destination or proxy to be rejected' >&2
+  exit 1
+fi
+
+if helm template test "${chart}" \
+  --values "${repo_root}/tests/egress-values.yaml" \
+  --values "${repo_root}/tests/compute-provider-values.yaml" \
+  --set-json 'foreman.enabledPlugins=["foreman-tasks","katello"]' | \
+  grep --fixed-strings --quiet 'cidr: 192.0.2.50/32'; then
+  echo 'disabled compute-provider plugins unexpectedly opened provider egress' >&2
+  exit 1
+fi
+
+helm template test "${chart}" \
+  --values "${repo_root}/tests/egress-values.yaml" \
+  --values "${repo_root}/tests/compute-provider-values.yaml" \
+  --values "${repo_root}/tests/outbound-proxy-values.yaml" \
+  --set-json 'networkPolicy.egress.external.computeProviders.peers=[]' >/dev/null
 
 if helm template test "${chart}" \
   --values "${repo_root}/profiles/nightly-candidate-2026-09-23.yaml" \

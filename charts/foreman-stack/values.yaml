@@ -496,6 +496,13 @@ networkPolicy:
         peers: []
         ports:
           - 443
+      computeProviders:
+        # Direct endpoints used by optional compute-resource plugins. Use exact
+        # selectors or CIDRs; hostnames cannot be represented by NetworkPolicy.
+        peers: []
+        ports:
+          - 443
+          - 6443
 
 affinity:
   spreadAcrossNodes: true

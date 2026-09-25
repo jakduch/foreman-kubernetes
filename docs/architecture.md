@@ -169,6 +169,12 @@ the credential-rich recovery Pod unrestricted and avoids pretending that a
 hostname in application configuration can be safely converted into an IP
 policy by Helm.
 
+Compute-resource API traffic has its own Foreman-only destination under
+`networkPolicy.egress.external.computeProviders`. Provider plugins are rejected
+under restricted egress unless that direct destination or the shared outbound
+proxy is configured. The rule is omitted when none of the packaged compute
+provider plugins is enabled, even if stale peer values remain in a values file.
+
 Disruption budgets protect redundant Foreman, Candlepin, Pulp, Pulp control,
 and Dynflow worker pools. They are rendered from the minimum replica count,
 including the HPA minimum, and are omitted when a workload is configured as a
