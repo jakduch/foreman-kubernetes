@@ -646,8 +646,9 @@
     "recovery": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["image", "repository", "work", "executionProxy", "activeDeadlineSeconds", "quiescenceTimeoutSeconds", "extraSecretNames", "resources"],
+      "required": ["scheduling", "image", "repository", "work", "executionProxy", "activeDeadlineSeconds", "quiescenceTimeoutSeconds", "extraSecretNames", "resources"],
       "properties": {
+        "scheduling": { "$ref": "#/definitions/scheduling" },
         "image": { "$ref": "#/definitions/recoveryImage" },
         "repository": {
           "type": "object",

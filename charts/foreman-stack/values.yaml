@@ -502,6 +502,13 @@ maintenance:
   enabled: false
 
 recovery:
+  # The guarded helper replaces this with the execution proxy Pod scheduling
+  # contract so the Job can mount the same RWO claims. Empty values inherit
+  # the application's global scheduling policy for manual chart use.
+  scheduling:
+    priorityClassName: ""
+    nodeSelector: {}
+    tolerations: []
   image:
     # Build images/recovery-toolbox and override this before enabling a recovery Job.
     repository: foreman-kubernetes-recovery-toolbox

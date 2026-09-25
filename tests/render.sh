@@ -51,8 +51,9 @@ rendered_operator_egress="$(mktemp)"
 rendered_scheduled_stack="$(mktemp)"
 rendered_scheduled_backup="$(mktemp)"
 rendered_scheduled_execution="$(mktemp)"
+rendered_execution_scheduled_backup="$(mktemp)"
 rendered_scheduled_operator="$(mktemp)"
-trap 'rm -f "${rendered}" "${rendered_ingress}" "${rendered_execution_registration}" "${rendered_ingress_overrides}" "${rendered_minimal_pulp_ingress}" "${rendered_all_pulp_ingress}" "${rendered_backup}" "${rendered_backup_execution}" "${rendered_restore}" "${rendered_egress}" "${rendered_egress_backup}" "${rendered_egress_backup_local}" "${rendered_singletons}" "${rendered_ha}" "${rendered_candlepin_port}" "${rendered_foreman_service_port}" "${rendered_foreman_secret_contract}" "${rendered_database_tls_disabled}" "${rendered_image_pull_secrets}" "${rendered_no_migrations}" "${rendered_release_operation}" "${rendered_release_application}" "${rendered_manual_migration_stage}" "${rendered_secret_rotation}" "${rendered_monitoring}" "${rendered_monitoring_maintenance}" "${rendered_s3}" "${rendered_azure_identity}" "${rendered_s3_backup}" "${rendered_smtp}" "${rendered_smtp_backup}" "${rendered_kind}" "${rendered_kind_backup}" "${rendered_execution}" "${rendered_execution_egress}" "${rendered_execution_kind}" "${rendered_execution_operation}" "${rendered_execution_secret_rotation}" "${rendered_execution_monitoring}" "${rendered_execution_maintenance}" "${rendered_operator}" "${rendered_operator_monitoring}" "${rendered_operator_egress}" "${rendered_scheduled_stack}" "${rendered_scheduled_backup}" "${rendered_scheduled_execution}" "${rendered_scheduled_operator}"' EXIT
+trap 'rm -f "${rendered}" "${rendered_ingress}" "${rendered_execution_registration}" "${rendered_ingress_overrides}" "${rendered_minimal_pulp_ingress}" "${rendered_all_pulp_ingress}" "${rendered_backup}" "${rendered_backup_execution}" "${rendered_restore}" "${rendered_egress}" "${rendered_egress_backup}" "${rendered_egress_backup_local}" "${rendered_singletons}" "${rendered_ha}" "${rendered_candlepin_port}" "${rendered_foreman_service_port}" "${rendered_foreman_secret_contract}" "${rendered_database_tls_disabled}" "${rendered_image_pull_secrets}" "${rendered_no_migrations}" "${rendered_release_operation}" "${rendered_release_application}" "${rendered_manual_migration_stage}" "${rendered_secret_rotation}" "${rendered_monitoring}" "${rendered_monitoring_maintenance}" "${rendered_s3}" "${rendered_azure_identity}" "${rendered_s3_backup}" "${rendered_smtp}" "${rendered_smtp_backup}" "${rendered_kind}" "${rendered_kind_backup}" "${rendered_execution}" "${rendered_execution_egress}" "${rendered_execution_kind}" "${rendered_execution_operation}" "${rendered_execution_secret_rotation}" "${rendered_execution_monitoring}" "${rendered_execution_maintenance}" "${rendered_operator}" "${rendered_operator_monitoring}" "${rendered_operator_egress}" "${rendered_scheduled_stack}" "${rendered_scheduled_backup}" "${rendered_scheduled_execution}" "${rendered_execution_scheduled_backup}" "${rendered_scheduled_operator}"' EXIT
 
 ruby "${repo_root}/tests/yaml-duplicates.rb"
 ruby "${repo_root}/tests/workflow-action-pins.rb" "${repo_root}/.github/workflows"
@@ -113,6 +114,23 @@ fi
 helm template execution "${execution_chart}" > "${rendered_execution}"
 helm template execution "${execution_chart}" \
   --values "${repo_root}/tests/scheduling-values.yaml" > "${rendered_scheduled_execution}"
+scheduled_execution_recovery_inputs="$(ruby \
+  "${repo_root}/scripts/execution-recovery-inputs.rb" \
+  < "${rendered_scheduled_execution}")"
+helm template test "${chart}" \
+  --values "${repo_root}/profiles/nightly-candidate-2026-09-23.yaml" \
+  --values "${repo_root}/tests/recovery-image-values.yaml" \
+  --set maintenance.enabled=true \
+  --set backup.enabled=true \
+  --set backup.requestId=exec-schedule \
+  --set recovery.executionProxy.enabled=true \
+  --set-string recovery.executionProxy.release=execution \
+  --set-string recovery.executionProxy.stateClaim=execution-state \
+  --set-string recovery.executionProxy.ansibleClaim=execution-ansible \
+  --set-json 'recovery.executionProxy.secretNames=["execution-tls"]' \
+  --set-json "recovery.scheduling=$(jq --compact-output '.scheduling' \
+    <<<"${scheduled_execution_recovery_inputs}")" \
+  > "${rendered_execution_scheduled_backup}"
 helm template execution "${execution_chart}" \
   --set monitoring.prometheusRule.enabled=true \
   --set-string monitoring.prometheusRule.labels.release=platform-monitoring > "${rendered_execution_monitoring}"
@@ -443,6 +461,8 @@ ruby "${repo_root}/tests/topology-spread-contract.rb" "${rendered_ingress}" DoNo
 ruby "${repo_root}/tests/scheduling-contract.rb" \
   "${rendered_scheduled_stack}" "${rendered_scheduled_backup}" \
   "${rendered_scheduled_execution}" "${rendered_scheduled_operator}"
+ruby "${repo_root}/tests/recovery-scheduling-contract.rb" \
+  "${rendered_execution_scheduled_backup}"
 ruby "${repo_root}/tests/smtp-contract.rb" "${rendered_smtp}" "${rendered_smtp_backup}"
 ruby "${repo_root}/tests/recovery-storage-contract.rb" "${rendered_backup}" true false
 ruby "${repo_root}/tests/recovery-storage-contract.rb" "${rendered_backup_execution}" true true
@@ -486,10 +506,23 @@ execution_recovery_inputs="$(ruby "${repo_root}/scripts/execution-recovery-input
 jq --exit-status '
   .stateClaim == "execution-foreman-execution-proxy-state" and
   .ansibleClaim == "execution-foreman-execution-proxy-ansible" and
+  .scheduling == {priorityClassName: "", nodeSelector: {}, tolerations: []} and
   (.secretNames | index("foreman-execution-proxy-tls")) != null and
   (.secretNames | index("foreman-execution-proxy-ssh")) != null and
   (.secretNames | index("foreman-execution-proxy-known-hosts")) != null
 ' <<<"${execution_recovery_inputs}" >/dev/null
+jq --exit-status '
+  .scheduling == {
+    priorityClassName: "foreman-platform-critical",
+    nodeSelector: {"platform.theforeman.org/pool": "foreman"},
+    tolerations: [{
+      key: "platform.theforeman.org/dedicated",
+      operator: "Equal",
+      value: "foreman",
+      effect: "NoSchedule"
+    }]
+  }
+' <<<"${scheduled_execution_recovery_inputs}" >/dev/null
 ruby -c "${execution_chart}/files/check-features.rb"
 ruby -c "${repo_root}/scripts/execution-recovery-inputs.rb"
 

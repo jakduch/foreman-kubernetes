@@ -27,8 +27,16 @@ abort 'execution proxy state and Ansible content must use distinct claims' if st
 secret_names = ForemanRelease::ManifestRequirements.new(documents).secrets.keys
 abort 'rendered execution proxy has no external Secret references' if secret_names.empty?
 
+pod_spec = deployment.dig('spec', 'template', 'spec')
+scheduling = {
+  priorityClassName: pod_spec.fetch('priorityClassName', '').to_s,
+  nodeSelector: pod_spec.fetch('nodeSelector', {}),
+  tolerations: Array(pod_spec['tolerations']),
+}
+
 puts JSON.generate(
   stateClaim: state_claim,
   ansibleClaim: ansible_claim,
-  secretNames: secret_names.sort
+  secretNames: secret_names.sort,
+  scheduling: scheduling
 )

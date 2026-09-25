@@ -104,6 +104,25 @@ tolerations:
 {{- end }}
 {{- end }}
 
+{{- define "foreman-stack.recoveryScheduling" -}}
+{{- $scheduling := .Values.recovery.scheduling -}}
+{{- if or $scheduling.priorityClassName $scheduling.nodeSelector $scheduling.tolerations -}}
+{{- with $scheduling.priorityClassName }}
+priorityClassName: {{ . | quote }}
+{{- end }}
+{{- with $scheduling.nodeSelector }}
+nodeSelector:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- with $scheduling.tolerations }}
+tolerations:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- else -}}
+{{- include "foreman-stack.scheduling" . -}}
+{{- end -}}
+{{- end }}
+
 {{- define "foreman-stack.restrictedContainerSecurityContext" -}}
 allowPrivilegeEscalation: false
 capabilities:

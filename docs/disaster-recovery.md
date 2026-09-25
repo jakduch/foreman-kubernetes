@@ -136,7 +136,9 @@ set in their computed values. Recovery refuses a split or differently labelled
 pair instead of storing data under the wrong release identity. It derives the
 proxy's effective state and Ansible claim names plus every referenced Secret
 from the normal execution render; operators do not duplicate those names in
-the application values file. It then removes
+the application values file. It also copies the proxy Pod's PriorityClass,
+node selector, and tolerations to the recovery Job so the same RWO claims can
+be mounted on a dedicated or tainted execution node pool. It then removes
 the database-writing Deployments and recurring tasks, waits for the execution
 proxy Pod to terminate, and only then creates the recovery Job. The application
 is stopped first so it cannot dispatch new work while the proxy drains.

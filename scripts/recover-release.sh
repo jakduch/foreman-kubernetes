@@ -264,6 +264,7 @@ if [[ "${operation}" != resume ]]; then
     --set-string "recovery.executionProxy.stateClaim=$(jq --exit-status --raw-output '.stateClaim' <<<"${execution_recovery_inputs}")"
     --set-string "recovery.executionProxy.ansibleClaim=$(jq --exit-status --raw-output '.ansibleClaim' <<<"${execution_recovery_inputs}")"
     --set-json "recovery.executionProxy.secretNames=$(jq --compact-output '.secretNames' <<<"${execution_recovery_inputs}")"
+    --set-json "recovery.scheduling=$(jq --compact-output '.scheduling' <<<"${execution_recovery_inputs}")"
   )
 fi
 normal_resources="$(printf '%s\n---\n%s\n' \

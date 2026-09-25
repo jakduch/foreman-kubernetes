@@ -148,7 +148,7 @@ execution_normal='--set maintenance.enabled=false'
 grep -Fq -- '--set backup.enabled=true --set-string backup.requestId=request-1 --set backup.initializeRepository=true' "${tool_log}"
 grep -Fq -- "--values ${application_profile_override}" "${tool_log}"
 grep -Fq -- "--values ${execution_profile_override}" "${tool_log}"
-grep -Fq -- '--set recovery.executionProxy.enabled=true --set-string recovery.executionProxy.release=execution --set-string recovery.executionProxy.stateClaim=execution-state --set-string recovery.executionProxy.ansibleClaim=execution-ansible --set-json recovery.executionProxy.secretNames=["execution-tls"]' "${tool_log}"
+grep -Fq -- '--set recovery.executionProxy.enabled=true --set-string recovery.executionProxy.release=execution --set-string recovery.executionProxy.stateClaim=execution-state --set-string recovery.executionProxy.ansibleClaim=execution-ansible --set-json recovery.executionProxy.secretNames=["execution-tls"] --set-json recovery.scheduling={"priorityClassName":"","nodeSelector":{},"tolerations":[]}' "${tool_log}"
 grep -Fq -- "${application_normal}" "${tool_log}"
 grep -Fq -- "${execution_maintenance}" "${tool_log}"
 grep -Fq 'kubectl --namespace foreman apply --dry-run=server --filename -' "${tool_log}"
