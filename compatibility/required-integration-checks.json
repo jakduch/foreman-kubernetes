@@ -31,6 +31,9 @@
     "candlepin-recreate-upgrade",
     "operator-blocked-retry",
     "operator-leader-takeover",
+    "operator-stateless-drift-repair",
+    "operator-stateful-drift-block",
+    "operator-certificate-observation",
     "dynflow-scale",
     "active-application-upgrade",
     "active-proxy-upgrade"

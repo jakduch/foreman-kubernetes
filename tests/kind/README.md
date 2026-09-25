@@ -88,6 +88,10 @@
 - removal of the temporary adoption permissions after the controller has
   labelled both releases, plus another successful managed-host job through the
   controller-owned result;
+- a Ready-state drift audit which repairs a modified stateless ConfigMap,
+  blocks rather than replacing a modified PVC, resumes only after the PVC is
+  restored and a new retry token is supplied, and publishes the earliest
+  validated certificate expiry in release status;
 - a chart-owned Pulp storage probe against a digest-pinned, disposable
   S3-compatible endpoint: bucket versioning, multipart upload, byte-for-byte
   SDK and signed-URL reads, delete marker verification, permanent cleanup of

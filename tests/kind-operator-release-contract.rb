@@ -21,6 +21,9 @@ required = {
   'replace the active controller leader' => 'wait_for_new_leader',
   'require the replacement leader to finish the retry' => '.spec.holderIdentity == $holder',
   'return adoption flags to their safe default' => 'adoptExisting":false',
+  'repair modified stateless resources' => 'app.kubernetes.io/component=operator-drift',
+  'block modified stateful resources' => 'UnsafeDriftDetected',
+  'publish the earliest certificate expiry' => '.status.certificateExpiryTimestamp',
   'persist an operator evidence report' => 'operator-release.json'
 }
 required.each do |description, contract|
@@ -30,7 +33,13 @@ end
 abort 'Kind harness does not build the release operator image' unless harness.include?('images/release-operator/Dockerfile')
 abort 'Kind harness does not execute the release operator drill' unless harness.include?('tests/kind/operator-release.sh')
 abort 'CI does not retain the operator report' unless workflow.include?('artifacts/operator-release.json')
-%w[operator-blocked-retry operator-leader-takeover].each do |check|
+%w[
+  operator-blocked-retry
+  operator-leader-takeover
+  operator-stateless-drift-repair
+  operator-stateful-drift-block
+  operator-certificate-observation
+].each do |check|
   abort "promotion evidence does not require #{check}" unless checks.include?(check)
 end
 
@@ -51,4 +60,4 @@ Dir.mktmpdir('operator-values-contract') do |directory|
   abort 'operator values sanitizer lost application values' unless sanitized.dig('foreman', 'replicaCount') == 2
 end
 
-puts 'Full integration exercises ForemanRelease failure, takeover, and retry.'
+puts 'Full integration exercises ForemanRelease failure, takeover, drift repair, and certificate observation.'

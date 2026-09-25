@@ -96,7 +96,11 @@
   adopts the running application and execution-proxy releases, proves that a
   real failed migration remains blocked without a retry-token change, deletes
   the active leader, and requires the standby to complete the authorized retry
-  and final managed-host execution.
+  and final managed-host execution. The same drill now mutates a chart-owned
+  stateless ConfigMap and PVC separately: it requires an automatic repair for
+  the ConfigMap, an explicit block for the PVC, and a fresh retry token after
+  the PVC is restored. It also records the earliest validated certificate
+  expiry published by the controller.
 - A chart-owned Helm test and the full-stack workflow now exercise the exact
   Pulp image against a digest-pinned S3-compatible endpoint, including bucket
   versioning, multipart write/read integrity, signed direct downloads,
@@ -199,6 +203,9 @@ race-safe release, Ready drift repair, and the no-rollback boundary.
 
 The remaining operator work is real-cluster qualification of the published
 image and exact compatibility set plus retained evidence rather than another
-parallel implementation. The CRD now stores `v1beta1` while continuing to
-serve the schema-compatible `v1alpha1` API. Prometheus alerts and an opt-in Grafana
-dashboard are now packaged, pending integration with a real monitoring stack.
+parallel implementation. The prepared Kind drill now covers failure, leader
+takeover, stateless drift repair, stateful drift blocking, explicit recovery,
+and certificate-expiry observation, but it has not been run. The CRD now stores
+`v1beta1` while continuing to serve the schema-compatible `v1alpha1` API.
+Prometheus alerts and an opt-in Grafana dashboard are now packaged, pending
+integration with a real monitoring stack.

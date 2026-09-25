@@ -109,6 +109,55 @@ wait_for_new_leader() {
   return 1
 }
 
+wait_for_operation_change() {
+  local previous_operation="$1"
+  local timeout_seconds="$2"
+  local deadline=$((SECONDS + timeout_seconds))
+  local resource
+  local operation
+
+  while ((SECONDS < deadline)); do
+    resource="$(kubectl --namespace "${namespace}" get foremanrelease "${release_name}" \
+      --output=json 2>/dev/null || true)"
+    if [[ -n "${resource}" ]]; then
+      operation="$(jq --raw-output '.status.operation.id // ""' <<<"${resource}")"
+      if [[ -n "${operation}" && "${operation}" != "${previous_operation}" ]]; then
+        printf '%s\n' "${resource}"
+        return 0
+      fi
+      if [[ "$(jq --raw-output '.status.phase // "Pending"' <<<"${resource}")" == Blocked ]]; then
+        echo 'ForemanRelease blocked while waiting for a drift repair operation' >&2
+        jq '.status' <<<"${resource}" >&2
+        return 1
+      fi
+    fi
+    sleep 2
+  done
+
+  echo 'ForemanRelease did not start a new drift repair operation' >&2
+  return 1
+}
+
+wait_for_certificate_expiry() {
+  local timeout_seconds="$1"
+  local deadline=$((SECONDS + timeout_seconds))
+  local resource
+
+  while ((SECONDS < deadline)); do
+    resource="$(kubectl --namespace "${namespace}" get foremanrelease "${release_name}" \
+      --output=json 2>/dev/null || true)"
+    if jq --exit-status '.status.certificateExpiryTimestamp | strings | length > 0' \
+      <<<"${resource}" >/dev/null 2>&1; then
+      printf '%s\n' "${resource}"
+      return 0
+    fi
+    sleep 2
+  done
+
+  echo 'ForemanRelease did not publish certificate expiry after a Ready audit' >&2
+  return 1
+}
+
 mkdir -p "${workdir}"
 helm get values "${application_release}" --namespace "${namespace}" --output=yaml \
   >"${workdir}/application-live.yaml"
@@ -267,9 +316,55 @@ adopted_resource="$(kubectl --namespace "${namespace}" patch foremanrelease "${r
 adopted_generation="$(jq --raw-output '.metadata.generation' <<<"${adopted_resource}")"
 ready="$(wait_for_release_phase Ready "${adopted_generation}" 180)"
 
+ready_operation="$(jq --raw-output '.status.operation.id' <<<"${ready}")"
+configmap_name="$(kubectl --namespace "${namespace}" get configmaps \
+  --selector="app.kubernetes.io/instance=${application_release},app.kubernetes.io/component=foreman-config" \
+  --output=json | jq --exit-status --raw-output '.items[0].metadata.name')"
+configmap_component="$(kubectl --namespace "${namespace}" get configmap "${configmap_name}" \
+  --output=jsonpath='{.metadata.labels.app\.kubernetes\.io/component}')"
+kubectl --namespace "${namespace}" label configmap "${configmap_name}" \
+  app.kubernetes.io/component=operator-drift --overwrite >/dev/null
+repair_started="$(wait_for_operation_change "${ready_operation}" 180)"
+repair_operation="$(jq --raw-output '.status.operation.id' <<<"${repair_started}")"
+drift_repaired="$(wait_for_release_phase Ready "${adopted_generation}" 1800)"
+jq --exit-status --arg operation "${repair_operation}" '
+  .status.operation.id == $operation and
+  .status.operation.type == "Repair" and
+  any(.status.operation.driftedResources[]?; contains("ConfigMap/") and endswith(":modified"))' \
+  <<<"${drift_repaired}" >/dev/null
+[[ "$(kubectl --namespace "${namespace}" get configmap "${configmap_name}" \
+  --output=jsonpath='{.metadata.labels.app\.kubernetes\.io/component}')" == "${configmap_component}" ]]
+
+pvc_name="$(kubectl --namespace "${namespace}" get persistentvolumeclaims \
+  --selector="app.kubernetes.io/instance=${application_release}" \
+  --output=json | jq --exit-status --raw-output '.items[0].metadata.name')"
+pvc_component="$(kubectl --namespace "${namespace}" get persistentvolumeclaim "${pvc_name}" \
+  --output=jsonpath='{.metadata.labels.app\.kubernetes\.io/component}')"
+kubectl --namespace "${namespace}" label persistentvolumeclaim "${pvc_name}" \
+  app.kubernetes.io/component=operator-drift --overwrite >/dev/null
+stateful_blocked="$(wait_for_release_phase Blocked "${adopted_generation}" 180)"
+jq --exit-status --arg resource "PersistentVolumeClaim/${pvc_name}:modified" '
+  any(.status.operation.driftedResources[]?; . == $resource) and
+  any(.status.conditions[]?;
+      .type == "Degraded" and .status == "True" and .reason == "UnsafeDriftDetected")' \
+  <<<"${stateful_blocked}" >/dev/null
+kubectl --namespace "${namespace}" label persistentvolumeclaim "${pvc_name}" \
+  "app.kubernetes.io/component=${pvc_component}" --overwrite >/dev/null
+stateful_retry="$(kubectl --namespace "${namespace}" patch foremanrelease "${release_name}" \
+  --type=merge --patch='{"spec":{"retryToken":"stateful-drift-restored"}}' --output=json)"
+stateful_retry_generation="$(jq --raw-output '.metadata.generation' <<<"${stateful_retry}")"
+ready="$(wait_for_release_phase Ready "${stateful_retry_generation}" 1800)"
+ready="$(wait_for_certificate_expiry 180)"
+jq --exit-status '
+  .status.observedRetryToken == "stateful-drift-restored" and
+  (.status.certificateExpiryTimestamp | fromdateiso8601) > now' \
+  <<<"${ready}" >/dev/null
+
 mkdir -p "$(dirname "${output_file}")"
 jq --null-input \
   --argjson blocked "${blocked}" \
+  --argjson drift_repaired "${drift_repaired}" \
+  --argjson stateful_blocked "${stateful_blocked}" \
   --argjson ready "${ready}" \
   --arg failed_job "${failed_job}" \
   --arg leader_before "${leader_before}" \
@@ -278,6 +373,8 @@ jq --null-input \
   --arg execution_revision_before "${execution_revision_before}" \
   '{
     blockedStatus: $blocked.status,
+    driftRepairStatus: $drift_repaired.status,
+    statefulDriftStatus: $stateful_blocked.status,
     readyStatus: $ready.status,
     failedMigrationJob: $failed_job,
     leaderTakeover: {before: $leader_before, after: $leader_after},
@@ -287,4 +384,4 @@ jq --null-input \
     }
   }' >"${output_file}"
 
-echo 'ForemanRelease blocked safely, survived leader takeover, and completed an explicit retry.'
+echo 'ForemanRelease handled migration failure, leader takeover, stateless repair, stateful drift, and certificate observation.'
