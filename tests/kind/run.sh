@@ -15,6 +15,7 @@ temporary_directory="$(mktemp -d)"
 skip_recovery_test="${SKIP_RECOVERY_TEST:-0}"
 content_lifecycle_state="${temporary_directory}/content-lifecycle.json"
 image_runtime_contract_file="${IMAGE_RUNTIME_CONTRACT_FILE:-artifacts/image-runtime-contract.json}"
+candlepin_job_delivery_file="${CANDLEPIN_JOB_DELIVERY_FILE:-artifacts/candlepin-job-delivery.json}"
 foreman_database_url_backup=""
 application_secret_rollout_token=initial
 execution_secret_rollout_token=initial
@@ -870,6 +871,8 @@ assert_pulp_registration
 assert_execution_plane v1 1
 "${repo_root}/tests/kind/content-lifecycle.sh" \
   seed "${temporary_directory}" "${content_lifecycle_state}"
+NAMESPACE="${namespace}" "${repo_root}/tests/kind/candlepin-job-delivery.sh" \
+  "${candlepin_job_delivery_file}"
 
 if [[ "${skip_recovery_test}" != 1 ]]; then
   set_database_probes before-backup

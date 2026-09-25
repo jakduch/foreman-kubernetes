@@ -87,6 +87,13 @@ networkPolicy:
           - 61616
 ```
 
-Before production use, prove all of the following with the pinned amd64 image
-set: concurrent requests through both pods, single job delivery, Quartz trigger
-failover, broker reconnection, a failed migration, and a `Recreate` upgrade.
+The disposable amd64 drill now queues a real owner-healing job through
+Katello's authenticated Candlepin client, requires one successful execution
+attempt on exactly one live Candlepin pod, restarts Artemis completely, and
+then requires another one-attempt job without replacing either Candlepin pod.
+The report is retained with the integration evidence. It remains an
+implemented-but-unrun contract until the pinned image workflow completes.
+
+Before production use, the remaining live proof is concurrent requests through
+both pods, Quartz trigger failover during a running trigger, a failed migration,
+and a `Recreate` upgrade.

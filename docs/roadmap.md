@@ -93,7 +93,9 @@ Implemented in the chart, pending amd64 integration proof:
 
 Still required:
 
-1. Prove one-time Artemis job delivery and reconnect behavior.
+1. Run the prepared one-time Artemis delivery and in-process reconnect drill on
+   amd64. It now executes a real owner-healing job before and after a complete
+   broker restart, rejects redelivery, and rejects hidden Candlepin restarts.
 2. Run the prepared Quartz membership and stale-instance failover assertion on
    amd64; the harness now terminates one scheduler pod and requires a distinct
    replacement while retaining exactly two live cluster rows.

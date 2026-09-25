@@ -15,6 +15,7 @@ jobs:
       KEEP_CLUSTER: "1"
       INTEGRATION_EVIDENCE_FILE: artifacts/integration-result.json
       IMAGE_RUNTIME_CONTRACT_FILE: artifacts/image-runtime-contract.json
+      CANDLEPIN_JOB_DELIVERY_FILE: artifacts/candlepin-job-delivery.json
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: azure/setup-helm@bf6a7d304bc2fdb57e0331155b7ebf2c504acf0a # v4
@@ -37,6 +38,7 @@ jobs:
           path: |
             artifacts/integration-result.json
             artifacts/image-runtime-contract.json
+            artifacts/candlepin-job-delivery.json
           if-no-files-found: error
           retention-days: 90
       - name: Collect failure diagnostics

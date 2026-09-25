@@ -5,6 +5,8 @@
 - initial Pulp and Foreman migrations;
 - separate Candlepin migration ownership and two replicas using one external
   Artemis broker plus clustered Quartz;
+- one-time Candlepin asynchronous-job delivery, followed by a complete Artemis
+  restart and another successful job through the same two Candlepin JVMs;
 - Candlepin request-service recovery after deleting one replica, including
   replacement of the terminated Quartz scheduler instance and cleanup of its
   stale cluster row;

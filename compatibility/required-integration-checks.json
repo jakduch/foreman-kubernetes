@@ -4,6 +4,7 @@
     "application-smoke",
     "pinned-image-runtime-contract",
     "candlepin-ha-pod-recovery",
+    "candlepin-artemis-delivery-reconnect",
     "pulp-registration-mtls",
     "pulp-python-lifecycle",
     "rex-success-failure-cancel",
