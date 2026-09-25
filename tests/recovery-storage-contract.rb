@@ -125,6 +125,9 @@ abort 'database restore can leave a partially applied database' unless
   common.include?('--single-transaction')
 abort 'recovery helper accepts unlisted files in the integrity manifest' unless common.include?('does not describe the exact recovery set')
 abort 'recovery quiescence omits the Katello event daemon' unless common.include?('$component == "katello-event-daemon"')
+%w[candlepin-migrate execution-proxy-registration pulp-object-storage-test].each do |component|
+  abort "recovery quiescence omits #{component}" unless common.include?(%($component == "#{component}"))
+end
 abort 'recovery ignores terminating writers' if common.include?('.metadata.deletionTimestamp == null')
 abort 'recovery does not ignore successful Jobs' unless common.include?('(.status.phase // "") != "Succeeded"')
 abort 'recovery does not ignore failed Jobs' unless common.include?('(.status.phase // "") != "Failed"')

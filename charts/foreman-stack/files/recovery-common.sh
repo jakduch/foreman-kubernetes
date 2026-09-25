@@ -37,9 +37,12 @@ wait_for_quiescence() {
               $component == "pulp-worker" or
               $component == "katello-event-daemon" or
               $component == "foreman-cron" or
+              $component == "candlepin-migrate" or
               $component == "foreman-migrate" or
               $component == "pulp-migrate" or
               $component == "pulp-registration" or
+              $component == "execution-proxy-registration" or
+              $component == "pulp-object-storage-test" or
               ($component | startswith("dynflow-"))
             )
           | .metadata.name

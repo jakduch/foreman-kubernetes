@@ -309,6 +309,9 @@ three custom archives. Each individual database is then replaced in one
 transaction, so a failed archive restore cannot commit a partial schema. The
 three external databases still cannot share one transaction; retain the full
 recovery point until all three restores and subsequent migrations pass.
+Quiescence includes application processes, all three schema migrations, Pulp
+and execution-proxy registration Jobs, and the S3 object-storage test so none
+of those writers can overlap the captured or restored recovery point.
 `BOOTSTRAP_RESTORE=1` is accepted only by the restore operation and only when
 both Helm releases are absent. It cannot be combined with
 `RECOVERY_FROM_QUIESCED=1`; there is no running release to quiesce. For an S3
