@@ -51,8 +51,9 @@
 - A chart-owned Helm test and the full-stack workflow now exercise the exact
   Pulp image against a digest-pinned S3-compatible endpoint, including bucket
   versioning, multipart write/read integrity, signed direct downloads,
-  delete-marker visibility, cleanup, rejected retired credentials, and a
-  complete repeat after Secret rotation, with a separate evidence record.
+  delete-marker visibility, recovery from an exact older object `VersionId`,
+  cleanup, rejected retired credentials, and a complete repeat after Secret
+  rotation, with a separate evidence record.
 - One-shot, maintenance-gated recovery Jobs produce encrypted Restic snapshots
   of all three databases, Foreman's LDAP avatars, Pulp filesystem storage, and
   both releases' Secrets plus execution Dynflow/runner and Ansible-content

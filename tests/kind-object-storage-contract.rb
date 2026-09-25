@@ -7,6 +7,7 @@ require 'yaml'
 root = File.expand_path('..', __dir__)
 resources = YAML.load_stream(File.read(File.join(root, 'tests/kind/object-storage.yaml'))).compact
 drill = File.read(File.join(root, 'tests/kind/object-storage.sh'))
+probe = File.read(File.join(root, 'charts/foreman-stack/templates/tests/pulp-object-storage.yaml'))
 harness = File.read(File.join(root, 'tests/kind/run.sh'))
 workflow = File.read(File.join(root, '.github/workflows/integration.yaml'))
 checks = JSON.parse(File.read(File.join(root, 'compatibility/required-integration-checks.json'))).fetch('checks')
@@ -32,11 +33,21 @@ required = {
   'reject the retired access key' => 'require_old_credentials_rejected',
   'rotate the endpoint identity' => 'kubectl --namespace "${namespace}" set env deployment/object-storage',
   'retry with the rotated Secret' => 'apply_probe_credentials foreman-pulp-rotated',
-  'verify version history' => '.objectVersions >= 1',
+  'verify multiple object versions' => '.objectVersions >= 2',
+  'retain the provider recovery version' => '.recoveredFromVersion | type == "string"',
   'retain qualification evidence' => 'pulp-object-storage.json'
 }
 required.each do |description, contract|
   abort "object-storage drill does not #{description}" unless drill.include?(contract)
+end
+
+{
+  'capture the exact original object version' => 'recovery_version_id = recovery_version["VersionId"]',
+  'write divergent state after the recovery point' => 'newer-state-that-must-not-survive-recovery',
+  'recover the exact selected object version' => 'CopySource={',
+  'reject recovered content drift' => 'exact object-storage version recovery changed content'
+}.each do |description, contract|
+  abort "object-storage probe does not #{description}" unless probe.include?(contract)
 end
 
 abort 'Kind harness does not execute the object-storage drill' unless harness.include?('tests/kind/object-storage.sh')
@@ -44,5 +55,6 @@ abort 'CI does not retain the object-storage report' unless workflow.include?('a
 abort 'promotion evidence does not require the S3 round trip' unless checks.include?('pulp-s3-versioned-multipart-round-trip')
 abort 'promotion evidence does not require signed S3 downloads' unless checks.include?('pulp-s3-direct-download')
 abort 'promotion evidence does not require S3 credential rotation' unless checks.include?('pulp-s3-credential-rotation')
+abort 'promotion evidence does not require exact S3 version recovery' unless checks.include?('pulp-s3-version-recovery')
 
-puts 'Kind integration qualifies Pulp against a versioned S3-compatible endpoint.'
+puts 'Kind integration qualifies Pulp and exact-version recovery against a versioned S3-compatible endpoint.'

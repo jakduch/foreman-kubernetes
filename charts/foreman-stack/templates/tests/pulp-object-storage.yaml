@@ -69,6 +69,7 @@ spec:
                   default_storage.location.strip("/"),
                   saved_name,
               ]))
+              client = bucket.meta.client
               try:
                   with default_storage.open(saved_name, "rb") as stored:
                       restored = stored.read()
@@ -92,19 +93,53 @@ spec:
                       direct_download = True
 
                   digest = hashlib.sha256(restored).hexdigest()
+                  initial_versions = client.list_object_versions(
+                      Bucket=bucket.name,
+                      Prefix=stored_key,
+                  ).get("Versions", [])
+                  recovery_version = next(
+                      (
+                          version
+                          for version in initial_versions
+                          if version["Key"] == stored_key and version.get("IsLatest")
+                      ),
+                      None,
+                  )
+                  if not recovery_version:
+                      raise RuntimeError("exact object-storage recovery version is missing")
+                  recovery_version_id = recovery_version["VersionId"]
+
+                  client.put_object(
+                      Bucket=bucket.name,
+                      Key=stored_key,
+                      Body=b"newer-state-that-must-not-survive-recovery",
+                  )
                   default_storage.delete(saved_name)
                   if default_storage.exists(saved_name):
                       raise RuntimeError("versioned delete did not hide the object")
 
-                  client = bucket.meta.client
                   versions = client.list_object_versions(
                       Bucket=bucket.name,
                       Prefix=stored_key,
                   )
                   object_versions = versions.get("Versions", [])
                   delete_markers = versions.get("DeleteMarkers", [])
-                  if not object_versions or not delete_markers:
+                  if len(object_versions) < 2 or not delete_markers:
                       raise RuntimeError("versioned write/delete history is incomplete")
+
+                  client.copy_object(
+                      Bucket=bucket.name,
+                      Key=stored_key,
+                      CopySource={
+                          "Bucket": bucket.name,
+                          "Key": stored_key,
+                          "VersionId": recovery_version_id,
+                      },
+                  )
+                  with default_storage.open(saved_name, "rb") as recovered:
+                      recovered_payload = recovered.read()
+                  if recovered_payload != payload:
+                      raise RuntimeError("exact object-storage version recovery changed content")
 
                   print(json.dumps({
                       "backend": type(default_storage._wrapped).__name__,
@@ -115,6 +150,8 @@ spec:
                       "objectVersions": len(object_versions),
                       "deleteMarkers": len(delete_markers),
                       "directDownload": direct_download,
+                      "recoveredFromVersion": recovery_version_id,
+                      "versionRecoverySha256": hashlib.sha256(recovered_payload).hexdigest(),
                   }, sort_keys=True))
               finally:
                   versions = bucket.meta.client.list_object_versions(

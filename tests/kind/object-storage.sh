@@ -47,8 +47,10 @@ run_successful_probe() {
     .location == "qualification" and
     .bytes == 9437185 and
     .directDownload == true and
-    .objectVersions >= 1 and
-    .deleteMarkers >= 1
+    .objectVersions >= 2 and
+    .deleteMarkers >= 1 and
+    (.recoveredFromVersion | type == "string" and length > 0) and
+    .versionRecoverySha256 == .sha256
   ' <<<"${last_probe_result}" >/dev/null
 }
 
@@ -128,4 +130,4 @@ jq --null-input \
     rotated: $rotated
   }' >"${output_file}"
 
-echo 'Pulp completed direct versioned multipart transfers before and after credential rotation.'
+echo 'Pulp completed direct versioned multipart transfers and exact-version recovery before and after credential rotation.'

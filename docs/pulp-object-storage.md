@@ -128,6 +128,10 @@ or provider snapshots and replication, then coordinate their recovery point
 with the maintenance-gated Pulp database dump. Before leaving maintenance mode
 after a database restore, restore the bucket to the matching point. A database
 snapshot without its matching objects is not a complete Pulp recovery point.
+The amd64 qualification drill proves that the configured S3 API can recover
+content from one exact older object `VersionId` after a newer write and delete
+marker; that provider-level primitive still does not replace the coordinated
+database/bucket restore drill.
 Use the guarded `quiesce` and `RECOVERY_FROM_QUIESCED=1` flow documented in
 [`disaster-recovery.md`](disaster-recovery.md) so the external point is created
 or restored while every application writer remains stopped.
