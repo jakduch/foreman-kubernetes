@@ -133,6 +133,10 @@ pending.
   one-hour termination grace period by
   default because Pulpcore handles SIGTERM by finishing an active task; reduce
   it only when interrupted synchronization and publication tasks are accepted.
+- API, content, and worker Pods mount those chart-owned readiness validators
+  through ConfigMap `subPath` entries. Each Pod template hashes the exact
+  validator it mounts, so a script change replaces the affected Pulp process
+  instead of leaving the old inode mounted or restarting unrelated processes.
 - API readiness parses Pulp status rather than trusting HTTP 200: the database
   and cache must be connected and at least one worker and content app online.
 - S3 mode uses `/var/lib/pulp/tmp` only as per-pod scratch space and can redirect

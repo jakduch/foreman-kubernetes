@@ -356,6 +356,7 @@ ruby "${repo_root}/tests/pulp-ingress-contract.rb" "${rendered_minimal_pulp_ingr
 ruby "${repo_root}/tests/foreman-ingress-contract.rb" "${rendered_ingress}"
 ruby "${repo_root}/tests/foreman-ingress-contract.rb" "${rendered_ingress_overrides}"
 ruby "${repo_root}/tests/pulp-process-contract.rb" "${rendered}"
+ruby "${repo_root}/tests/pulp-config-rollout-contract.rb" "${rendered}"
 ruby "${repo_root}/tests/web-process-contract.rb" "${rendered}"
 ruby "${repo_root}/tests/foreman-secret-contract.rb" \
   "${rendered_foreman_secret_contract}" \
