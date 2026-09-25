@@ -41,6 +41,11 @@
   preserves an active Remote Execution job, restores either injected Secret
   even during cleanup, and replaces the affected Foreman, Dynflow, and
   `Recreate`-managed Candlepin Pods only after all migrations succeed.
+- The same full-stack workflow now installs both release-controller replicas,
+  adopts the running application and execution-proxy releases, proves that a
+  real failed migration remains blocked without a retry-token change, deletes
+  the active leader, and requires the standby to complete the authorized retry
+  and final managed-host execution.
 - One-shot, maintenance-gated recovery Jobs produce encrypted Restic snapshots
   of all three databases, Foreman's LDAP avatars, Pulp filesystem storage, and
   both releases' Secrets plus execution Dynflow/runner and Ansible-content
@@ -103,9 +108,9 @@ Still required:
    exactly two live cluster rows, and requires one execution after takeover.
 3. Run the prepared failed Foreman and Candlepin migration roll-forward against
    the pinned image set, including the Candlepin `Recreate` replacement.
-4. Exercise the operator's migration-before-rollout sequence, then replace
-   `Recreate` with a rolling strategy only after adjacent-version schema
-   compatibility is proven.
+4. Run the prepared operator adoption, blocked retry, and leader-takeover drill
+   against the pinned images. Replace `Recreate` with a rolling strategy only
+   after adjacent-version schema compatibility is proven.
 
 ## Operator track
 

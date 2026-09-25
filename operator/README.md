@@ -235,8 +235,9 @@ blocked retry, busy Lease, invalid transition, conditions, and operation
 replacement and progress-checkpoint behavior. `tests/operator-reconciler.rb`
 simulates a controller restart during migration, safe-boundary pause, a failed
 validation, an explicit retry, and a same-generation drift repair. The
-two-candidate controller, leader takeover, bounded RBAC,
-chart, and publication image are present and covered by command-level
-simulations. Real-cluster tests
-of the published image are still required before treating the controller path
-as production-ready.
+two-candidate controller, bounded RBAC, chart, and publication image are
+present and covered by command-level simulations. The full integration harness
+also prepares a real-cluster adoption, failed Candlepin migration, blocked
+retry guard, active-leader deletion, standby takeover, explicit retry, and
+final managed-host execution. A retained successful amd64 run of that prepared
+drill is still required before treating the controller path as production-ready.

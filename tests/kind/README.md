@@ -71,6 +71,14 @@
   Pod replacement while a Remote Execution job remains active and completes;
 - a configuration-changing execution-proxy rollout while another active job
   completes, followed by a fresh job through the replacement Pod.
+- adoption of both existing Helm releases by the real two-replica
+  `ForemanRelease` controller, a genuine failed Candlepin migration which
+  enters `Blocked` without replacing workloads, leader Pod loss and standby
+  takeover, refusal to retry an unchanged token, and a successful explicit
+  retry through both application and execution-proxy verification;
+- removal of the temporary adoption permissions after the controller has
+  labelled both releases, plus another successful managed-host job through the
+  controller-owned result.
 
 The test is intentionally opt-in because it downloads the real application images and needs substantially more CPU, memory, and time than chart rendering:
 
@@ -91,13 +99,14 @@ remove the disposable cluster.
 
 The temporary cluster and generated PKI are removed on success or failure. Set `KEEP_CLUSTER=1` only while diagnosing a failure. An existing cluster with the same name is never modified unless `REUSE_CLUSTER=1` is explicit.
 
-The harness builds `images/recovery-toolbox/Dockerfile` and the test-only
-`images/ssh-target/Dockerfile` locally and loads them into kind; it publishes
-neither image. The SSH target permits only the generated short-lived public
-key for its unprivileged `foreman` user and exists solely inside the disposable
-namespace. Set `SKIP_RECOVERY_TEST=1` for a faster diagnostic run that omits
-the recovery toolbox build and recovery drill; the SSH target is still built
-because execution tests remain active.
+The harness builds `images/recovery-toolbox/Dockerfile`, the test-only
+`images/ssh-target/Dockerfile`, and `images/release-operator/Dockerfile`
+locally and loads them into kind; it publishes none of them. The SSH target
+permits only the generated short-lived public key for its unprivileged
+`foreman` user and exists solely inside the disposable namespace. Set
+`SKIP_RECOVERY_TEST=1` for a faster diagnostic run that omits the recovery
+toolbox build and recovery drill; the SSH target and release operator are still
+built because execution and controller tests remain active.
 
 By default the harness resolves the paired, digest-pinned nightly candidate
 from `compatibility/release-sets.json` and uses a digest-pinned Kubernetes 1.34

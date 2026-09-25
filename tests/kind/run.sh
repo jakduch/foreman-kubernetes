@@ -16,6 +16,7 @@ skip_recovery_test="${SKIP_RECOVERY_TEST:-0}"
 content_lifecycle_state="${temporary_directory}/content-lifecycle.json"
 image_runtime_contract_file="${IMAGE_RUNTIME_CONTRACT_FILE:-artifacts/image-runtime-contract.json}"
 candlepin_job_delivery_file="${CANDLEPIN_JOB_DELIVERY_FILE:-artifacts/candlepin-job-delivery.json}"
+operator_release_evidence_file="${OPERATOR_RELEASE_EVIDENCE_FILE:-artifacts/operator-release.json}"
 foreman_database_url_backup=""
 candlepin_database_password_backup=""
 application_secret_rollout_token=initial
@@ -965,6 +966,14 @@ kind load docker-image \
   --name "${cluster_name}" \
   foreman-kubernetes-ssh-target:test
 
+docker build \
+  --file "${repo_root}/images/release-operator/Dockerfile" \
+  --tag foreman-release-operator:test \
+  "${repo_root}"
+kind load docker-image \
+  --name "${cluster_name}" \
+  foreman-release-operator:test
+
 helm upgrade --install ingress-nginx ingress-nginx \
   --repo https://kubernetes.github.io/ingress-nginx \
   --namespace ingress-nginx \
@@ -1102,6 +1111,12 @@ finish_execution_upgrade_job proxy-upgrade "${proxy_upgrade_state}"
 rotate_execution_identity
 assert_execution_plane
 "${repo_root}/tests/kind/publish-ansible-content.sh" v2
+assert_execution_plane v2
+NAMESPACE="${namespace}" \
+  COMPATIBILITY_SET="${compatibility_set}" \
+  OPERATOR_RELEASE_EVIDENCE_FILE="${operator_release_evidence_file}" \
+  "${repo_root}/tests/kind/operator-release.sh" \
+    "${temporary_directory}/operator-release"
 assert_execution_plane v2
 write_integration_evidence
 

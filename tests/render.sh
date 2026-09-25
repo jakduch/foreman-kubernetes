@@ -77,6 +77,7 @@ ruby "${repo_root}/tests/operator-image-contract.rb"
 ruby "${repo_root}/tests/kind-release-sequencing.rb"
 ruby "${repo_root}/tests/kind-image-runtime-contract.rb"
 ruby "${repo_root}/tests/kind-candlepin-job-contract.rb"
+ruby "${repo_root}/tests/kind-operator-release-contract.rb"
 ruby "${repo_root}/tests/kind-python-content-contract.rb"
 bash "${repo_root}/tests/collect-diagnostics.sh"
 

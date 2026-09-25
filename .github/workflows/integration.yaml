@@ -16,6 +16,7 @@ jobs:
       INTEGRATION_EVIDENCE_FILE: artifacts/integration-result.json
       IMAGE_RUNTIME_CONTRACT_FILE: artifacts/image-runtime-contract.json
       CANDLEPIN_JOB_DELIVERY_FILE: artifacts/candlepin-job-delivery.json
+      OPERATOR_RELEASE_EVIDENCE_FILE: artifacts/operator-release.json
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: azure/setup-helm@bf6a7d304bc2fdb57e0331155b7ebf2c504acf0a # v4
@@ -39,6 +40,7 @@ jobs:
             artifacts/integration-result.json
             artifacts/image-runtime-contract.json
             artifacts/candlepin-job-delivery.json
+            artifacts/operator-release.json
           if-no-files-found: error
           retention-days: 90
       - name: Collect failure diagnostics
@@ -52,6 +54,8 @@ jobs:
           kubectl --namespace foreman logs deployment/execution-foreman-execution-proxy --all-containers > artifacts/execution-proxy.log 2>&1 || true
           kubectl --namespace foreman logs deployment/execution-target --all-containers > artifacts/execution-target.log 2>&1 || true
           kubectl --namespace foreman logs job/execution-ansible-content-loader > artifacts/execution-ansible-content-loader.log 2>&1 || true
+          kubectl --namespace foreman get foremanrelease foreman -o yaml > artifacts/foreman-release.yaml 2>&1 || true
+          kubectl --namespace foreman logs --selector=app.kubernetes.io/name=foreman-release-operator --all-containers --prefix > artifacts/release-operator.log 2>&1 || true
           kind export logs artifacts/kind --name foreman-stack-e2e || true
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: failure()

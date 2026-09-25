@@ -196,10 +196,13 @@ bundle described in [`diagnostics.md`](diagnostics.md). It preserves release,
 Helm, workload, Job, Event, and cluster-capability evidence without requesting
 Pod logs or Secret payloads.
 
-This path has command-level and render coverage but no retained real-cluster
-qualification yet. Do not replace the guarded scripts in production until the
-full integration workflow has exercised the published operator image and exact
-compatibility set.
+The full integration workflow now contains a real-cluster adoption, failed
+migration, leader takeover, explicit retry, application rollout, proxy rollout,
+and final execution drill using the locally built operator image. It retains
+the blocked and ready status as evidence bound to the same compatibility set.
+This is still a prepared qualification until that amd64 workflow completes;
+do not replace the guarded scripts in production based on static validation
+alone.
 
 ## Guarded first installation
 

@@ -18,6 +18,8 @@
     "failed-migration-roll-forward",
     "candlepin-failed-migration-roll-forward",
     "candlepin-recreate-upgrade",
+    "operator-blocked-retry",
+    "operator-leader-takeover",
     "dynflow-scale",
     "active-application-upgrade",
     "active-proxy-upgrade"
