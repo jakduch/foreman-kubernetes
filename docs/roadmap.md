@@ -96,9 +96,10 @@ Still required:
 1. Run the prepared one-time Artemis delivery and in-process reconnect drill on
    amd64. It now executes a real owner-healing job before and after a complete
    broker restart, rejects redelivery, and rejects hidden Candlepin restarts.
-2. Run the prepared Quartz membership and stale-instance failover assertion on
-   amd64; the harness now terminates one scheduler pod and requires a distinct
-   replacement while retaining exactly two live cluster rows.
+2. Run the prepared Quartz trigger ownership failover assertion on amd64; the
+   harness now forces the real `ExpiredPoolsCleanupJob` trigger, deletes the
+   scheduler that fired it, requires a distinct replacement while retaining
+   exactly two live cluster rows, and requires one execution after takeover.
 3. Exercise failed and successful migrations against the pinned image set.
 4. Exercise the operator's migration-before-rollout sequence, then replace
    `Recreate` with a rolling strategy only after adjacent-version schema

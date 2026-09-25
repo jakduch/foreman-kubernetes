@@ -5,6 +5,7 @@
     "pinned-image-runtime-contract",
     "candlepin-concurrent-request-replicas",
     "candlepin-ha-pod-recovery",
+    "candlepin-quartz-trigger-failover",
     "candlepin-artemis-delivery-reconnect",
     "pulp-registration-mtls",
     "pulp-python-lifecycle",

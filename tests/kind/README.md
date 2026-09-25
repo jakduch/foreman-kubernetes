@@ -12,6 +12,9 @@
 - Candlepin request-service recovery after deleting one replica, including
   replacement of the terminated Quartz scheduler instance and cleanup of its
   stale cluster row;
+- forced execution of the real shared `ExpiredPoolsCleanupJob` Quartz trigger,
+  deletion of the scheduler that fired it, and successful one-time execution
+  after another scheduler takes ownership;
 - Foreman health both with and without the optional client certificate;
 - the chart-owned Helm smoke test against Foreman/Katello aggregate health,
   Candlepin status, and Pulp status through the default NetworkPolicies;

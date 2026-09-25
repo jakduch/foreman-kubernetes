@@ -20,8 +20,12 @@ abort 'Candlepin drill does not address each request Pod directly' unless drill.
 abort 'Candlepin drill does not preserve TLS hostname verification' unless drill.include?('tls.post_connection_check(host)')
 abort 'Candlepin request probes are not concurrent' unless drill.include?('Thread.new') && drill.include?('>/dev/null &')
 abort 'Candlepin drill does not require both request Pods' unless drill.include?('pod_count') && drill.include?('-ne 2')
+abort 'Candlepin drill does not force a real Quartz trigger' unless drill.include?('UPDATE qrtz_triggers') && drill.include?('ExpiredPoolsCleanupJob')
+abort 'Candlepin drill does not terminate the scheduler that fired the job' unless drill.include?('delete pod "${first_origin}"')
+abort 'Candlepin drill does not reject stale scheduler ownership' unless drill.include?('terminated Quartz scheduler created')
 abort 'Kind harness does not execute the Candlepin job drill' unless harness.include?('tests/kind/candlepin-job-delivery.sh')
 abort 'promotion evidence does not require the Candlepin job drill' unless checks.include?('candlepin-artemis-delivery-reconnect')
+abort 'promotion evidence does not require Quartz trigger failover' unless checks.include?('candlepin-quartz-trigger-failover')
 abort 'CI does not retain the Candlepin job report' unless workflow.include?('artifacts/candlepin-job-delivery.json')
 
 puts 'Candlepin integration covers one-time Artemis delivery and in-process broker reconnect.'

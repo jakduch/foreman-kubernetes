@@ -31,6 +31,78 @@ candlepin_pod_uids() {
     --output=json | jq --raw-output '.items[].metadata.uid' | sort
 }
 
+candlepin_sql() {
+  local statement="$1"
+
+  kubectl --namespace "${namespace}" exec deployment/postgresql -- \
+    env PGPASSWORD=candlepin-test \
+    psql \
+    --host=127.0.0.1 \
+    --username=candlepin \
+    --dbname=candlepin \
+    --tuples-only \
+    --no-align \
+    --set=ON_ERROR_STOP=1 \
+    --command="${statement}"
+}
+
+quartz_instances() {
+  candlepin_sql \
+    "SELECT instance_name FROM qrtz_scheduler_state WHERE sched_name = 'ForemanCandlepinKind' ORDER BY instance_name"
+}
+
+wait_for_quartz_instances() {
+  local expected_count="$1"
+  local actual_count
+  local instances
+
+  for _ in $(seq 1 120); do
+    instances="$(quartz_instances)"
+    actual_count="$(awk 'NF { count++ } END { print count + 0 }' <<<"${instances}")"
+    if [[ "${actual_count}" == "${expected_count}" ]]; then
+      printf '%s\n' "${instances}"
+      return 0
+    fi
+    sleep 2
+  done
+
+  echo "Quartz has ${actual_count} registered instances, expected ${expected_count}" >&2
+  return 1
+}
+
+latest_scheduled_job_id() {
+  candlepin_sql \
+    "SELECT id FROM cp_async_jobs WHERE job_key = 'ExpiredPoolsCleanupJob' ORDER BY created DESC LIMIT 1"
+}
+
+force_scheduled_job() {
+  local updated
+
+  updated="$(candlepin_sql \
+    "WITH changed AS (UPDATE qrtz_triggers SET next_fire_time = (extract(epoch FROM clock_timestamp()) * 1000)::bigint, trigger_state = 'WAITING' WHERE sched_name = 'ForemanCandlepinKind' AND job_name = 'ExpiredPoolsCleanupJob' RETURNING 1) SELECT count(*) FROM changed")"
+  if [[ "${updated}" != 1 ]]; then
+    echo "Updated ${updated} Quartz triggers, expected 1" >&2
+    exit 1
+  fi
+}
+
+wait_for_new_scheduled_job() {
+  local previous_id="$1"
+  local job_id
+
+  for _ in $(seq 1 90); do
+    job_id="$(latest_scheduled_job_id)"
+    if [[ -n "${job_id}" && "${job_id}" != "${previous_id}" ]]; then
+      printf '%s\n' "${job_id}"
+      return 0
+    fi
+    sleep 1
+  done
+
+  echo 'Quartz did not create a new ExpiredPoolsCleanupJob' >&2
+  return 1
+}
+
 candlepin_pods_with_ips() {
   kubectl --namespace "${namespace}" get pods \
     --selector=app.kubernetes.io/component=candlepin \
@@ -165,7 +237,51 @@ assert_single_delivery() {
   fi
 }
 
+assert_quartz_trigger_failover() {
+  local before_instances
+  local after_instances
+  local previous_job_id
+  local first_scheduled_job
+  local first_origin
+  local second_scheduled_job
+
+  previous_job_id="$(latest_scheduled_job_id)"
+  force_scheduled_job
+  first_scheduled_job="$(wait_for_job "$(wait_for_new_scheduled_job "${previous_job_id}")")"
+  assert_single_delivery "${first_scheduled_job}" "scheduled job before Quartz failover"
+  first_origin="$(jq --exit-status --raw-output '.origin' <<<"${first_scheduled_job}")"
+  if ! candlepin_pod_names | grep --fixed-strings --line-regexp --quiet "${first_origin}"; then
+    echo "Scheduled job origin ${first_origin} is not a running Candlepin Pod" >&2
+    exit 1
+  fi
+
+  before_instances="$(quartz_instances)"
+  kubectl --namespace "${namespace}" delete pod "${first_origin}" --wait=true --timeout=5m >/dev/null
+  kubectl --namespace "${namespace}" rollout status \
+    deployment/foreman-foreman-stack-candlepin --timeout=10m >/dev/null
+  after_instances="$(wait_for_quartz_instances 2)"
+  if [[ "${after_instances}" == "${before_instances}" ]]; then
+    echo 'Quartz did not replace the terminated scheduler instance' >&2
+    exit 1
+  fi
+
+  force_scheduled_job
+  second_scheduled_job="$(wait_for_job "$(wait_for_new_scheduled_job \
+    "$(jq --exit-status --raw-output '.id' <<<"${first_scheduled_job}")")")"
+  assert_single_delivery "${second_scheduled_job}" "scheduled job after Quartz failover"
+  if [[ "$(jq --exit-status --raw-output '.origin' <<<"${second_scheduled_job}")" == "${first_origin}" ]]; then
+    echo 'The terminated Quartz scheduler created the post-failover job' >&2
+    exit 1
+  fi
+
+  jq --null-input \
+    --argjson first "${first_scheduled_job}" \
+    --argjson second "${second_scheduled_job}" \
+    '{first: $first, second: $second}'
+}
+
 assert_concurrent_request_service
+scheduled_jobs="$(assert_quartz_trigger_failover)"
 
 first_job="$(start_job)"
 first_job="$(wait_for_job "$(jq --exit-status --raw-output '.id' <<<"${first_job}")")"
@@ -211,6 +327,7 @@ mkdir -p "$(dirname "${output_file}")"
 jq --null-input \
   --argjson first_job "${first_job}" \
   --argjson second_job "${second_job}" \
+  --argjson scheduled_jobs "${scheduled_jobs}" \
   --arg candlepin_pod_uids "${candlepin_uids_after}" \
   --arg candlepin_pods "$(candlepin_pod_names)" \
   '{
@@ -219,7 +336,8 @@ jq --null-input \
     candlepinPodsRestarted: false,
     candlepinPodUids: ($candlepin_pod_uids | split("\n")),
     requestServicePods: ($candlepin_pods | split("\n")),
-    jobs: [$first_job, $second_job]
+    jobs: [$first_job, $second_job],
+    scheduledJobs: $scheduled_jobs
   }' >"${output_file}"
 
 echo 'Candlepin delivered each async job once and reconnected after the Artemis restart.'

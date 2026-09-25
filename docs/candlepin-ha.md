@@ -96,5 +96,13 @@ job without replacing either Candlepin pod. The report is retained with the
 integration evidence. It remains an implemented-but-unrun contract until the
 pinned image workflow completes.
 
-Before production use, the remaining live proof is Quartz trigger failover
-during a running trigger, a failed migration, and a `Recreate` upgrade.
+The same drill advances the existing `ExpiredPoolsCleanupJob` trigger in the
+disposable Quartz database, observes its origin and single execution, deletes
+that scheduler pod, waits until its stale cluster row is replaced, and advances
+the trigger again. The second job must be created by another live scheduler and
+must also execute exactly once.
+
+Before production use, the remaining live proof is a failed migration and a
+`Recreate` upgrade. A trigger already handed to an asynchronous worker is
+covered by the separate Artemis delivery contract; Quartz ownership failover is
+covered at the trigger boundary described above.
