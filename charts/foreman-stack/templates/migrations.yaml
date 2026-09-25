@@ -111,9 +111,13 @@ spec:
           securityContext:
             {{- include "foreman-stack.restrictedContainerSecurityContext" (dict "runAsUser" 700 "runAsGroup" 700) | nindent 12 }}
           command:
-            - pulpcore-manager
-            - migrate
-            - --noinput
+            - /bin/bash
+            - -ec
+            - |
+              pulpcore-manager migrate --noinput
+              # PulpNoCreateRemoteUserBackend authenticates Foreman as this
+              # pre-existing identity. Keep direct password login unusable.
+              pulpcore-manager reset-admin-password --random
           env:
             {{- include "foreman-stack.pulpEnv" . | nindent 12 }}
           resources:

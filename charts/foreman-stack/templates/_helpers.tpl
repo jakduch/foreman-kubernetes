@@ -235,6 +235,22 @@ runAsGroup: {{ . }}
 {{- printf "%s-pulp-public-api-headers" (include "foreman-stack.fullname" .) }}
 {{- end }}
 
+{{- define "foreman-stack.pulpRegistryHeadersName" -}}
+{{- printf "%s-pulp-registry-headers" (include "foreman-stack.fullname" .) }}
+{{- end }}
+
+{{- define "foreman-stack.pulpRegistryClientCommonNameRegex" -}}
+{{- $commonNames := list .Values.platform.fqdn -}}
+{{- range .Values.pulp.controlProxy.trustedClientCommonNames -}}
+{{- $commonNames = append $commonNames . -}}
+{{- end -}}
+{{- $escapedCommonNames := list -}}
+{{- range uniq $commonNames -}}
+{{- $escapedCommonNames = append $escapedCommonNames (regexQuoteMeta .) -}}
+{{- end -}}
+{{- printf "CN=(%s)" (join "|" $escapedCommonNames) -}}
+{{- end }}
+
 {{- define "foreman-stack.pulpControlProxyConfig" -}}
 map $ssl_client_s_dn $pulp_remote_user {
   default "";

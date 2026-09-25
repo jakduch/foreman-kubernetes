@@ -91,9 +91,26 @@ if enabled_plugins.include?('pulp_container')
     registry_annotations['nginx.ingress.kubernetes.io/use-regex'] == 'true'
   abort 'Katello registry prefix is not stripped before reaching Pulp' unless \
     registry_annotations['nginx.ingress.kubernetes.io/rewrite-target'] == '/$2'
+  abort 'Katello registry compatibility route does not require a client certificate' unless \
+    registry_annotations['nginx.ingress.kubernetes.io/auth-tls-verify-client'] == 'on'
+  unless registry_annotations['nginx.ingress.kubernetes.io/auth-tls-match-cn'] == 'CN=(foreman\\.example\\.test)'
+    abort 'Katello registry compatibility route does not restrict the client certificate identity'
+  end
   registry_path = paths.find { |path| path['path'] == '/pulpcore_registry(/|$)(.*)' }
   abort 'Katello registry prefix does not use ImplementationSpecific path matching' unless \
     registry_path.fetch('pathType') == 'ImplementationSpecific'
+
+  registry_headers_reference = registry_annotations.fetch('nginx.ingress.kubernetes.io/proxy-set-headers')
+  registry_headers_name = registry_headers_reference.split('/', 2).last
+  registry_headers = documents.find do |resource|
+    resource['kind'] == 'ConfigMap' && resource.dig('metadata', 'name') == registry_headers_name
+  end
+  abort 'Katello registry compatibility route has no dedicated header policy' unless registry_headers
+  unless registry_headers.fetch('data').slice('REMOTE-USER', 'REMOTE_USER', 'X-CLIENT-CERT') == {
+    'REMOTE-USER' => 'admin', 'REMOTE_USER' => 'admin', 'X-CLIENT-CERT' => ''
+  }
+    abort 'Katello registry compatibility route does not map its verified client to Pulp admin'
+  end
 
   public_registry_ingress = ingress_by_path.fetch('/v2')
   public_registry_annotations = public_registry_ingress.dig('metadata', 'annotations') || {}
