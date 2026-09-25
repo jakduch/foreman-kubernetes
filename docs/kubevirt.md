@@ -47,6 +47,29 @@ consume a projected token directly. Production use therefore needs an explicit
 rotation process before expiry. Do not replace this with a cluster-admin token
 or a legacy non-expiring token merely to avoid rotation.
 
+Rotate an existing compute resource with the repository helper. Keep Foreman
+authentication and TLS settings in a mode-0600 curl configuration so neither
+the Foreman credential nor the KubeVirt token appears in process arguments:
+
+```sh
+cat > /secure/path/foreman.curlrc <<'EOF'
+user = "operator:personal-access-token"
+cacert = "/secure/path/foreman-ca.crt"
+EOF
+chmod 600 /secure/path/foreman.curlrc /secure/path/foreman-kubevirt.token
+
+FOREMAN_URL=https://foreman.example.test \
+FOREMAN_CURL_CONFIG=/secure/path/foreman.curlrc \
+KUBEVIRT_TOKEN_FILE=/secure/path/foreman-kubevirt.token \
+scripts/rotate-kubevirt-token.sh COMPUTE_RESOURCE_ID
+```
+
+The helper first verifies that the ID belongs to a KubeVirt compute resource,
+then sends only the new password/token attribute. A failed connection
+validation leaves the update unsuccessful once the prepared plugin validation
+fix is included in the image. Schedule rotation with overlap before expiry and
+verify a provider API operation afterwards; the helper does not mint tokens.
+
 Export the cluster CA separately:
 
 ```sh
