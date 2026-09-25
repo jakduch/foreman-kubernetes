@@ -126,9 +126,12 @@ controller, referenced PriorityClasses, and metrics API availability. Required
 X.509 inputs are parsed and must remain valid for the configured safety window;
 known certificate/key pairs and colocated CA chains are verified as well. The
 TLS certificate selected by each Ingress must also cover every DNS name in
-that Ingress; shared Secrets are checked against the union of their hosts. The
-complete render must then pass Kubernetes server-side admission dry-run before
-the operation can acquire its mutation Lease. The manual install and upgrade
+that Ingress; shared Secrets are checked against the union of their hosts.
+Candlepin, the Pulp control proxy, and the execution proxy declare the exact
+internal Service name their server certificate must cover, so the same check
+also protects in-cluster mTLS clients. The complete render must then pass
+Kubernetes server-side admission dry-run before the operation can acquire its
+mutation Lease. The manual install and upgrade
 scripts use the same `ManifestRequirements` implementation, so their preflight
 inventory cannot drift from the controller.
 The chart's namespaced Role is checked against every resource kind rendered by

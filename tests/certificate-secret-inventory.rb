@@ -18,6 +18,16 @@ def assert_keys(documents, expected)
   end
 end
 
+def assert_identities(documents, expected)
+  actual = ForemanRelease::ManifestRequirements.new(documents).certificate_identities
+  expected.each do |name, identities|
+    identities.each do |key, dns_names|
+      missing = dns_names - Array(actual.dig(name, key))
+      abort "Secret #{name} key #{key} identity is missing DNS names: #{missing.join(', ')}" unless missing.empty?
+    end
+  end
+end
+
 assert_keys(
   application,
   {
@@ -30,6 +40,17 @@ assert_keys(
     'valkey-ca' => %w[ca.crt]
   }
 )
+assert_identities(
+  application,
+  {
+    'candlepin-certificates' => {
+      'tomcat.crt' => ['test-foreman-stack-candlepin']
+    },
+    'pulp-control-proxy-certificates' => {
+      'tls.crt' => ['test-foreman-stack-pulp-control']
+    }
+  }
+)
 assert_keys(
   execution,
   {
@@ -38,5 +59,13 @@ assert_keys(
     'foreman-certificates' => %w[client_cert.pem client_key.pem]
   }
 )
+assert_identities(
+  execution,
+  {
+    'foreman-execution-proxy-tls' => {
+      'tls.crt' => ['execution-foreman-execution-proxy']
+    }
+  }
+)
 
-puts 'Certificate and private-key Secret inventory covers application and execution mounts.'
+puts 'Certificate inventory covers mounted keys and every declared service identity.'

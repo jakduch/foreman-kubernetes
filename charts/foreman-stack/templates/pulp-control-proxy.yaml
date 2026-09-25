@@ -12,6 +12,10 @@ apiVersion: v1
 kind: Service
 metadata:
   name: {{ include "foreman-stack.pulpControlProxyServiceName" . }}
+  annotations:
+    foreman-kubernetes.io/certificate-secret: {{ .Values.pulp.controlProxy.existingCertificateSecret | quote }}
+    foreman-kubernetes.io/certificate-key: "tls.crt"
+    foreman-kubernetes.io/certificate-dns-name: {{ include "foreman-stack.pulpControlProxyServiceName" . | quote }}
   labels:
     {{- include "foreman-stack.componentLabels" (dict "root" . "component" "pulp-control-proxy") | nindent 4 }}
 spec:

@@ -2,7 +2,9 @@
 # frozen_string_literal: true
 
 require 'base64'
+require 'json'
 require 'openssl'
+require 'open3'
 require 'pathname'
 
 root = Pathname.new(File.expand_path('..', __dir__))
@@ -92,14 +94,20 @@ ingress_secret = encoded_secret(
 )
 validator.validate_secret!(
   'platform', 'ingress', ingress_secret, required_keys,
-  required_dns_names: %w[foreman.example.test rpm.content.example.test]
+  required_identities: {'tls.crt' => %w[foreman.example.test rpm.content.example.test]}
 )
 expect_invalid('does not cover DNS name unrelated.example.test') do
   validator.validate_secret!(
     'platform', 'ingress', ingress_secret, required_keys,
-    required_dns_names: ['unrelated.example.test']
+    required_identities: {'tls.crt' => ['unrelated.example.test']}
   )
 end
+validator.validate_secret!(
+  'platform', 'candlepin',
+  encoded_secret('tomcat.crt' => ingress_certificate.to_pem, 'tomcat.key' => leaf_key.to_pem),
+  %w[tomcat.crt tomcat.key],
+  required_identities: {'tomcat.crt' => ['foreman.example.test']}
+)
 
 soon_certificate = issue_certificate(
   common_name: 'foreman.example.test',
@@ -255,6 +263,35 @@ end
 
 unless validator.validate_secret!('platform', 'database', encoded_secret('password' => 'secret'), ['password']).nil?
   raise 'non-certificate Secret returned a certificate expiry'
+end
+
+cli_now = Time.now.utc
+cli_key = OpenSSL::PKey::RSA.new(2048)
+cli_certificate = issue_certificate(
+  common_name: 'candlepin',
+  key: cli_key,
+  not_before: cli_now - 3600,
+  not_after: cli_now + (30 * 86_400),
+  dns_names: ['candlepin']
+)
+cli_secret = JSON.generate(
+  encoded_secret('tomcat.crt' => cli_certificate.to_pem, 'tomcat.key' => cli_key.to_pem)
+)
+validation_script = root.join('scripts/validate-secret-certificates.rb').to_s
+_output, error, status = Open3.capture3(
+  'ruby', validation_script, 'platform', 'candlepin', 'tomcat.crt,tomcat.key', '86400',
+  JSON.generate('tomcat.crt' => ['candlepin']),
+  stdin_data: cli_secret
+)
+raise "manual certificate validation rejected a matching identity: #{error}" unless status.success?
+
+_output, error, status = Open3.capture3(
+  'ruby', validation_script, 'platform', 'candlepin', 'tomcat.crt,tomcat.key', '86400',
+  JSON.generate('tomcat.crt' => ['wrong-service']),
+  stdin_data: cli_secret
+)
+if status.success? || !error.include?('does not cover DNS name wrong-service')
+  raise "manual certificate validation accepted the wrong identity: #{error}"
 end
 
 puts 'Certificate validator rejects unusable TLS identities before a release.'

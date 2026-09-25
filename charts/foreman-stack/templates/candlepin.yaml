@@ -2,6 +2,10 @@ apiVersion: v1
 kind: Service
 metadata:
   name: {{ include "foreman-stack.fullname" . }}-candlepin
+  annotations:
+    foreman-kubernetes.io/certificate-secret: {{ .Values.candlepin.existingCertificateSecret | quote }}
+    foreman-kubernetes.io/certificate-key: "tomcat.crt"
+    foreman-kubernetes.io/certificate-dns-name: {{ include "foreman-stack.candlepinServiceName" . | quote }}
   labels:
     {{- include "foreman-stack.componentLabels" (dict "root" . "component" "candlepin") | nindent 4 }}
 spec:

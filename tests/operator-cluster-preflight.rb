@@ -174,7 +174,9 @@ unless validated_certificate_secrets.include?(%w[platform ingress-ca]) &&
   raise 'preflight did not validate referenced certificate Secrets'
 end
 ingress_validation = certificate_validator.calls.find { |arguments| arguments.take(2) == %w[platform ingress-tls] }
-unless ingress_validation.last == {required_dns_names: %w[content.example.test foreman.example.test]}
+unless ingress_validation.last == {
+  required_identities: {'tls.crt' => %w[content.example.test foreman.example.test]}
+}
   raise 'preflight did not validate the Ingress certificate against its declared DNS names'
 end
 dry_run = runner.calls.fetch(0)

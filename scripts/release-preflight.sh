@@ -97,7 +97,8 @@ check_required_secrets() {
   local rendered_resources="$1"
   local namespace="$2"
   local repo_root="$3"
-  local required_secrets secret_name secret_keys secret_json secret_key
+  local required_secrets certificate_identities secret_name secret_keys
+  local secret_json secret_key secret_identities
   local certificate_minimum_validity_seconds
   local -a keys
 
@@ -109,6 +110,8 @@ check_required_secrets() {
 
   echo 'Preflight: checking externally managed Secrets and referenced keys'
   required_secrets="$(ruby "${repo_root}/scripts/required-secrets.rb" \
+    <<<"${rendered_resources}")"
+  certificate_identities="$(ruby "${repo_root}/scripts/certificate-identities.rb" \
     <<<"${rendered_resources}")"
   while IFS=$'\t' read -r secret_name secret_keys; do
     [[ -n "${secret_name}" ]] || continue
@@ -126,9 +129,12 @@ check_required_secrets() {
         return 1
       }
     done
+    secret_identities="$(jq --compact-output --arg name "${secret_name}" \
+      '.[$name] // {}' <<<"${certificate_identities}")"
     ruby "${repo_root}/scripts/validate-secret-certificates.rb" \
       "${namespace}" "${secret_name}" "${secret_keys}" \
-      "${certificate_minimum_validity_seconds}" <<<"${secret_json}" || return 1
+      "${certificate_minimum_validity_seconds}" "${secret_identities}" \
+      <<<"${secret_json}" || return 1
   done <<<"${required_secrets}"
 }
 

@@ -48,28 +48,38 @@ module ForemanRelease
 
         add_pod_secrets(references, pod_spec)
       end
+      certificate_identities.each do |name, identities|
+        references[name].merge(identities.keys)
+      end
       rendered_secrets.each { |name| references.delete(name) }
       references.transform_values { |keys| keys.to_a.sort }.sort.to_h
     end
 
-    def certificate_dns_names
-      references = Hash.new { |secrets, name| secrets[name] = Set.new }
+    def certificate_identities
+      references = Hash.new do |secrets, name|
+        secrets[name] = Hash.new { |keys, key| keys[key] = Set.new }
+      end
       @documents.each do |document|
-        next unless document['kind'] == 'Ingress'
+        case document['kind']
+        when 'Ingress'
+          rule_hosts = Array(document.dig('spec', 'rules')).each_with_object([]) do |rule, hosts|
+            host = rule['host'].to_s
+            hosts << host unless host.empty?
+          end
+          Array(document.dig('spec', 'tls')).each do |tls|
+            name = tls['secretName'].to_s
+            next if name.empty?
 
-        rule_hosts = Array(document.dig('spec', 'rules')).each_with_object([]) do |rule, hosts|
-          host = rule['host'].to_s
-          hosts << host unless host.empty?
-        end
-        Array(document.dig('spec', 'tls')).each do |tls|
-          name = tls['secretName'].to_s
-          next if name.empty?
-
-          hosts = Array(tls['hosts']).map(&:to_s).reject(&:empty?)
-          references[name].merge(hosts.empty? ? rule_hosts : hosts)
+            hosts = Array(tls['hosts']).map(&:to_s).reject(&:empty?)
+            references[name]['tls.crt'].merge(hosts.empty? ? rule_hosts : hosts)
+          end
+        when 'Service'
+          add_service_certificate_identity(references, document)
         end
       end
-      references.transform_values { |names| names.to_a.sort }.sort.to_h
+      references.transform_values do |identities|
+        identities.transform_values { |names| names.to_a.sort }.sort.to_h
+      end.sort.to_h
     end
 
     private
@@ -108,6 +118,22 @@ module ForemanRelease
       return if client_ca_reference.empty?
 
       references[client_ca_reference.split('/', 2).last] << 'ca.crt'
+    end
+
+    def add_service_certificate_identity(references, document)
+      annotations = document.dig('metadata', 'annotations') || {}
+      values = %w[certificate-secret certificate-key certificate-dns-name].map do |suffix|
+        annotations["foreman-kubernetes.io/#{suffix}"].to_s
+      end
+      return if values.all?(&:empty?)
+
+      if values.any?(&:empty?)
+        raise ArgumentError,
+              "Service #{document.dig('metadata', 'name')} has an incomplete certificate identity contract"
+      end
+
+      secret, key, dns_name = values
+      references[secret][key] << dns_name
     end
 
     def add_pod_secrets(references, pod_spec)

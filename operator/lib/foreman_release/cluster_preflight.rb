@@ -43,7 +43,7 @@ module ForemanRelease
 
         expiration = @certificate_validator.validate_secret!(
           namespace, name, secret, keys,
-          required_dns_names: requirements.certificate_dns_names.fetch(name, [])
+          required_identities: requirements.certificate_identities.fetch(name, {})
         )
         found << expiration if expiration
       end
