@@ -125,6 +125,8 @@ ServiceAccounts, explicit or default StorageClasses, the required IngressClass
 controller, referenced PriorityClasses, and metrics API availability. Required
 X.509 inputs are parsed and must remain valid for the configured safety window;
 known certificate/key pairs and colocated CA chains are verified as well. The
+TLS certificate selected by each Ingress must also cover every DNS name in
+that Ingress; shared Secrets are checked against the union of their hosts. The
 complete render must then pass Kubernetes server-side admission dry-run before
 the operation can acquire its mutation Lease. The manual install and upgrade
 scripts use the same `ManifestRequirements` implementation, so their preflight

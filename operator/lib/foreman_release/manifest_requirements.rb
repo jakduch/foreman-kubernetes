@@ -52,6 +52,26 @@ module ForemanRelease
       references.transform_values { |keys| keys.to_a.sort }.sort.to_h
     end
 
+    def certificate_dns_names
+      references = Hash.new { |secrets, name| secrets[name] = Set.new }
+      @documents.each do |document|
+        next unless document['kind'] == 'Ingress'
+
+        rule_hosts = Array(document.dig('spec', 'rules')).each_with_object([]) do |rule, hosts|
+          host = rule['host'].to_s
+          hosts << host unless host.empty?
+        end
+        Array(document.dig('spec', 'tls')).each do |tls|
+          name = tls['secretName'].to_s
+          next if name.empty?
+
+          hosts = Array(tls['hosts']).map(&:to_s).reject(&:empty?)
+          references[name].merge(hosts.empty? ? rule_hosts : hosts)
+        end
+      end
+      references.transform_values { |names| names.to_a.sort }.sort.to_h
+    end
+
     private
 
     def add_document_requirement(requirements, document)

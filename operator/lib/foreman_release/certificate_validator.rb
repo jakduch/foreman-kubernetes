@@ -29,7 +29,7 @@ module ForemanRelease
       @clock = clock
     end
 
-    def validate_secret!(namespace, name, secret, required_keys)
+    def validate_secret!(namespace, name, secret, required_keys, required_dns_names: [])
       data = secret.fetch('data', {})
       certificate_keys = Array(required_keys).grep(CERTIFICATE_KEY)
       return nil if certificate_keys.empty?
@@ -44,6 +44,7 @@ module ForemanRelease
       earliest_expiry = validate_validity!(certificates, required_keys, namespace, name, now)
       validate_key_pairs!(data, decoded, certificates, required_keys, namespace, name)
       trust_expiry = validate_trust_pairs!(certificates, namespace, name, now)
+      validate_dns_names!(certificates, required_dns_names, namespace, name)
       [earliest_expiry, trust_expiry].compact.min
     rescue KeyError => error
       raise InvalidRelease, "Secret #{namespace}/#{name} is missing key #{error.key}"
@@ -141,6 +142,22 @@ module ForemanRelease
         found << trust_chain.map(&:not_after).min
       end
       expirations.min
+    end
+
+    def validate_dns_names!(certificates, required_dns_names, namespace, name)
+      names = Array(required_dns_names).map(&:to_s).reject(&:empty?).uniq.sort
+      return if names.empty?
+
+      leaf = certificates.fetch('tls.crt').first
+      names.each do |dns_name|
+        next if OpenSSL::SSL.verify_certificate_identity(leaf, dns_name)
+
+        raise InvalidRelease,
+              "Secret #{namespace}/#{name} key tls.crt does not cover DNS name #{dns_name}"
+      end
+    rescue KeyError
+      raise InvalidRelease,
+            "Secret #{namespace}/#{name} must provide tls.crt for Ingress DNS-name validation"
     end
 
     def verified_chain(leaf_chain, trust_anchors, time)

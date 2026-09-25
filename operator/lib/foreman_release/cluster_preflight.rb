@@ -41,7 +41,10 @@ module ForemanRelease
         missing = keys.reject { |key| secret.fetch('data', {}).key?(key) }
         raise InvalidRelease, "Secret #{namespace}/#{name} is missing keys: #{missing.join(', ')}" unless missing.empty?
 
-        expiration = @certificate_validator.validate_secret!(namespace, name, secret, keys)
+        expiration = @certificate_validator.validate_secret!(
+          namespace, name, secret, keys,
+          required_dns_names: requirements.certificate_dns_names.fetch(name, [])
+        )
         found << expiration if expiration
       end
       expirations.min

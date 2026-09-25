@@ -10,7 +10,8 @@ require root.join('operator/lib/foreman_release/certificate_validator').to_s
 
 NOW = Time.utc(2026, 9, 25, 12, 0, 0)
 
-def issue_certificate(common_name:, key:, not_before:, not_after:, issuer_certificate: nil, issuer_key: nil, ca: false)
+def issue_certificate(common_name:, key:, not_before:, not_after:, issuer_certificate: nil, issuer_key: nil, ca: false,
+                      dns_names: [])
   certificate = OpenSSL::X509::Certificate.new
   certificate.version = 2
   certificate.serial = rand(1..1_000_000)
@@ -29,6 +30,9 @@ def issue_certificate(common_name:, key:, not_before:, not_after:, issuer_certif
   )
   certificate.add_extension(extensions.create_extension('subjectKeyIdentifier', 'hash'))
   certificate.add_extension(extensions.create_extension('authorityKeyIdentifier', 'keyid:always'))
+  unless dns_names.empty?
+    certificate.add_extension(extensions.create_extension('subjectAltName', dns_names.map { |name| "DNS:#{name}" }.join(',')))
+  end
   certificate.sign(issuer_key || key, OpenSSL::Digest::SHA256.new)
   certificate
 end
@@ -71,6 +75,31 @@ valid_secret = encoded_secret(
 required_keys = %w[tls.crt tls.key ca.crt password]
 valid_expiry = validator.validate_secret!('platform', 'tls', valid_secret, required_keys)
 raise 'valid certificate Secret returned the wrong earliest expiry' unless valid_expiry == leaf_certificate.not_after
+
+ingress_certificate = issue_certificate(
+  common_name: 'unused.example.test',
+  key: leaf_key,
+  not_before: NOW - 3600,
+  not_after: NOW + (30 * 86_400),
+  issuer_certificate: ca_certificate,
+  issuer_key: ca_key,
+  dns_names: %w[foreman.example.test *.content.example.test]
+)
+ingress_secret = encoded_secret(
+  'tls.crt' => ingress_certificate.to_pem,
+  'tls.key' => leaf_key.to_pem,
+  'ca.crt' => ca_certificate.to_pem
+)
+validator.validate_secret!(
+  'platform', 'ingress', ingress_secret, required_keys,
+  required_dns_names: %w[foreman.example.test rpm.content.example.test]
+)
+expect_invalid('does not cover DNS name unrelated.example.test') do
+  validator.validate_secret!(
+    'platform', 'ingress', ingress_secret, required_keys,
+    required_dns_names: ['unrelated.example.test']
+  )
+end
 
 soon_certificate = issue_certificate(
   common_name: 'foreman.example.test',

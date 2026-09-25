@@ -90,6 +90,16 @@ documents = [
     },
     'spec' => {
       'ingressClassName' => 'nginx',
+      'rules' => [{'host' => 'foreman.example.test'}],
+      'tls' => [{'secretName' => 'ingress-tls', 'hosts' => ['foreman.example.test']}]
+    }
+  },
+  {
+    'apiVersion' => 'networking.k8s.io/v1',
+    'kind' => 'Ingress',
+    'metadata' => {'name' => 'content'},
+    'spec' => {
+      'rules' => [{'host' => 'content.example.test'}],
       'tls' => [{'secretName' => 'ingress-tls'}]
     }
   },
@@ -162,6 +172,10 @@ validated_certificate_secrets = certificate_validator.calls.map { |arguments| ar
 unless validated_certificate_secrets.include?(%w[platform ingress-ca]) &&
        validated_certificate_secrets.include?(%w[platform ingress-tls])
   raise 'preflight did not validate referenced certificate Secrets'
+end
+ingress_validation = certificate_validator.calls.find { |arguments| arguments.take(2) == %w[platform ingress-tls] }
+unless ingress_validation.last == {required_dns_names: %w[content.example.test foreman.example.test]}
+  raise 'preflight did not validate the Ingress certificate against its declared DNS names'
 end
 dry_run = runner.calls.fetch(0)
 expected_command = %w[kubectl --namespace platform apply --dry-run=server --filename -]
