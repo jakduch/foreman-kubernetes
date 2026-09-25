@@ -361,7 +361,9 @@ helm template test "${chart}" \
   --values "${repo_root}/tests/recovery-image-values.yaml" \
   --set maintenance.enabled=true \
   --set backup.enabled=true \
-  --set backup.requestId=20260924-s3 > "${rendered_s3_backup}"
+  --set backup.requestId=20260924-s3 \
+  --set-string backup.objectStorageRecoveryPoint=provider-snapshot-20260924 \
+  > "${rendered_s3_backup}"
 helm template test "${chart}" \
   --values "${repo_root}/profiles/nightly-candidate-2026-09-23.yaml" \
   --values "${repo_root}/tests/egress-values.yaml" \
@@ -983,7 +985,7 @@ if helm template test "${chart}" \
   --set restore.enabled=true \
   --set restore.requestId=20260924-s3 \
   --set restore.confirmation=RESTORE >/dev/null 2>&1; then
-  echo 'expected S3 restore without a coordinated bucket confirmation to be rejected' >&2
+  echo 'expected S3 restore without an exact bucket recovery point to be rejected' >&2
   exit 1
 fi
 
@@ -995,7 +997,27 @@ helm template test "${chart}" \
   --set restore.enabled=true \
   --set restore.requestId=20260924-s3 \
   --set restore.confirmation=RESTORE \
-  --set restore.objectStorageConfirmation=BUCKET_RESTORED >/dev/null
+  --set-string restore.objectStorageRecoveryPoint=provider-snapshot-20260924 >/dev/null
+
+if helm template test "${chart}" \
+  --values "${repo_root}/profiles/nightly-candidate-2026-09-23.yaml" \
+  --values "${repo_root}/examples/pulp-s3-values.yaml" \
+  --values "${repo_root}/tests/recovery-image-values.yaml" \
+  --set maintenance.enabled=true \
+  --set backup.enabled=true \
+  --set backup.requestId=20260924-s3 >/dev/null 2>&1; then
+  echo 'expected S3 backup without an exact bucket recovery point to be rejected' >&2
+  exit 1
+fi
+
+helm template test "${chart}" \
+  --values "${repo_root}/profiles/nightly-candidate-2026-09-23.yaml" \
+  --values "${repo_root}/examples/pulp-s3-values.yaml" \
+  --values "${repo_root}/tests/recovery-image-values.yaml" \
+  --set maintenance.enabled=true \
+  --set backup.enabled=true \
+  --set backup.requestId=20260924-s3 \
+  --set-string backup.objectStorageRecoveryPoint=provider-snapshot-20260924 >/dev/null
 
 if helm template test "${chart}" \
   --set candlepin.highAvailability.enabled=true >/dev/null 2>&1; then

@@ -10,6 +10,12 @@ done
 
 wait_for_quiescence
 prepare_work_directory
+
+if [ "${PULP_STORAGE_BACKEND}" = s3 ] && [ -z "${PULP_OBJECT_STORAGE_RECOVERY_POINT}" ]; then
+  log "An exact object-storage recovery point is required for an S3 backup" >&2
+  exit 1
+fi
+
 dump_databases
 
 log "Exporting application Secrets to the encrypted recovery set"
@@ -39,7 +45,7 @@ if [ "${EXECUTION_PROXY_RECOVERY_ENABLED}" = true ]; then
 fi
 
 jq -n \
-  --arg schema_version "5" \
+  --arg schema_version "6" \
   --arg created_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
   --arg request_id "${BACKUP_REQUEST_ID}" \
   --arg chart_version "${CHART_VERSION}" \
@@ -47,6 +53,7 @@ jq -n \
   --arg release "${HELM_RELEASE}" \
   --arg namespace "${POD_NAMESPACE}" \
   --arg pulp_storage_backend "${PULP_STORAGE_BACKEND}" \
+  --arg pulp_object_storage_recovery_point "${PULP_OBJECT_STORAGE_RECOVERY_POINT}" \
   --argjson includes_pulp_filesystem "${includes_pulp_filesystem}" \
   --argjson includes_execution_proxy "${includes_execution_proxy}" \
   --arg execution_proxy_release "${EXECUTION_PROXY_RELEASE:-}" \
@@ -62,6 +69,10 @@ jq -n \
     databases: ["foreman", "candlepin", "pulp"],
     includes_foreman_avatars: true,
     pulp_storage_backend: $pulp_storage_backend,
+    object_storage: {
+      backend: $pulp_storage_backend,
+      recovery_point: (if $pulp_storage_backend == "s3" then $pulp_object_storage_recovery_point else null end)
+    },
     includes_pulp_filesystem: $includes_pulp_filesystem,
     execution_proxy: {
       enabled: $includes_execution_proxy,
@@ -179,6 +190,9 @@ if [ "${EXECUTION_PROXY_RECOVERY_ENABLED}" = true ]; then
 fi
 
 log "Validated encrypted recovery snapshot ${snapshot_id}"
+if [ "${PULP_STORAGE_BACKEND}" = s3 ]; then
+  log "Retain object-storage recovery point with this snapshot: ${PULP_OBJECT_STORAGE_RECOVERY_POINT}"
+fi
 
 if [ "${RETENTION_ENABLED}" = true ]; then
   set -- \

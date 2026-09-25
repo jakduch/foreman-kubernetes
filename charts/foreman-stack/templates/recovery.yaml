@@ -149,6 +149,9 @@ spec:
       securityContext:
         fsGroup: 700
         fsGroupChangePolicy: OnRootMismatch
+        runAsGroup: 700
+        runAsNonRoot: true
+        runAsUser: 700
         seccompProfile:
           type: RuntimeDefault
       containers:
@@ -238,6 +241,8 @@ spec:
             {{- end }}
             - name: PULP_STORAGE_BACKEND
               value: {{ .Values.pulp.storage.backend | quote }}
+            - name: PULP_OBJECT_STORAGE_RECOVERY_POINT
+              value: {{ ternary .Values.backup.objectStorageRecoveryPoint .Values.restore.objectStorageRecoveryPoint .Values.backup.enabled | quote }}
             - name: EXECUTION_PROXY_RECOVERY_ENABLED
               value: {{ .Values.recovery.executionProxy.enabled | quote }}
             {{- if .Values.recovery.executionProxy.enabled }}
@@ -272,16 +277,15 @@ spec:
               value: {{ .Values.restore.secrets | quote }}
             - name: RESTORE_CONFIRMATION
               value: {{ .Values.restore.confirmation | quote }}
-            - name: PULP_OBJECT_STORAGE_CONFIRMATION
-              value: {{ .Values.restore.objectStorageConfirmation | quote }}
             {{- end }}
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
               drop: ["ALL"]
             readOnlyRootFilesystem: true
-            runAsNonRoot: false
-            runAsUser: 0
+            runAsGroup: 700
+            runAsNonRoot: true
+            runAsUser: 700
           resources:
             {{- toYaml .Values.recovery.resources | nindent 12 }}
           volumeMounts:

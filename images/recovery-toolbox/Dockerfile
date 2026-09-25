@@ -10,7 +10,10 @@ RUN apk add --no-cache \
       kubectl \
       postgresql18-client \
       restic \
-    && mkdir -p /work \
-    && chmod 0700 /work
+    && addgroup -g 700 recovery \
+    && adduser -D -u 700 -G recovery recovery \
+    && install -d -m 0700 -o recovery -g recovery /work
 
 WORKDIR /work
+
+USER 700:700

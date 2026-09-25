@@ -117,16 +117,20 @@ In S3 mode the recovery Job deliberately does not mount or copy
 credential and CA Secrets, while the manifest records `pulp_storage_backend:
 s3`. Restore rejects a snapshot made for the other backend.
 
-An S3 restore additionally requires
-`restore.objectStorageConfirmation=BUCKET_RESTORED`. Set it only after the
-external bucket has been rolled back to the recovery point coordinated with
-the selected database snapshot.
+An S3 backup requires `backup.objectStorageRecoveryPoint` to identify the
+provider snapshot or versioning point captured after all writers stopped. That
+exact value is stored in the encrypted recovery manifest. Restore requires the
+same value in `restore.objectStorageRecoveryPoint`; a generic acknowledgement
+or a different provider snapshot ID is rejected before any database changes.
 
 The bucket is an independent authoritative data store. Enable object versioning
 or provider snapshots and replication, then coordinate their recovery point
 with the maintenance-gated Pulp database dump. Before leaving maintenance mode
 after a database restore, restore the bucket to the matching point. A database
 snapshot without its matching objects is not a complete Pulp recovery point.
+Use the guarded `quiesce` and `RECOVERY_FROM_QUIESCED=1` flow documented in
+[`disaster-recovery.md`](disaster-recovery.md) so the external point is created
+or restored while every application writer remains stopped.
 
 The chart does not migrate artifacts from an existing RWX claim into a bucket.
 That conversion requires its own maintenance window, verified object copy, and

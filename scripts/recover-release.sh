@@ -2,7 +2,7 @@
 set -euo pipefail
 
 if [[ $# -lt 3 || $# -gt 4 ]]; then
-  echo "usage: $0 {backup|restore|resume} APPLICATION_VALUES EXECUTION_PROXY_VALUES [REQUEST_ID]" >&2
+  echo "usage: $0 {quiesce|backup|restore|resume} APPLICATION_VALUES EXECUTION_PROXY_VALUES [REQUEST_ID]" >&2
   exit 2
 fi
 
@@ -17,9 +17,9 @@ case "${operation}" in
       exit 2
     }
     ;;
-  resume)
+  quiesce | resume)
     [[ -z "${request_id}" ]] || {
-      echo 'resume does not accept a request ID' >&2
+      echo "${operation} does not accept a request ID" >&2
       exit 2
     }
     ;;
@@ -46,7 +46,8 @@ smoke_timeout="${SMOKE_TIMEOUT:-10m}"
 initialize_repository="${INITIALIZE_REPOSITORY:-0}"
 restore_snapshot="${RESTORE_SNAPSHOT:-latest}"
 restore_secrets="${RESTORE_SECRETS:-0}"
-object_storage_confirmation="${OBJECT_STORAGE_CONFIRMATION:-}"
+object_storage_recovery_point="${OBJECT_STORAGE_RECOVERY_POINT:-}"
+recovery_from_quiesced="${RECOVERY_FROM_QUIESCED:-0}"
 bootstrap_restore="${BOOTSTRAP_RESTORE:-0}"
 release_lease_name="${RELEASE_LEASE_NAME:-foreman-kubernetes-release}"
 release_holder_id="${RELEASE_HOLDER_ID:-${HOSTNAME:-recovery-host}-${operation}-$$}"
@@ -93,8 +94,22 @@ case "${bootstrap_restore}" in
   0 | 1) ;;
   *) fail 'BOOTSTRAP_RESTORE must be 0 or 1' ;;
 esac
+case "${recovery_from_quiesced}" in
+  0 | 1) ;;
+  *) fail 'RECOVERY_FROM_QUIESCED must be 0 or 1' ;;
+esac
 if [[ "${bootstrap_restore}" == 1 && "${operation}" != restore ]]; then
   fail 'BOOTSTRAP_RESTORE=1 is supported only for restore'
+fi
+if [[ "${recovery_from_quiesced}" == 1 && "${operation}" != backup && "${operation}" != restore ]]; then
+  fail 'RECOVERY_FROM_QUIESCED=1 is supported only for backup or restore'
+fi
+if [[ -n "${object_storage_recovery_point}" && \
+      "${recovery_from_quiesced}" != 1 && "${bootstrap_restore}" != 1 ]]; then
+  fail 'OBJECT_STORAGE_RECOVERY_POINT requires RECOVERY_FROM_QUIESCED=1'
+fi
+if [[ "${bootstrap_restore}" == 1 && "${recovery_from_quiesced}" == 1 ]]; then
+  fail 'bootstrap restore cannot continue an existing quiesced release'
 fi
 validate_release_lease_configuration "${release_lease_duration_seconds}" \
   "${release_lease_renew_interval_seconds}" || exit 1
@@ -160,13 +175,19 @@ if [[ "${bootstrap_restore}" == 1 ]]; then
   fi
   release_install_arguments=(--install)
 else
-  application_installed_set="$(helm get values "${application_release}" \
-    --namespace "${namespace}" --all --output=json | \
-    jq --exit-status --raw-output '.platform.compatibilitySet | select(type == "string" and length > 0)')" || \
+  application_installed_values="$(helm get values "${application_release}" \
+    --namespace "${namespace}" --all --output=json)" || \
+    fail "cannot read the installed values for ${application_release}"
+  execution_installed_values="$(helm get values "${execution_release}" \
+    --namespace "${namespace}" --all --output=json)" || \
+    fail "cannot read the installed values for ${execution_release}"
+  application_installed_set="$(jq --exit-status --raw-output \
+    '.platform.compatibilitySet | select(type == "string" and length > 0)' \
+    <<<"${application_installed_values}")" || \
     fail "cannot determine the installed compatibility set for ${application_release}"
-  execution_installed_set="$(helm get values "${execution_release}" \
-    --namespace "${namespace}" --all --output=json | \
-    jq --exit-status --raw-output '.compatibilitySet | select(type == "string" and length > 0)')" || \
+  execution_installed_set="$(jq --exit-status --raw-output \
+    '.compatibilitySet | select(type == "string" and length > 0)' \
+    <<<"${execution_installed_values}")" || \
     fail "cannot determine the installed compatibility set for ${execution_release}"
   if [[ "${application_installed_set}" != "${compatibility_set}" || \
         "${execution_installed_set}" != "${compatibility_set}" ]]; then
@@ -175,6 +196,18 @@ else
 
   helm status "${application_release}" --namespace "${namespace}" >/dev/null
   helm status "${execution_release}" --namespace "${namespace}" >/dev/null
+
+  if [[ "${recovery_from_quiesced}" == 1 ]]; then
+    jq --exit-status '
+      .maintenance.enabled == true and
+      .backup.enabled == false and
+      .restore.enabled == false
+    ' <<<"${application_installed_values}" >/dev/null || \
+      fail 'application release is not in guarded maintenance mode'
+    jq --exit-status '.maintenance.enabled == true' \
+      <<<"${execution_installed_values}" >/dev/null || \
+      fail 'execution proxy release is not in guarded maintenance mode'
+  fi
 fi
 
 declare -a recovery_arguments application_maintenance_arguments
@@ -197,7 +230,9 @@ execution_maintenance_arguments=(
 )
 execution_normal_arguments=(--set maintenance.enabled=false)
 
-if [[ "${operation}" != resume && "${bootstrap_restore}" != 1 ]]; then
+if [[ "${bootstrap_restore}" != 1 && \
+      ("${operation}" == quiesce || \
+       ("${operation}" != resume && "${recovery_from_quiesced}" != 1)) ]]; then
   kubectl --namespace "${namespace}" wait \
     --for=condition=Ready pod \
     --selector="app.kubernetes.io/instance=${execution_release},app.kubernetes.io/component=execution-proxy" \
@@ -213,7 +248,7 @@ if [[ "${operation}" != resume && "${bootstrap_restore}" != 1 ]]; then
 
 fi
 
-if [[ "${operation}" != resume ]]; then
+if [[ "${operation}" == backup || "${operation}" == restore ]]; then
   recovery_arguments+=(
     --set maintenance.enabled=true
     --set backup.enabled=false
@@ -222,15 +257,20 @@ if [[ "${operation}" != resume ]]; then
     --set-string "${operation}.requestId=${request_id}"
   )
   if [[ "${operation}" == backup ]]; then
-    recovery_arguments+=(--set "backup.initializeRepository=$([[ "${initialize_repository}" == 1 ]] && echo true || echo false)")
+    recovery_arguments+=(
+      --set "backup.initializeRepository=$([[ "${initialize_repository}" == 1 ]] && echo true || echo false)"
+    )
+    if [[ -n "${object_storage_recovery_point}" ]]; then
+      recovery_arguments+=(--set-string "backup.objectStorageRecoveryPoint=${object_storage_recovery_point}")
+    fi
   else
     recovery_arguments+=(
       --set-string "restore.snapshot=${restore_snapshot}"
       --set restore.confirmation=RESTORE
       --set "restore.secrets=$([[ "${restore_secrets}" == 1 ]] && echo true || echo false)"
     )
-    if [[ -n "${object_storage_confirmation}" ]]; then
-      recovery_arguments+=(--set-string "restore.objectStorageConfirmation=${object_storage_confirmation}")
+    if [[ -n "${object_storage_recovery_point}" ]]; then
+      recovery_arguments+=(--set-string "restore.objectStorageRecoveryPoint=${object_storage_recovery_point}")
     fi
   fi
 fi
@@ -254,7 +294,7 @@ execution_normal_resources="$(helm template "${execution_release}" "${repo_root}
   --values "${execution_values}" \
   --values "${execution_profile}" \
   "${execution_normal_arguments[@]}")"
-if [[ "${operation}" != resume ]]; then
+if [[ "${operation}" == backup || "${operation}" == restore ]]; then
   execution_recovery_inputs="$(ruby "${repo_root}/scripts/execution-recovery-inputs.rb" \
     <<<"${execution_normal_resources}")" || \
     fail 'cannot derive execution proxy recovery inputs from its rendered release'
@@ -294,32 +334,41 @@ else
     --values "${execution_values}" \
     --values "${execution_profile}" \
     "${execution_maintenance_arguments[@]}")"
-  helm lint "${repo_root}/charts/foreman-stack" \
-    --values "${application_values}" \
-    --values "${application_profile}" \
-    "${recovery_arguments[@]}"
-  application_recovery_resources="$(helm template "${application_release}" "${repo_root}/charts/foreman-stack" \
-    --namespace "${namespace}" \
-    --values "${application_values}" \
-    --values "${application_profile}" \
-    "${recovery_arguments[@]}")"
-  if [[ "$(grep -Fxc 'kind: Job' <<<"${application_recovery_resources}")" != 1 ]]; then
-    fail "${operation} must render exactly one recovery Job"
-  fi
-
   maintenance_resources="$(printf '%s\n---\n%s\n' \
     "${application_maintenance_resources}" "${execution_maintenance_resources}")"
-  recovery_resources="$(printf '%s\n---\n%s\n' \
-    "${application_recovery_resources}" "${execution_maintenance_resources}")"
-  all_resources="$(printf '%s\n---\n%s\n' "${normal_resources}" "${recovery_resources}")"
-  check_required_cluster_resources "${all_resources}" "${namespace}" "${repo_root}"
-  check_required_secrets "${all_resources}" "${namespace}" "${repo_root}"
-  check_server_admission "${maintenance_resources}" "${namespace}"
-  check_server_admission "${recovery_resources}" "${namespace}"
-  check_server_admission "${normal_resources}" "${namespace}"
+  if [[ "${operation}" == quiesce ]]; then
+    all_resources="$(printf '%s\n---\n%s\n' "${normal_resources}" "${maintenance_resources}")"
+    check_required_cluster_resources "${all_resources}" "${namespace}" "${repo_root}"
+    check_required_secrets "${all_resources}" "${namespace}" "${repo_root}"
+    check_server_admission "${maintenance_resources}" "${namespace}"
+    check_server_admission "${normal_resources}" "${namespace}"
+  else
+    helm lint "${repo_root}/charts/foreman-stack" \
+      --values "${application_values}" \
+      --values "${application_profile}" \
+      "${recovery_arguments[@]}"
+    application_recovery_resources="$(helm template "${application_release}" "${repo_root}/charts/foreman-stack" \
+      --namespace "${namespace}" \
+      --values "${application_values}" \
+      --values "${application_profile}" \
+      "${recovery_arguments[@]}")"
+    if [[ "$(grep -Fxc 'kind: Job' <<<"${application_recovery_resources}")" != 1 ]]; then
+      fail "${operation} must render exactly one recovery Job"
+    fi
+
+    recovery_resources="$(printf '%s\n---\n%s\n' \
+      "${application_recovery_resources}" "${execution_maintenance_resources}")"
+    all_resources="$(printf '%s\n---\n%s\n' "${normal_resources}" "${recovery_resources}")"
+    check_required_cluster_resources "${all_resources}" "${namespace}" "${repo_root}"
+    check_required_secrets "${all_resources}" "${namespace}" "${repo_root}"
+    check_server_admission "${maintenance_resources}" "${namespace}"
+    check_server_admission "${recovery_resources}" "${namespace}"
+    check_server_admission "${normal_resources}" "${namespace}"
+  fi
 fi
 
-if [[ "${operation}" != resume ]]; then
+if [[ "${operation}" == quiesce || \
+      ("${operation}" != resume && "${recovery_from_quiesced}" != 1) ]]; then
   echo 'Recovery: stopping application writers'
   if ! helm upgrade "${application_release}" "${repo_root}/charts/foreman-stack" \
     "${release_install_arguments[@]}" \
@@ -350,6 +399,14 @@ if [[ "${operation}" != resume ]]; then
     --timeout="${resume_timeout}" || \
     fail 'the execution proxy Pod did not terminate; both releases remain in maintenance mode'
 
+fi
+
+if [[ "${operation}" == quiesce ]]; then
+  echo 'Recovery: releases are quiesced; capture or restore the external object-storage recovery point now'
+  exit 0
+fi
+
+if [[ "${operation}" == backup || "${operation}" == restore ]]; then
   echo "Recovery: running ${operation} ${request_id}"
   if ! helm upgrade "${application_release}" "${repo_root}/charts/foreman-stack" \
     "${release_install_arguments[@]}" \

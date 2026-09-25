@@ -35,10 +35,12 @@ if [[ "${FAKE_HELM_STATUS_MISSING:-0}" == 1 && "$1" == status ]]; then
 fi
 case "$*" in
   'get values foreman --namespace foreman --all --output=json')
-    printf '{"platform":{"compatibilitySet":"%s"}}\n' "${FAKE_APPLICATION_SET:-nightly-candidate-2026-09-24}"
+    printf '{"platform":{"compatibilitySet":"%s"},"maintenance":{"enabled":%s},"backup":{"enabled":false},"restore":{"enabled":false}}\n' \
+      "${FAKE_APPLICATION_SET:-nightly-candidate-2026-09-24}" "${FAKE_MAINTENANCE_ENABLED:-false}"
     ;;
   'get values execution --namespace foreman --all --output=json')
-    printf '{"compatibilitySet":"%s"}\n' "${FAKE_EXECUTION_SET:-nightly-candidate-2026-09-24}"
+    printf '{"compatibilitySet":"%s","maintenance":{"enabled":%s}}\n' \
+      "${FAKE_EXECUTION_SET:-nightly-candidate-2026-09-24}" "${FAKE_MAINTENANCE_ENABLED:-false}"
     ;;
 esac
 if [[ "$1" == template && "$2" == foreman ]]; then
@@ -206,10 +208,61 @@ PATH="${fake_bin}:${PATH}" \
   ALLOW_CANDIDATE=1 \
   RESTORE_SNAPSHOT=abc123 \
   RESTORE_SECRETS=1 \
-  OBJECT_STORAGE_CONFIRMATION=BUCKET_RESTORED \
+  OBJECT_STORAGE_RECOVERY_POINT=provider-snapshot-abc123 \
+  RECOVERY_FROM_QUIESCED=1 \
+  FAKE_MAINTENANCE_ENABLED=true \
   "${repo_root}/scripts/recover-release.sh" restore \
     "${application_values}" "${execution_values}" request-3 >/dev/null
-grep -Fq -- '--set restore.enabled=true --set-string restore.requestId=request-3 --set-string restore.snapshot=abc123 --set restore.confirmation=RESTORE --set restore.secrets=true --set-string restore.objectStorageConfirmation=BUCKET_RESTORED' "${tool_log}"
+grep -Fq -- '--set restore.enabled=true --set-string restore.requestId=request-3 --set-string restore.snapshot=abc123 --set restore.confirmation=RESTORE --set restore.secrets=true --set-string restore.objectStorageRecoveryPoint=provider-snapshot-abc123' "${tool_log}"
+if grep -F "${application_upgrade}" "${tool_log}" | \
+  grep -F -- "${application_maintenance}" | grep -Ev 'backup.enabled=true|restore.enabled=true' >/dev/null; then
+  echo 'continued restore redundantly reapplied application maintenance mode' >&2
+  exit 1
+fi
+
+: > "${tool_log}"
+PATH="${fake_bin}:${PATH}" \
+  FAKE_TOOL_LOG="${tool_log}" \
+  ALLOW_CANDIDATE=1 \
+  "${repo_root}/scripts/recover-release.sh" quiesce \
+    "${application_values}" "${execution_values}" >/dev/null
+grep -F "${application_upgrade}" "${tool_log}" | grep -Fq -- "${application_maintenance}"
+grep -F "${execution_upgrade}" "${tool_log}" | grep -Fq -- "${execution_maintenance}"
+if grep -F "${application_upgrade}" "${tool_log}" | grep -Eq 'backup.enabled=true|restore.enabled=true|maintenance.enabled=false'; then
+  echo 'quiesce unexpectedly ran recovery or resumed the application' >&2
+  exit 1
+fi
+
+: > "${tool_log}"
+PATH="${fake_bin}:${PATH}" \
+  FAKE_TOOL_LOG="${tool_log}" \
+  ALLOW_CANDIDATE=1 \
+  OBJECT_STORAGE_RECOVERY_POINT=provider-snapshot-backup123 \
+  RECOVERY_FROM_QUIESCED=1 \
+  FAKE_MAINTENANCE_ENABLED=true \
+  "${repo_root}/scripts/recover-release.sh" backup \
+    "${application_values}" "${execution_values}" request-s3 >/dev/null
+grep -Fq -- '--set backup.enabled=true --set-string backup.requestId=request-s3 --set backup.initializeRepository=false --set-string backup.objectStorageRecoveryPoint=provider-snapshot-backup123' "${tool_log}"
+if grep -F "${application_upgrade}" "${tool_log}" | \
+  grep -F -- "${application_maintenance}" | grep -Ev 'backup.enabled=true|restore.enabled=true' >/dev/null; then
+  echo 'continued backup redundantly reapplied application maintenance mode' >&2
+  exit 1
+fi
+
+: > "${tool_log}"
+if PATH="${fake_bin}:${PATH}" \
+  FAKE_TOOL_LOG="${tool_log}" \
+  ALLOW_CANDIDATE=1 \
+  OBJECT_STORAGE_RECOVERY_POINT=provider-snapshot-unsafe \
+  "${repo_root}/scripts/recover-release.sh" backup \
+    "${application_values}" "${execution_values}" request-unsafe >/dev/null 2>&1; then
+  echo 'object-storage recovery point was accepted without prior quiescence' >&2
+  exit 1
+fi
+if [[ -s "${tool_log}" ]]; then
+  echo 'unsafe object-storage hand-off reached cluster tools' >&2
+  exit 1
+fi
 
 : > "${tool_log}"
 PATH="${fake_bin}:${PATH}" \

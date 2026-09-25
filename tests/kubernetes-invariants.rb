@@ -74,7 +74,7 @@ workloads.each do |workload|
     container_name = "#{workload_name}/#{container.fetch('name')}"
     security = container.fetch('securityContext', {})
     effective_non_root = security.fetch('runAsNonRoot', pod_security['runAsNonRoot'])
-    errors << "#{container_name} may run as root" unless effective_non_root == true || recovery_workload
+    errors << "#{container_name} may run as root" unless effective_non_root == true
     errors << "#{container_name} permits privilege escalation" unless security['allowPrivilegeEscalation'] == false
     errors << "#{container_name} does not drop all capabilities" unless Array(security.dig('capabilities', 'drop')).include?('ALL')
     resources = container.fetch('resources', {})

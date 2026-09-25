@@ -44,16 +44,13 @@ Escrow the repository Secret and its password outside the cluster. A local
 Restic repository must use storage independent from the Pulp data claim or it
 will not survive the same storage failure.
 
-With Pulp object storage, the recovery set records the backend and excludes
-bucket objects. Protect the bucket independently with versioning or provider
-snapshots and replication. Coordinate its recovery point with the database
-dump; the chart refuses to restore a snapshot created for a different Pulp
-storage backend.
-
-For S3 restores, roll the bucket back first and add
-`--set restore.objectStorageConfirmation=BUCKET_RESTORED` to the restore Helm
-revision. Both the schema and the recovery script reject the database restore
-without this separate acknowledgement.
+With Pulp object storage, the recovery set records the backend and exact
+provider snapshot or versioning point but excludes bucket objects. Protect the
+bucket independently with versioning or provider snapshots and replication.
+The chart binds the point ID into the integrity-protected manifest and rejects
+a restore that presents another ID. This detects operator mix-ups; the object
+store remains responsible for proving that the supplied ID exists and was
+successfully restored.
 
 ## Recovery toolbox
 
@@ -144,6 +141,12 @@ proxy Pod to terminate, and only then creates the recovery Job. The application
 is stopped first so it cannot dispatch new work while the proxy drains.
 The Job independently verifies that their pods are gone before reading any
 state. It fails instead of taking an online, potentially inconsistent copy.
+The toolbox and Job run as the unprivileged Pulp UID/GID 700 under the
+`restricted` Pod Security Standard. Kubernetes `fsGroup` grants the stopped
+application volumes to the recovery process; restored cross-UID files are made
+group-accessible before the normal Foreman and execution-proxy Pods remount
+them under their own isolated groups. No root or added Linux capability is
+required.
 After success, the helper restores the normal digest-pinned application, then
 the execution proxy, and runs both smoke tests. A failed transition or Job
 deliberately leaves both releases in maintenance mode for inspection when they
@@ -166,6 +169,33 @@ request-specific Restic tag. The Job also records and verifies an exact SHA-256
 inventory before uploading the set. Restic content addressing protects the
 avatar and Pulp trees; the inventory provides an additional explicit boundary
 for the independently restored logical dumps and Secret escrow.
+
+For S3, use a two-step operation so the bucket point cannot be taken while
+Pulp is still writing:
+
+```sh
+scripts/recover-release.sh quiesce \
+  /secure/path/application-values.yaml \
+  /secure/path/execution-proxy-values.yaml
+
+# Create the provider snapshot/versioning point now and retain its exact ID.
+RECOVERY_FROM_QUIESCED=1 \
+OBJECT_STORAGE_RECOVERY_POINT=provider-snapshot-20260924-120000 \
+INITIALIZE_REPOSITORY=1 \
+  scripts/recover-release.sh backup \
+    /secure/path/application-values.yaml \
+    /secure/path/execution-proxy-values.yaml \
+    20260924-120000
+```
+
+`quiesce` validates both normal and maintenance renders, stops the application
+before the execution proxy, and leaves both releases stopped. The continuation
+verifies their installed maintenance state and refuses an object-storage point
+without `RECOVERY_FROM_QUIESCED=1`. If the provider snapshot fails, use the
+guarded `resume` command; do not invent a point ID. The successful backup log
+prints the Restic snapshot ID and its bound object-storage point. Retain both in
+the external recovery/change record; the manifest copy remains encrypted in
+Restic.
 
 ## Restore a recovery point
 
@@ -217,8 +247,8 @@ an incomplete snapshot appear valid. The exact checksum inventory is checked
 again after restoring `/work`; a missing, extra, or modified dump, manifest, or
 Secret export therefore fails before the destructive boundary. Only after that
 preflight boundary does it delete or replace current data. In S3 mode it leaves
-objects untouched and requires the operator to restore the bucket to the
-coordinated point before leaving maintenance mode. It replaces objects inside
+objects untouched and requires the exact point stored in the selected manifest
+before leaving maintenance mode. It replaces objects inside
 the existing databases but never drops or creates the databases or their roles.
 
 A snapshot must first be restored with the same compatibility set that created
@@ -234,10 +264,28 @@ create arbitrary ones. If database credentials changed after the snapshot,
 reconcile them before restarting the applications.
 
 Set `RESTORE_SECRETS=1` only when the encrypted Secret escrow should be applied.
-For S3 mode, set `OBJECT_STORAGE_CONFIRMATION=BUCKET_RESTORED` after restoring
-the bucket. A successful restore automatically recreates workloads, runs Pulp
-and Foreman migrations, re-registers the private Pulp endpoint, and executes
-the smoke test.
+For S3 mode, first run `quiesce`, restore the bucket, then continue with the ID
+recorded in the selected recovery manifest:
+
+```sh
+RECOVERY_FROM_QUIESCED=1 \
+OBJECT_STORAGE_RECOVERY_POINT=provider-snapshot-20260924-120000 \
+RESTORE_SNAPSHOT=latest \
+  scripts/recover-release.sh restore \
+    /secure/path/application-values.yaml \
+    /secure/path/execution-proxy-values.yaml \
+    20260924-130000
+```
+
+A successful restore automatically recreates workloads, runs Pulp and Foreman
+migrations, re-registers the private Pulp endpoint, and executes the smoke
+test. The restore Job compares the supplied provider ID with the encrypted
+manifest before crossing its destructive boundary.
+
+Filesystem snapshots using manifest schema 5 remain restorable. Schema 5 S3
+snapshots are deliberately rejected because they contain only the former
+generic acknowledgement and cannot bind a database dump to an exact external
+bucket point.
 
 After diagnosing a failed backup, restore, or interrupted recovery helper,
 leave maintenance mode through the same guarded path. Resume restores the
@@ -257,7 +305,10 @@ control their respective waits. Candidate qualification may additionally pass
 together. A single override and overrides of supported releases are rejected,
 so production recovery remains bound to its declared digest-pinned set.
 `BOOTSTRAP_RESTORE=1` is accepted only by the restore operation and only when
-both Helm releases are absent.
+both Helm releases are absent. It cannot be combined with
+`RECOVERY_FROM_QUIESCED=1`; there is no running release to quiesce. For an S3
+site-loss restore, restore the bucket first and pass its exact ID through
+`OBJECT_STORAGE_RECOVERY_POINT` together with `BOOTSTRAP_RESTORE=1`.
 
 ## Required recovery drill
 

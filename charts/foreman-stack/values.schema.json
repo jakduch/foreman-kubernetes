@@ -709,10 +709,11 @@
     "backup": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["enabled", "requestId", "initializeRepository", "retention"],
+      "required": ["enabled", "requestId", "objectStorageRecoveryPoint", "initializeRepository", "retention"],
       "properties": {
         "enabled": { "type": "boolean" },
         "requestId": { "$ref": "#/definitions/requestId" },
+        "objectStorageRecoveryPoint": { "type": "string" },
         "initializeRepository": { "type": "boolean" },
         "retention": {
           "type": "object",
@@ -730,14 +731,14 @@
     "restore": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["enabled", "requestId", "snapshot", "secrets", "confirmation", "objectStorageConfirmation"],
+      "required": ["enabled", "requestId", "snapshot", "secrets", "confirmation", "objectStorageRecoveryPoint"],
       "properties": {
         "enabled": { "type": "boolean" },
         "requestId": { "$ref": "#/definitions/requestId" },
         "snapshot": { "type": "string", "minLength": 1 },
         "secrets": { "type": "boolean" },
         "confirmation": { "type": "string" },
-        "objectStorageConfirmation": { "type": "string" }
+        "objectStorageRecoveryPoint": { "type": "string" }
       }
     }
   },
@@ -893,6 +894,27 @@
     {
       "if": {
         "properties": {
+          "backup": { "properties": { "enabled": { "const": true } } },
+          "pulp": {
+            "properties": {
+              "storage": { "properties": { "backend": { "const": "s3" } } }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "backup": {
+            "properties": {
+              "objectStorageRecoveryPoint": { "$ref": "#/definitions/objectStorageRecoveryPoint" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
           "restore": { "properties": { "enabled": { "const": true } } },
           "pulp": {
             "properties": {
@@ -905,7 +927,7 @@
         "properties": {
           "restore": {
             "properties": {
-              "objectStorageConfirmation": { "const": "BUCKET_RESTORED" }
+              "objectStorageRecoveryPoint": { "$ref": "#/definitions/objectStorageRecoveryPoint" }
             }
           }
         }
@@ -913,6 +935,12 @@
     }
   ],
   "definitions": {
+    "objectStorageRecoveryPoint": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/@+-]{0,255}$"
+    },
     "scheduling": {
       "type": "object",
       "additionalProperties": false,

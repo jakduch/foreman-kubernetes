@@ -20,6 +20,7 @@ abort 'recovery image workflow is not restricted to linux/amd64' unless workflow
 abort 'recovery image workflow does not emit provenance' unless workflow.include?('provenance: mode=max')
 abort 'recovery image workflow does not emit an SBOM' unless workflow.include?('sbom: true')
 abort 'recovery image workflow does not report the immutable digest' unless workflow.include?('steps.publish.outputs.digest')
+abort 'recovery toolbox image does not run as the recovery UID' unless dockerfile.include?("\nUSER 700:700\n")
 
 %w[cmp jq kubectl pg_dump pg_restore restic sha256sum].each do |command|
   abort "recovery image workflow does not verify #{command}" unless workflow.include?(command)

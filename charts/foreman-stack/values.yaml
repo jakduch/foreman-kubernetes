@@ -552,6 +552,9 @@ backup:
   enabled: false
   # Change for every requested backup. It becomes part of the immutable Job name.
   requestId: ""
+  # Provider snapshot/versioning point captured after the guarded helper has
+  # quiesced an S3-backed release. Stored in the encrypted recovery manifest.
+  objectStorageRecoveryPoint: ""
   initializeRepository: false
   retention:
     enabled: true
@@ -569,6 +572,6 @@ restore:
   # credentials must still match the externally managed PostgreSQL roles.
   secrets: false
   confirmation: ""
-  # Required as BUCKET_RESTORED for S3 mode after the external bucket has been
-  # rolled back to the recovery point coordinated with the database snapshot.
-  objectStorageConfirmation: ""
+  # Exact provider snapshot/versioning point restored for the external bucket.
+  # It must match the point stored by the selected backup.
+  objectStorageRecoveryPoint: ""

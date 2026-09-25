@@ -58,6 +58,11 @@
   both releases' Secrets plus execution Dynflow/runner and Ansible-content
   claims. The guarded path stops application dispatchers and the paired
   execution proxy before a Job can access that recovery set.
+- S3 recovery now has a guarded two-phase hand-off: both releases are quiesced
+  before an external bucket point is captured or restored, its exact provider
+  ID is integrity-protected in the recovery manifest, and a mismatched ID is
+  rejected before database replacement. A real provider snapshot/restore drill
+  is still required before this boundary is considered qualified.
 - Restore requires an explicit confirmation value, validates snapshot identity
   and contents before deletion, and keeps recovery RBAC separate from runtime
   ServiceAccounts.
