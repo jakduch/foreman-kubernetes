@@ -154,15 +154,20 @@ standard Kubernetes NetworkPolicy cannot select DNS names. When enabled, the
 operator must identify PostgreSQL and Valkey by namespace/pod selectors or
 CIDRs and list every PostgreSQL listener port in
 `networkPolicy.egress.database.ports`. Separate policies then allow only DNS,
-declared database and Valkey
-ports, required in-release service calls, and explicitly declared Foreman or
-Pulp external destinations. Candlepin HA additionally requires an explicit
-Artemis destination. A backup or restore Job receives its own policy: it can
-reach DNS, PostgreSQL, the explicitly declared Kubernetes API endpoint, and a
-declared remote Restic endpoint. The latter rule is omitted for a repository
-PVC. This avoids leaving the credential-rich recovery Pod unrestricted and
-avoids pretending that a hostname in application
-configuration can be safely converted into an IP policy by Helm.
+declared database and Valkey ports, required in-release service calls, and
+explicitly declared external destinations. An optional Secret-backed HTTP(S)
+proxy is shared only by Foreman/Katello, Pulp, object-storage verification, and
+recovery clients that honor standard proxy environment variables. Its
+NetworkPolicy destination is explicit; internal services and metadata
+endpoints placed in `NO_PROXY` still require direct rules. Candlepin and its
+Artemis connection deliberately remain direct Java/protocol boundaries, and
+Candlepin HA requires an explicit Artemis destination. A backup or restore Job
+receives its own policy: it can reach DNS, PostgreSQL, the explicitly declared
+Kubernetes API endpoint, the optional proxy, and a declared remote Restic
+endpoint. The latter rule is omitted for a repository PVC. This avoids leaving
+the credential-rich recovery Pod unrestricted and avoids pretending that a
+hostname in application configuration can be safely converted into an IP
+policy by Helm.
 
 Disruption budgets protect redundant Foreman, Candlepin, Pulp, Pulp control,
 and Dynflow worker pools. They are rendered from the minimum replica count,

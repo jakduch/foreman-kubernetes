@@ -44,6 +44,27 @@ peer verification; use a relay with a certificate trusted by the Foreman
 image. When egress isolation is enabled, declare only that relay and its actual
 port under `networkPolicy.egress.external.smtp`.
 
+Sites that require an outbound HTTP(S) proxy can set
+`outboundProxy.enabled=true` and provide the three selected keys in
+`outboundProxy.existingSecret`. The chart emits both upper- and lower-case
+proxy variables for Foreman/Katello Rails processes, Pulp processes, the Pulp
+object-storage test, and recovery Jobs. Proxy URLs, including optional
+credentials, stay in the Secret and never enter a ConfigMap or rendered value.
+Set `NO_PROXY`/`no-proxy` to include at least `localhost`, `127.0.0.1`, `.svc`,
+and `.cluster.local`, plus every direct PostgreSQL, Valkey, Kubernetes API,
+object-storage, workload-identity metadata, or other internal endpoint used by
+the deployment. Candlepin, Artemis, PostgreSQL, Valkey, SMTP, SSH, and Smart
+Proxy protocols are not HTTP proxy clients and keep their existing direct
+network paths.
+
+With egress isolation, identify the proxy by an exact selector or CIDR and its
+listener ports under `networkPolicy.egress.outboundProxy`. Direct egress rules
+remain necessary for every destination listed in `NO_PROXY`. The recovery
+repository policy also remains explicit because Restic may use a non-HTTP
+transport such as SFTP. After rotating proxy credentials, change
+`secretRolloutToken` (and `spec.reconcileToken` for controller-managed
+releases) so every long-running process receives the new Secret values.
+
 ## ForemanRelease controller (experimental)
 
 The guarded scripts remain the supported development entry point. The same

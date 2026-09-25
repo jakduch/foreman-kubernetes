@@ -8,6 +8,7 @@
 {{- $root := . }}
 {{- $database := .Values.networkPolicy.egress.database }}
 {{- $valkey := .Values.networkPolicy.egress.valkey }}
+{{- $outboundProxy := .Values.networkPolicy.egress.outboundProxy }}
 {{- $dns := .Values.networkPolicy.egress.dns }}
 {{- $recovery := .Values.networkPolicy.egress.recovery }}
 {{- $foremanExternal := .Values.networkPolicy.egress.external.foreman }}
@@ -17,8 +18,11 @@
 {{- if and .Values.candlepin.highAvailability.enabled (eq (len $candlepinExternal.peers) 0) }}
 {{- fail "networkPolicy.egress.external.candlepin.peers must identify the external Artemis broker when Candlepin HA is enabled" }}
 {{- end }}
-{{- if and (eq .Values.pulp.storage.backend "s3") (eq (len $pulpExternal.peers) 0) }}
-{{- fail "networkPolicy.egress.external.pulp.peers must identify the S3 endpoint when Pulp object storage is enabled" }}
+{{- if and .Values.outboundProxy.enabled (eq (len $outboundProxy.peers) 0) }}
+{{- fail "networkPolicy.egress.outboundProxy.peers must identify the HTTP proxy when outboundProxy is enabled" }}
+{{- end }}
+{{- if and (eq .Values.pulp.storage.backend "s3") (eq (len $pulpExternal.peers) 0) (not .Values.outboundProxy.enabled) }}
+{{- fail "networkPolicy.egress.external.pulp.peers or outboundProxy must identify the S3 route when Pulp object storage is enabled" }}
 {{- end }}
 {{- if and .Values.foreman.email.enabled (eq (len $smtpExternal.peers) 0) }}
 {{- fail "networkPolicy.egress.external.smtp.peers must identify the SMTP relay when email is enabled" }}
@@ -79,6 +83,15 @@ spec:
         - protocol: TCP
           port: {{ . }}
         {{- end }}
+    {{- if .Values.outboundProxy.enabled }}
+    - to:
+        {{- toYaml $outboundProxy.peers | nindent 8 }}
+      ports:
+        {{- range $outboundProxy.ports }}
+        - protocol: TCP
+          port: {{ . }}
+        {{- end }}
+    {{- end }}
     - to:
         - podSelector:
             matchLabels:
@@ -167,6 +180,15 @@ spec:
         - protocol: TCP
           port: {{ . }}
         {{- end }}
+    {{- if .Values.outboundProxy.enabled }}
+    - to:
+        {{- toYaml $outboundProxy.peers | nindent 8 }}
+      ports:
+        {{- range $outboundProxy.ports }}
+        - protocol: TCP
+          port: {{ . }}
+        {{- end }}
+    {{- end }}
     {{- if gt (len $pulpExternal.peers) 0 }}
     - to:
         {{- toYaml $pulpExternal.peers | nindent 8 }}
@@ -321,6 +343,7 @@ spec:
           port: 53
         - protocol: TCP
           port: 53
+    {{- if gt (len $pulpExternal.peers) 0 }}
     - to:
         {{- toYaml $pulpExternal.peers | nindent 8 }}
       ports:
@@ -328,6 +351,16 @@ spec:
         - protocol: TCP
           port: {{ . }}
         {{- end }}
+    {{- end }}
+    {{- if .Values.outboundProxy.enabled }}
+    - to:
+        {{- toYaml $outboundProxy.peers | nindent 8 }}
+      ports:
+        {{- range $outboundProxy.ports }}
+        - protocol: TCP
+          port: {{ . }}
+        {{- end }}
+    {{- end }}
 {{- end }}
 {{- if or .Values.backup.enabled .Values.restore.enabled }}
 ---
@@ -372,6 +405,15 @@ spec:
         - protocol: TCP
           port: {{ . }}
         {{- end }}
+    {{- if .Values.outboundProxy.enabled }}
+    - to:
+        {{- toYaml $outboundProxy.peers | nindent 8 }}
+      ports:
+        {{- range $outboundProxy.ports }}
+        - protocol: TCP
+          port: {{ . }}
+        {{- end }}
+    {{- end }}
     {{- if not .Values.recovery.repository.existingClaim }}
     - to:
         {{- toYaml $recovery.repository.peers | nindent 8 }}

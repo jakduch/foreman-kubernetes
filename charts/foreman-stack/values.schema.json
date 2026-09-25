@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft-07/schema#",
   "type": "object",
   "additionalProperties": false,
-  "required": ["nameOverride", "fullnameOverride", "imagePullSecrets", "secretRolloutToken", "platform", "releaseOperation", "ingress", "valkey", "sharedSecret", "serviceAccount", "smartProxy", "foreman", "candlepin", "pulp", "migrations", "smokeTest", "recurringTasks", "podDisruptionBudget", "monitoring", "networkPolicy", "affinity", "scheduling", "maintenance", "recovery", "backup", "restore"],
+  "required": ["nameOverride", "fullnameOverride", "imagePullSecrets", "secretRolloutToken", "platform", "releaseOperation", "ingress", "valkey", "outboundProxy", "sharedSecret", "serviceAccount", "smartProxy", "foreman", "candlepin", "pulp", "migrations", "smokeTest", "recurringTasks", "podDisruptionBudget", "monitoring", "networkPolicy", "affinity", "scheduling", "maintenance", "recovery", "backup", "restore"],
   "properties": {
     "nameOverride": { "type": "string" },
     "fullnameOverride": { "type": "string" },
@@ -107,6 +107,18 @@
         "foremanCache": { "$ref": "#/definitions/valkeyEndpoint" },
         "dynflow": { "$ref": "#/definitions/valkeyEndpoint" },
         "pulp": { "$ref": "#/definitions/valkeyEndpoint" }
+      }
+    },
+    "outboundProxy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "existingSecret", "httpProxySecretKey", "httpsProxySecretKey", "noProxySecretKey"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "existingSecret": { "type": "string", "minLength": 1 },
+        "httpProxySecretKey": { "type": "string", "minLength": 1 },
+        "httpsProxySecretKey": { "type": "string", "minLength": 1 },
+        "noProxySecretKey": { "type": "string", "minLength": 1 }
       }
     },
     "sharedSecret": {
@@ -576,7 +588,7 @@
         },
         "egress": {
           "type": "object",
-          "required": ["enabled", "dns", "database", "valkey", "recovery", "external"],
+          "required": ["enabled", "dns", "database", "valkey", "outboundProxy", "recovery", "external"],
           "properties": {
             "enabled": { "type": "boolean" },
             "dns": { "$ref": "#/definitions/networkPolicyPeer" },
@@ -596,6 +608,7 @@
                 "ports": { "$ref": "#/definitions/networkPolicyPorts" }
               }
             },
+            "outboundProxy": { "$ref": "#/definitions/networkPolicyDestination" },
             "recovery": {
               "type": "object",
               "additionalProperties": false,

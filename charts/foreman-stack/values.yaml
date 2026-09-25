@@ -70,6 +70,16 @@ valkey:
     port: 6379
     database: 8
 
+# Optional outbound HTTP(S) proxy for Foreman/Katello, Pulp, and recovery
+# clients. Keep credentials only in the referenced Secret. Internal services,
+# cluster domains, and metadata/workload-identity endpoints belong in no-proxy.
+outboundProxy:
+  enabled: false
+  existingSecret: foreman-outbound-proxy
+  httpProxySecretKey: http-proxy
+  httpsProxySecretKey: https-proxy
+  noProxySecretKey: no-proxy
+
 sharedSecret:
   name: foreman-shared
   candlepinOAuthSecretKey: candlepin-oauth-secret
@@ -445,6 +455,10 @@ networkPolicy:
       peers: []
       ports:
         - 6379
+    outboundProxy:
+      peers: []
+      ports:
+        - 3128
     recovery:
       # The recovery Job talks directly to the Kubernetes API and, unless a
       # repository PVC is used, to the external Restic backend.

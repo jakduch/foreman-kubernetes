@@ -137,6 +137,26 @@ runAsGroup: {{ . }}
 {{- end }}
 {{- end }}
 
+{{- define "foreman-stack.outboundProxyEnv" -}}
+{{- if .Values.outboundProxy.enabled }}
+{{- $variables := list
+  (dict "name" "HTTP_PROXY" "key" .Values.outboundProxy.httpProxySecretKey)
+  (dict "name" "HTTPS_PROXY" "key" .Values.outboundProxy.httpsProxySecretKey)
+  (dict "name" "NO_PROXY" "key" .Values.outboundProxy.noProxySecretKey)
+  (dict "name" "http_proxy" "key" .Values.outboundProxy.httpProxySecretKey)
+  (dict "name" "https_proxy" "key" .Values.outboundProxy.httpsProxySecretKey)
+  (dict "name" "no_proxy" "key" .Values.outboundProxy.noProxySecretKey)
+-}}
+{{- range $variables }}
+- name: {{ .name }}
+  valueFrom:
+    secretKeyRef:
+      name: {{ $.Values.outboundProxy.existingSecret }}
+      key: {{ .key }}
+{{- end }}
+{{- end }}
+{{- end }}
+
 {{- define "foreman-stack.foremanConfigName" -}}
 {{- printf "%s-foreman-config" (include "foreman-stack.fullname" .) }}
 {{- end }}
@@ -230,6 +250,7 @@ server {
 {{- end }}
 
 {{- define "foreman-stack.foremanEnv" -}}
+{{- include "foreman-stack.outboundProxyEnv" . }}
 - name: RAILS_ENV
   value: production
 - name: RAILS_LOG_TO_STDOUT
@@ -417,6 +438,7 @@ server {
 {{- end }}
 
 {{- define "foreman-stack.pulpEnv" -}}
+{{- include "foreman-stack.outboundProxyEnv" . }}
 - name: PULP_DATABASES__default__NAME
   value: {{ .Values.pulp.database.name | quote }}
 - name: PULP_DATABASES__default__USER
