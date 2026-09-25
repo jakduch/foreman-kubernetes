@@ -160,6 +160,7 @@ execution_resources="$(helm template "${execution_release}" "${repo_root}/charts
 combined_resources="$(printf '%s\n---\n%s\n' "${application_resources}" "${execution_resources}")"
 check_required_cluster_resources "${combined_resources}" "${namespace}" "${repo_root}"
 check_required_secrets "${combined_resources}" "${namespace}" "${repo_root}"
+check_server_admission "${combined_resources}" "${namespace}"
 
 echo 'Upgrade: applying migration prerequisites and Jobs'
 migration_stage="$(helm template "${application_release}" "${repo_root}/charts/foreman-stack" \

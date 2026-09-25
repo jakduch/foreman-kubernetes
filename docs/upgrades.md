@@ -49,7 +49,7 @@ current smoke test + proxy readiness
 render both releases from one compatibility set
                 |
                 v
-verify StorageClass, IngressClass, Metrics API, external PVC/ServiceAccount, and Secret contracts
+verify dependencies, Secrets, and server-side admission of the complete render
                 |
                 v
 migration dependencies + Jobs (old workloads remain running)
@@ -97,10 +97,14 @@ same already-created migration Jobs.
 
 Before the first Helm upgrade, the helper inspects the complete render of both
 releases. It verifies every referenced named or default StorageClass,
-IngressClass, required resource Metrics API, external PVC, external ServiceAccount, and non-optional external
-Secret, including explicitly referenced Secret keys. This is the same
+IngressClass, PriorityClass, required resource Metrics API, external PVC,
+external ServiceAccount, and non-optional external Secret, including explicitly
+referenced Secret keys. It then submits the complete render to Kubernetes with
+server-side dry-run, exercising admission webhooks, quotas, Pod Security, API
+validation, and immutable-field checks without persisting it. This is the same
 read-only cluster preflight used for a first installation. A missing dependency
-therefore fails before any migration Job can advance a database schema.
+or rejected object therefore fails before any migration Job can advance a
+database schema.
 It then extracts only the migration ServiceAccount, ConfigMaps, PVC, and three
 Jobs from that exact render. The dependencies carry the Helm ownership metadata
 needed for the following release, while the bounded Jobs are applied directly

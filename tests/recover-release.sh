@@ -47,6 +47,9 @@ cat > "${fake_bin}/kubectl" <<'SCRIPT'
 #!/usr/bin/env bash
 set -euo pipefail
 printf 'kubectl %s\n' "$*" >> "${FAKE_TOOL_LOG}"
+if [[ -n "${FAKE_KUBECTL_FAIL_MATCH:-}" && "$*" == *"${FAKE_KUBECTL_FAIL_MATCH}"* ]]; then
+  exit 1
+fi
 if [[ "$*" == *'get lease foreman-kubernetes-release --output=jsonpath={.spec.holderIdentity}' ]]; then
   printf '%s' "${RELEASE_HOLDER_ID}"
 fi
@@ -93,6 +96,7 @@ recovery_upgrade='helm upgrade foreman'
 normal_upgrade='--set maintenance.enabled=false --set backup.enabled=false --set restore.enabled=false'
 grep -Fq -- '--set backup.enabled=true --set-string backup.requestId=request-1 --set backup.initializeRepository=true' "${tool_log}"
 grep -Fq -- "${normal_upgrade}" "${tool_log}"
+grep -Fq 'kubectl --namespace foreman apply --dry-run=server --filename -' "${tool_log}"
 recovery_line="$(grep -Fn "${recovery_upgrade}" "${tool_log}" | grep 'maintenance.enabled=true' | cut -d: -f1)"
 normal_line="$(grep -Fn "${recovery_upgrade}" "${tool_log}" | grep -- "${normal_upgrade}" | cut -d: -f1)"
 if ! (( recovery_line < normal_line )); then
@@ -112,6 +116,21 @@ if PATH="${fake_bin}:${PATH}" \
 fi
 if grep -Fq -- "${normal_upgrade}" "${tool_log}"; then
   echo 'application left maintenance mode after a failed backup' >&2
+  exit 1
+fi
+
+: > "${tool_log}"
+if PATH="${fake_bin}:${PATH}" \
+  FAKE_TOOL_LOG="${tool_log}" \
+  FAKE_KUBECTL_FAIL_MATCH='apply --dry-run=server' \
+  ALLOW_CANDIDATE=1 \
+  "${repo_root}/scripts/recover-release.sh" backup \
+    "${application_values}" "${execution_values}" request-admission >/dev/null 2>&1; then
+  echo 'recovery accepted a server-side admission rejection' >&2
+  exit 1
+fi
+if grep -Fq 'helm upgrade ' "${tool_log}"; then
+  echo 'recovery mutation started after admission preflight failed' >&2
   exit 1
 fi
 

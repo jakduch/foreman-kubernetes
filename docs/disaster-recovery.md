@@ -158,6 +158,11 @@ for the independently restored logical dumps and Secret escrow.
 The target PostgreSQL databases and roles must already exist. Current runtime
 Secrets must let the restore Job connect to them. Use `latest` to select the
 newest snapshot for this Helm release, or supply a full snapshot ID.
+Before entering maintenance, the guarded recovery helper also submits the
+complete maintenance-or-resume render to Kubernetes server-side dry-run. An
+admission, quota, Pod Security, or immutable-field rejection therefore leaves
+the running release untouched instead of discovering the problem after its
+writers have stopped.
 
 ```sh
 RESTORE_SNAPSHOT=latest \

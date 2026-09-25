@@ -122,6 +122,18 @@ check_required_secrets() {
   done <<<"${required_secrets}"
 }
 
+check_server_admission() {
+  local rendered_resources="$1"
+  local namespace="$2"
+
+  echo 'Preflight: checking Kubernetes admission and immutable fields'
+  kubectl --namespace "${namespace}" apply --dry-run=server --filename - \
+    <<<"${rendered_resources}" >/dev/null || {
+    echo 'server-side admission dry-run rejected the rendered release' >&2
+    return 1
+  }
+}
+
 validate_release_lease_configuration() {
   local duration_seconds="$1"
   local renew_interval_seconds="$2"

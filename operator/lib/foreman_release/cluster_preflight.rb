@@ -3,6 +3,7 @@
 require_relative 'command_runner'
 require_relative 'manifest_requirements'
 require_relative 'release_inputs'
+require 'yaml'
 
 module ForemanRelease
   class ClusterPreflight
@@ -11,8 +12,9 @@ module ForemanRelease
       storageclass.beta.kubernetes.io/is-default-class
     ].freeze
 
-    def initialize(kubernetes_client)
+    def initialize(kubernetes_client, runner: CommandRunner.new)
       @kubernetes_client = kubernetes_client
+      @runner = runner
     end
 
     def validate!(documents, namespace)
@@ -25,10 +27,21 @@ module ForemanRelease
         missing = keys.reject { |key| secret.fetch('data', {}).key?(key) }
         raise InvalidRelease, "Secret #{namespace}/#{name} is missing keys: #{missing.join(', ')}" unless missing.empty?
       end
+      validate_server_dry_run!(documents, namespace)
       true
     end
 
     private
+
+    def validate_server_dry_run!(documents, namespace)
+      manifest = Array(documents).map { |document| YAML.dump(document) }.join
+      @runner.run(
+        'kubectl', '--namespace', namespace, 'apply', '--dry-run=server', '--filename', '-',
+        stdin_data: manifest
+      )
+    rescue CommandError, CommandTimeout => error
+      raise InvalidRelease, "server-side admission dry-run failed: #{error.message}"
+    end
 
     def validate_resource!(namespace, kind, name, contract)
       case kind

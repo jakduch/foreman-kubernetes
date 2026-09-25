@@ -64,7 +64,7 @@ module ForemanRelease
       @runner = runner
       @kubernetes_client = kubernetes_client || KubernetesClient.new(runner: runner)
       @lease_manager = lease_manager || LeaseManager.new(runner: runner)
-      @preflight = preflight || ClusterPreflight.new(@kubernetes_client)
+      @preflight = preflight || ClusterPreflight.new(@kubernetes_client, runner: runner)
       @catalog = ReleaseCatalog.load(@root)
       @values_reader = ValuesReader.new(@kubernetes_client)
       @application_chart = @root.join('charts/foreman-stack').to_s

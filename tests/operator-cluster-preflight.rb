@@ -36,6 +36,23 @@ class PreflightKubernetesClient
   end
 end
 
+class PreflightRunner
+  attr_accessor :fail
+  attr_reader :calls
+
+  def initialize
+    @calls = []
+    @fail = false
+  end
+
+  def run(*command, stdin_data: '')
+    @calls << [command, stdin_data]
+    raise ForemanRelease::CommandError.new(command, 'denied by admission policy', 1) if fail
+
+    ''
+  end
+end
+
 documents = [
   {
     'apiVersion' => 'v1',
@@ -122,8 +139,13 @@ client.objects = {
   ['platform', 'secret', 'ingress-ca'] => {'data' => {'ca.crt' => 'encoded'}},
   ['platform', 'secret', 'ingress-tls'] => {'data' => {'tls.crt' => 'encoded', 'tls.key' => 'encoded'}}
 }
-preflight = ForemanRelease::ClusterPreflight.new(client)
+runner = PreflightRunner.new
+preflight = ForemanRelease::ClusterPreflight.new(client, runner: runner)
 raise 'valid cluster dependencies were rejected' unless preflight.validate!(documents, 'platform')
+dry_run = runner.calls.fetch(0)
+expected_command = %w[kubectl --namespace platform apply --dry-run=server --filename -]
+raise 'preflight did not use a server-side admission dry-run' unless dry_run.first == expected_command
+raise 'preflight did not submit the complete rendered manifest' unless dry_run.last.include?('kind: Deployment')
 
 client.objects[['platform', 'secret', 'database']] = {'data' => {}}
 begin
@@ -160,6 +182,17 @@ begin
   raise 'missing PriorityClass was accepted'
 rescue ForemanRelease::InvalidRelease => error
   raise unless error.message.include?('required priorityclass foreman-platform-critical does not exist')
+end
+
+client.objects[[nil, 'priorityclass', 'foreman-platform-critical']] = {
+  'metadata' => {'name' => 'foreman-platform-critical'}
+}
+runner.fail = true
+begin
+  preflight.validate!(documents, 'platform')
+  raise 'server-side admission rejection was accepted'
+rescue ForemanRelease::InvalidRelease => error
+  raise unless error.message.include?('server-side admission dry-run failed')
 end
 
 puts 'Operator preflight validates rendered cluster resources and Secret keys.'

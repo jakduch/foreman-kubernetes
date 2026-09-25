@@ -215,6 +215,7 @@ grep -Fqx "${execution_install}" "${tool_log}"
 
 stage_render="helm template foreman ${repo_root}/charts/foreman-stack --namespace foreman --values ${application_values} --values ${repo_root}/profiles/nightly-candidate-2026-09-23.yaml --set-string releaseOperation.id=test-operation --set-string releaseOperation.ownerUid=test-operation"
 grep -Fqx "${stage_render}" "${tool_log}"
+grep -Fqx 'kubectl --namespace foreman apply --dry-run=server --filename -' "${tool_log}"
 grep -Fqx 'kubectl --namespace foreman apply --filename -' "${tool_log}"
 grep -Fqx 'kubectl --namespace foreman wait --for=condition=complete job --selector=platform.theforeman.org/release-operation=test-operation --timeout=30m' "${tool_log}"
 
@@ -317,6 +318,21 @@ if PATH="${fake_bin}:${PATH}" \
 fi
 if grep -Fq 'helm upgrade --install ' "${tool_log}"; then
   echo 'installation started after Metrics API preflight failed' >&2
+  exit 1
+fi
+
+: > "${tool_log}"
+if PATH="${fake_bin}:${PATH}" \
+  FAKE_TOOL_LOG="${tool_log}" \
+  FAKE_KUBECTL_FAIL_MATCH='apply --dry-run=server' \
+  ALLOW_CANDIDATE=1 \
+  "${repo_root}/scripts/install-release.sh" \
+    "${application_values}" "${execution_values}" >/dev/null 2>&1; then
+  echo 'installation accepted a server-side admission rejection' >&2
+  exit 1
+fi
+if grep -Fq 'helm upgrade --install ' "${tool_log}"; then
+  echo 'installation started after admission preflight failed' >&2
   exit 1
 fi
 

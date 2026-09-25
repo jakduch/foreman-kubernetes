@@ -237,7 +237,10 @@ The installer performs these gates before changing application resources:
    ServiceAccount;
 6. it discovers every non-optional, externally managed Secret used by a Pod
    template and verifies both the Secret and each explicitly referenced key;
-7. it rejects maintenance-only renders that omit normal migration workloads.
+7. it submits the complete render through Kubernetes server-side dry-run so
+   admission policies, quotas, Pod Security, API validation, and immutable
+   field conflicts reject the release before migrations start;
+8. it rejects maintenance-only renders that omit normal migration workloads.
 
 It then applies only the Helm-adoptable migration dependencies and three
 one-hour, operation-labelled migration Jobs. Application Deployments are not
