@@ -139,20 +139,36 @@ fi
 helm status "${application_release}" --namespace "${namespace}" >/dev/null
 helm status "${execution_release}" --namespace "${namespace}" >/dev/null
 
-declare -a recovery_arguments
+declare -a recovery_arguments application_maintenance_arguments
+declare -a application_normal_arguments execution_maintenance_arguments
+declare -a execution_normal_arguments
 recovery_arguments=()
-if [[ "${operation}" == resume ]]; then
-  recovery_arguments+=(
-    --set maintenance.enabled=false
-    --set backup.enabled=false
-    --set restore.enabled=false
-  )
-else
+application_maintenance_arguments=(
+  --set maintenance.enabled=true
+  --set backup.enabled=false
+  --set restore.enabled=false
+)
+application_normal_arguments=(
+  --set maintenance.enabled=false
+  --set backup.enabled=false
+  --set restore.enabled=false
+)
+execution_maintenance_arguments=(
+  --set maintenance.enabled=true
+  --set smokeTest.enabled=false
+)
+execution_normal_arguments=(--set maintenance.enabled=false)
+
+if [[ "${operation}" != resume ]]; then
   kubectl --namespace "${namespace}" wait \
     --for=condition=Ready pod \
     --selector="app.kubernetes.io/instance=${execution_release},app.kubernetes.io/component=execution-proxy" \
     --timeout="${smoke_timeout}"
   helm test "${application_release}" \
+    --namespace "${namespace}" \
+    --logs \
+    --timeout "${smoke_timeout}"
+  helm test "${execution_release}" \
     --namespace "${namespace}" \
     --logs \
     --timeout "${smoke_timeout}"
@@ -182,30 +198,103 @@ echo "Preflight: rendering ${operation} for compatibility set ${compatibility_se
 helm lint "${repo_root}/charts/foreman-stack" \
   --values "${application_values}" \
   --values "${application_profile}" \
-  "${recovery_arguments[@]}"
-application_resources="$(helm template "${application_release}" "${repo_root}/charts/foreman-stack" \
+  "${application_normal_arguments[@]}"
+application_normal_resources="$(helm template "${application_release}" "${repo_root}/charts/foreman-stack" \
   --namespace "${namespace}" \
   --values "${application_values}" \
   --values "${application_profile}" \
-  "${recovery_arguments[@]}")"
-if [[ "${operation}" != resume ]] && \
-  [[ "$(grep -Fxc 'kind: Job' <<<"${application_resources}")" != 1 ]]; then
-  fail "${operation} must render exactly one recovery Job"
-fi
+  "${application_normal_arguments[@]}")"
 helm lint "${repo_root}/charts/foreman-execution-proxy" \
   --values "${execution_values}" \
-  --values "${execution_profile}"
-execution_resources="$(helm template "${execution_release}" "${repo_root}/charts/foreman-execution-proxy" \
+  --values "${execution_profile}" \
+  "${execution_normal_arguments[@]}"
+execution_normal_resources="$(helm template "${execution_release}" "${repo_root}/charts/foreman-execution-proxy" \
   --namespace "${namespace}" \
   --values "${execution_values}" \
-  --values "${execution_profile}")"
-combined_resources="$(printf '%s\n---\n%s\n' "${application_resources}" "${execution_resources}")"
-check_required_cluster_resources "${combined_resources}" "${namespace}" "${repo_root}"
-check_required_secrets "${combined_resources}" "${namespace}" "${repo_root}"
-check_server_admission "${combined_resources}" "${namespace}"
+  --values "${execution_profile}" \
+  "${execution_normal_arguments[@]}")"
+normal_resources="$(printf '%s\n---\n%s\n' \
+  "${application_normal_resources}" "${execution_normal_resources}")"
+
+if [[ "${operation}" == resume ]]; then
+  all_resources="${normal_resources}"
+  check_required_cluster_resources "${all_resources}" "${namespace}" "${repo_root}"
+  check_required_secrets "${all_resources}" "${namespace}" "${repo_root}"
+  check_server_admission "${normal_resources}" "${namespace}"
+else
+  helm lint "${repo_root}/charts/foreman-stack" \
+    --values "${application_values}" \
+    --values "${application_profile}" \
+    "${application_maintenance_arguments[@]}"
+  application_maintenance_resources="$(helm template "${application_release}" "${repo_root}/charts/foreman-stack" \
+    --namespace "${namespace}" \
+    --values "${application_values}" \
+    --values "${application_profile}" \
+    "${application_maintenance_arguments[@]}")"
+  helm lint "${repo_root}/charts/foreman-execution-proxy" \
+    --values "${execution_values}" \
+    --values "${execution_profile}" \
+    "${execution_maintenance_arguments[@]}"
+  execution_maintenance_resources="$(helm template "${execution_release}" "${repo_root}/charts/foreman-execution-proxy" \
+    --namespace "${namespace}" \
+    --values "${execution_values}" \
+    --values "${execution_profile}" \
+    "${execution_maintenance_arguments[@]}")"
+  helm lint "${repo_root}/charts/foreman-stack" \
+    --values "${application_values}" \
+    --values "${application_profile}" \
+    "${recovery_arguments[@]}"
+  application_recovery_resources="$(helm template "${application_release}" "${repo_root}/charts/foreman-stack" \
+    --namespace "${namespace}" \
+    --values "${application_values}" \
+    --values "${application_profile}" \
+    "${recovery_arguments[@]}")"
+  if [[ "$(grep -Fxc 'kind: Job' <<<"${application_recovery_resources}")" != 1 ]]; then
+    fail "${operation} must render exactly one recovery Job"
+  fi
+
+  maintenance_resources="$(printf '%s\n---\n%s\n' \
+    "${application_maintenance_resources}" "${execution_maintenance_resources}")"
+  recovery_resources="$(printf '%s\n---\n%s\n' \
+    "${application_recovery_resources}" "${execution_maintenance_resources}")"
+  all_resources="$(printf '%s\n---\n%s\n' "${normal_resources}" "${recovery_resources}")"
+  check_required_cluster_resources "${all_resources}" "${namespace}" "${repo_root}"
+  check_required_secrets "${all_resources}" "${namespace}" "${repo_root}"
+  check_server_admission "${maintenance_resources}" "${namespace}"
+  check_server_admission "${recovery_resources}" "${namespace}"
+  check_server_admission "${normal_resources}" "${namespace}"
+fi
 
 if [[ "${operation}" != resume ]]; then
-  echo "Recovery: entering maintenance mode and running ${operation} ${request_id}"
+  echo 'Recovery: stopping application writers'
+  if ! helm upgrade "${application_release}" "${repo_root}/charts/foreman-stack" \
+    --namespace "${namespace}" \
+    --values "${application_values}" \
+    --values "${application_profile}" \
+    "${application_maintenance_arguments[@]}" \
+    --wait \
+    --wait-for-jobs \
+    --timeout "${resume_timeout}"; then
+    fail 'application maintenance mode did not become ready; inspect the release before retrying'
+  fi
+
+  echo 'Recovery: stopping the execution proxy'
+  if ! helm upgrade "${execution_release}" "${repo_root}/charts/foreman-execution-proxy" \
+    --namespace "${namespace}" \
+    --values "${execution_values}" \
+    --values "${execution_profile}" \
+    "${execution_maintenance_arguments[@]}" \
+    --wait \
+    --timeout "${resume_timeout}"; then
+    fail 'the execution proxy did not enter maintenance; the application remains stopped'
+  fi
+  kubectl --namespace "${namespace}" wait \
+    --for=delete pod \
+    --selector="app.kubernetes.io/instance=${execution_release},app.kubernetes.io/component=execution-proxy" \
+    --timeout="${resume_timeout}" || \
+    fail 'the execution proxy Pod did not terminate; both releases remain in maintenance mode'
+
+  echo "Recovery: running ${operation} ${request_id}"
   if ! helm upgrade "${application_release}" "${repo_root}/charts/foreman-stack" \
     --namespace "${namespace}" \
     --values "${application_values}" \
@@ -214,22 +303,31 @@ if [[ "${operation}" != resume ]]; then
     --wait \
     --wait-for-jobs \
     --timeout "${recovery_timeout}"; then
-    fail "${operation} failed; the application remains in maintenance mode for inspection or a guarded retry"
+    fail "${operation} failed; the application and execution proxy remain in maintenance mode for inspection or a guarded retry"
   fi
 fi
 
-echo 'Recovery: applying the normal release and leaving maintenance mode'
+echo 'Recovery: restoring the normal application release'
 if ! helm upgrade "${application_release}" "${repo_root}/charts/foreman-stack" \
   --namespace "${namespace}" \
   --values "${application_values}" \
   --values "${application_profile}" \
-  --set maintenance.enabled=false \
-  --set backup.enabled=false \
-  --set restore.enabled=false \
+  "${application_normal_arguments[@]}" \
   --wait \
   --wait-for-jobs \
   --timeout "${resume_timeout}"; then
   fail 'the recovery action completed, but the normal application release did not become ready'
+fi
+
+echo 'Recovery: restoring the execution proxy'
+if ! helm upgrade "${execution_release}" "${repo_root}/charts/foreman-execution-proxy" \
+  --namespace "${namespace}" \
+  --values "${execution_values}" \
+  --values "${execution_profile}" \
+  "${execution_normal_arguments[@]}" \
+  --wait \
+  --timeout "${resume_timeout}"; then
+  fail 'the application is ready, but the execution proxy did not leave maintenance mode'
 fi
 
 kubectl --namespace "${namespace}" wait \
@@ -237,6 +335,10 @@ kubectl --namespace "${namespace}" wait \
   --selector="app.kubernetes.io/instance=${execution_release},app.kubernetes.io/component=execution-proxy" \
   --timeout="${smoke_timeout}"
 helm test "${application_release}" \
+  --namespace "${namespace}" \
+  --logs \
+  --timeout "${smoke_timeout}"
+helm test "${execution_release}" \
   --namespace "${namespace}" \
   --logs \
   --timeout "${smoke_timeout}"

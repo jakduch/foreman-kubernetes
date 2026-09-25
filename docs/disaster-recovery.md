@@ -3,6 +3,10 @@
 The chart provides explicit, one-shot backup and restore Jobs. They create an
 application-consistent recovery point only while maintenance mode has removed
 all workloads that can write to Foreman, Candlepin, or Pulp state.
+The guarded helper also stops the paired execution proxy before starting the
+recovery Job. This prevents its Dynflow process from delivering callbacks or
+changing execution state while the application databases are being captured
+or replaced.
 
 Quiescence includes Pods that are still terminating: a deletion timestamp does
 not prove that a process has stopped writing. Completed and failed Job Pods are
@@ -128,12 +132,15 @@ execution proxy, and validates every recovery dependency before changing the
 release. Both installed Helm releases must identify the selected compatibility
 set in their computed values. Recovery refuses a split or differently labelled
 pair instead of storing data under the wrong release identity. It then removes
-the database-writing Deployments and recurring tasks.
+the database-writing Deployments and recurring tasks, waits for the execution
+proxy Pod to terminate, and only then creates the recovery Job. The application
+is stopped first so it cannot dispatch new work while the proxy drains.
 The Job independently verifies that their pods are gone before reading any
 state. It fails instead of taking an online, potentially inconsistent copy.
-After success, the helper restores the normal digest-pinned revision and runs
-the application smoke test. A failed Job deliberately leaves maintenance mode
-active for inspection.
+After success, the helper restores the normal digest-pinned application, then
+the execution proxy, and runs both smoke tests. A failed transition or Job
+deliberately leaves both releases in maintenance mode for inspection when they
+were already quiesced.
 
 Retention removes snapshot metadata according to the configured daily, weekly,
 and monthly counts. Pruning repository packs is disabled by default because it
@@ -203,7 +210,8 @@ and Foreman migrations, re-registers the private Pulp endpoint, and executes
 the smoke test.
 
 After diagnosing a failed backup, restore, or interrupted recovery helper,
-leave maintenance mode through the same guarded path:
+leave maintenance mode through the same guarded path. Resume restores the
+application before the execution proxy and verifies both release boundaries:
 
 ```sh
 scripts/recover-release.sh resume \

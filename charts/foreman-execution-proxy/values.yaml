@@ -12,6 +12,12 @@ releaseOperation:
   id: ""
   ownerUid: ""
 
+# Recovery helpers set this while the application data is quiesced. Persistent
+# state, configuration, and the Service remain, but no executor Pod is allowed
+# to run or accept new work.
+maintenance:
+  enabled: false
+
 # Change after rotating a referenced TLS, SSH, or known-hosts Secret. Several
 # files use subPath or are copied into runtime storage during pod startup.
 secretRolloutToken: initial

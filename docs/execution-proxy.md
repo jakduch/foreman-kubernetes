@@ -43,6 +43,14 @@ directories. `Recreate` prevents two pods from owning it during a rollout. A
 restart can retain the Dynflow plan and runner files, but site-loss recovery of
 an in-flight command is not yet claimed. Treat Foreman as the job source of
 truth and retry interrupted jobs after validating their target-side effects.
+During an application backup or restore, the guarded recovery helper first
+stops application dispatchers and then sets `maintenance.enabled=true` on this
+release. Maintenance removes the executor Deployment and smoke Job while
+retaining its Service, identity, configuration, network isolation, and both
+PVCs. The helper waits for the old Pod to disappear before the application
+recovery Job may run. A failed recovery leaves the proxy stopped; use the same
+guarded `recover-release.sh resume` path to restart the application and then
+the proxy.
 Use `scheduling.nodeSelector` and `scheduling.tolerations` when these RWO claims
 can attach only to a dedicated node pool. The same settings reach the smoke
 Job, so successful release validation proves that the selected pool can also

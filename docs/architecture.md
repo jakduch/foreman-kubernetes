@@ -248,11 +248,12 @@ boundary machine-testable. Two controller candidates elect one active poller;
 the release operation itself remains protected by a separate Lease shared with
 the guarded scripts.
 
-Maintenance-gated recovery Jobs stop all database writers before making a
-logical dump of each database and an encrypted Restic snapshot of application
-Secrets plus Pulp filesystem storage when that backend is selected. S3 objects
-remain under the bucket operator's versioning, replication, and recovery
-policy. Their lifecycle and external ownership boundaries are defined in
+Maintenance-gated recovery Jobs stop all application database writers and the
+paired execution proxy before making a logical dump of each database and an
+encrypted Restic snapshot of application Secrets plus Pulp filesystem storage
+when that backend is selected. S3 objects remain under the bucket operator's
+versioning, replication, and recovery policy. Their lifecycle and external
+ownership boundaries are defined in
 [`disaster-recovery.md`](disaster-recovery.md).
 
 ## Network services

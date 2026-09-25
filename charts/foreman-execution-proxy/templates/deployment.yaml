@@ -1,6 +1,7 @@
 {{- if le (int .Values.terminationGracePeriodSeconds) (int .Values.proxy.requestDrainSeconds) }}
 {{- fail "terminationGracePeriodSeconds must exceed proxy.requestDrainSeconds" }}
 {{- end }}
+{{- if not .Values.maintenance.enabled }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -266,3 +267,4 @@ spec:
         - name: var-tmp
           emptyDir:
             sizeLimit: 2Gi
+{{- end }}

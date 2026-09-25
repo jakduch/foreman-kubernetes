@@ -1,4 +1,4 @@
-{{- if .Values.smokeTest.enabled }}
+{{- if and .Values.smokeTest.enabled (not .Values.maintenance.enabled) }}
 apiVersion: batch/v1
 kind: Job
 metadata:

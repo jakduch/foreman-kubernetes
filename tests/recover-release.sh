@@ -35,7 +35,7 @@ case "$*" in
     ;;
 esac
 if [[ "$1" == template && "$2" == foreman ]]; then
-  if [[ "$*" == *'maintenance.enabled=true'* ]]; then
+  if [[ "$*" == *'backup.enabled=true'* || "$*" == *'restore.enabled=true'* ]]; then
     printf '%s\n' 'apiVersion: batch/v1' 'kind: Job' 'metadata:' '  name: recovery'
   else
     printf '%s\n' 'apiVersion: apps/v1' 'kind: Deployment' 'metadata:' '  name: foreman'
@@ -92,17 +92,29 @@ PATH="${fake_bin}:${PATH}" \
   "${repo_root}/scripts/recover-release.sh" backup \
     "${application_values}" "${execution_values}" request-1 >/dev/null
 
-recovery_upgrade='helm upgrade foreman'
-normal_upgrade='--set maintenance.enabled=false --set backup.enabled=false --set restore.enabled=false'
+application_upgrade='helm upgrade foreman'
+execution_upgrade='helm upgrade execution'
+application_maintenance='--set maintenance.enabled=true --set backup.enabled=false --set restore.enabled=false'
+application_normal='--set maintenance.enabled=false --set backup.enabled=false --set restore.enabled=false'
+execution_maintenance='--set maintenance.enabled=true --set smokeTest.enabled=false'
+execution_normal='--set maintenance.enabled=false'
 grep -Fq -- '--set backup.enabled=true --set-string backup.requestId=request-1 --set backup.initializeRepository=true' "${tool_log}"
-grep -Fq -- "${normal_upgrade}" "${tool_log}"
+grep -Fq -- "${application_normal}" "${tool_log}"
+grep -Fq -- "${execution_maintenance}" "${tool_log}"
 grep -Fq 'kubectl --namespace foreman apply --dry-run=server --filename -' "${tool_log}"
-recovery_line="$(grep -Fn "${recovery_upgrade}" "${tool_log}" | grep 'maintenance.enabled=true' | cut -d: -f1)"
-normal_line="$(grep -Fn "${recovery_upgrade}" "${tool_log}" | grep -- "${normal_upgrade}" | cut -d: -f1)"
-if ! (( recovery_line < normal_line )); then
-  echo 'normal workloads resumed before the recovery Job completed' >&2
+application_maintenance_line="$(grep -Fn "${application_upgrade}" "${tool_log}" | grep -- "${application_maintenance}" | grep -v 'backup.enabled=true' | cut -d: -f1)"
+execution_maintenance_line="$(grep -Fn "${execution_upgrade}" "${tool_log}" | grep -- "${execution_maintenance}" | cut -d: -f1)"
+recovery_line="$(grep -Fn "${application_upgrade}" "${tool_log}" | grep 'backup.enabled=true' | cut -d: -f1)"
+application_normal_line="$(grep -Fn "${application_upgrade}" "${tool_log}" | grep -- "${application_normal}" | cut -d: -f1)"
+execution_normal_line="$(grep -Fn "${execution_upgrade}" "${tool_log}" | grep -- "${execution_normal}" | cut -d: -f1)"
+if ! (( application_maintenance_line < execution_maintenance_line &&
+        execution_maintenance_line < recovery_line &&
+        recovery_line < application_normal_line &&
+        application_normal_line < execution_normal_line )); then
+  echo 'application, execution proxy, recovery, and resume operations ran out of order' >&2
   exit 1
 fi
+grep -Fq 'kubectl --namespace foreman wait --for=delete pod --selector=app.kubernetes.io/instance=execution,app.kubernetes.io/component=execution-proxy' "${tool_log}"
 
 : > "${tool_log}"
 if PATH="${fake_bin}:${PATH}" \
@@ -114,8 +126,12 @@ if PATH="${fake_bin}:${PATH}" \
   echo 'failed backup unexpectedly succeeded' >&2
   exit 1
 fi
-if grep -Fq -- "${normal_upgrade}" "${tool_log}"; then
+if grep -F "${application_upgrade}" "${tool_log}" | grep -Fq -- "${application_normal}"; then
   echo 'application left maintenance mode after a failed backup' >&2
+  exit 1
+fi
+if grep -F "${execution_upgrade}" "${tool_log}" | grep -Fq -- "${execution_normal}"; then
+  echo 'execution proxy left maintenance mode after a failed backup' >&2
   exit 1
 fi
 
@@ -151,7 +167,8 @@ PATH="${fake_bin}:${PATH}" \
   ALLOW_CANDIDATE=1 \
   "${repo_root}/scripts/recover-release.sh" resume \
     "${application_values}" "${execution_values}" >/dev/null
-grep -Fq -- "${normal_upgrade}" "${tool_log}"
+grep -F "${application_upgrade}" "${tool_log}" | grep -Fq -- "${application_normal}"
+grep -F "${execution_upgrade}" "${tool_log}" | grep -Fq -- "${execution_normal}"
 if grep -Fq -- 'maintenance.enabled=true' "${tool_log}"; then
   echo 'resume unexpectedly rendered or ran another recovery Job' >&2
   exit 1
