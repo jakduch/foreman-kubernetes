@@ -4,6 +4,7 @@
     "application-smoke",
     "candlepin-ha-pod-recovery",
     "pulp-registration-mtls",
+    "pulp-python-lifecycle",
     "rex-success-failure-cancel",
     "proxy-interruption",
     "ansible-command-role-replacement",

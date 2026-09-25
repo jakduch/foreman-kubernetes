@@ -30,17 +30,19 @@
   target; the task must become terminal and a fresh command must then succeed,
   without claiming transparent continuation of the interrupted SSH process;
 - absence of a public Pulp administrative API route;
-- a Katello content lifecycle against an in-cluster deterministic file source:
-  organization and product creation, repository synchronization, public Pulp
-  content delivery, Content View publication, and Activation Key assignment;
+- Katello file and Python content lifecycles against an in-cluster deterministic
+  source: organization and product creation, repository synchronization,
+  metadata indexing, public Pulp and PyPI package delivery, Content View
+  publication, and Activation Key assignment;
 - an encrypted Restic backup of all three PostgreSQL databases, Pulp storage,
   and the declared Secret escrow;
 - restoration after deliberately changing independent probes, deleting the
   entire application namespace, recreating empty databases and Pulp storage,
   and retaining application state only in the Restic repository;
 - Foreman readiness and Pulp registration after leaving restore maintenance;
-- the complete Katello object graph and published file after restoration, so
-  the recovery check covers real application state in addition to probes;
+- the complete Katello object graph, published file, Python package metadata,
+  PyPI simple index, and package checksum after restoration, so the recovery
+  check covers real application state in addition to probes;
 - execution-proxy re-registration and successful new jobs after the clean
   namespace restore and again after rotating its server TLS, Foreman client
   TLS, and SSH identities and restarting both ends of the SSH trust relation;

@@ -84,6 +84,14 @@ candlepin:
 
 pulp:
   existingDatabaseCaSecret: ""
+  enabledPlugins:
+    - pulp_certguard
+    - pulp_container
+    - pulp_deb
+    - pulp_file
+    - pulp_python
+    - pulp_rpm
+    - pulp_smart_proxy
   database:
     host: postgresql
     port: 5432

@@ -54,9 +54,13 @@ models the packaged optional routes: Galaxy uses `/pulp_ansible/galaxy`, Python
 uses the API-backed `/pypi` endpoint, and OSTree uses the common
 `/pulp/content` distribution path. A render contract enables every packaged
 plugin together and verifies that no administrative `/pulp/api` route becomes
-public. Ansible, OSTree, and Python remain disabled by default until each real
-content lifecycle is run; a package and a correct route are not sufficient
-evidence that the Katello workflow is supported.
+public. Ansible, OSTree, and Python remain disabled by default. The opt-in amd64
+drill now creates a self-contained Python source distribution, synchronizes it
+through Katello, checks indexed metadata and the public PyPI package, publishes
+it in a Content View, and verifies the same state after clean-namespace
+recovery. Its status remains `integration-drill-implemented-unrun` until that
+complete drill passes; a package and a correct route alone are not support
+evidence.
 
 ## Smart Proxy placement
 
