@@ -137,6 +137,13 @@ Foreman web Pods, requires the replacement to become ready, rejects any invalid
 response, and returns the Deployment to the profile's single test replica. It
 proves request continuity under one Pod loss, not a production load limit.
 
+Pulp has a separate continuity drill after the content lifecycle publishes its
+test artifact. A restricted in-cluster Pod sends 640 private API health
+requests while host clients download and checksum the public artifact 640
+times. The harness removes one API and one content Pod together, requires both
+replacements to become ready, and then restores the test profile's replica
+counts. This is availability evidence rather than a throughput benchmark.
+
 The `foreman` namespace is labelled for `restricted` enforcement, audit, and
 warnings at the Kubernetes 1.34 policy version before Helm creates any product
 workload. The version intentionally matches the default pinned kind node. When

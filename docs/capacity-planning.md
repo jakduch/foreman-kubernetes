@@ -94,6 +94,13 @@ Katello result. This validates the Service, readiness, endpoint removal, and
 graceful shutdown contract together. It is not a throughput benchmark and must
 not be used to derive production request-per-second capacity.
 
+Pulp API and content have a matching prepared drill because their independent
+HPAs and Gunicorn lifecycles create two separate availability boundaries. An
+in-cluster restricted probe checks the private API health response while host
+clients repeatedly download and checksum an already published artifact through
+the public ingress. One API and one content Pod are removed together; all
+requests must remain valid while both Deployments return to two ready replicas.
+
 For a dedicated node pool, set all three fields under `scheduling`: a selector
 for the pool label, tolerations matching only its intentional taints, and an
 existing PriorityClass when Foreman must preempt lower-priority workloads.

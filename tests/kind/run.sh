@@ -1045,6 +1045,8 @@ assert_pulp_registration
 assert_execution_plane v1 1
 "${repo_root}/tests/kind/content-lifecycle.sh" \
   seed "${temporary_directory}" "${content_lifecycle_state}"
+"${repo_root}/tests/kind/pulp-availability.sh" \
+  "${temporary_directory}" "${content_lifecycle_state}"
 "${repo_root}/tests/kind/webhook-lifecycle.sh" \
   seed "${temporary_directory}" "${webhook_lifecycle_state}"
 NAMESPACE="${namespace}" "${repo_root}/tests/kind/candlepin-job-delivery.sh" \

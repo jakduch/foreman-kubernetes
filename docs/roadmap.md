@@ -35,6 +35,10 @@
   two ready web Pods is deleted and replaced. Any connection failure, non-200
   response, or unhealthy Foreman/Katello result fails promotion. The test does
   not claim a throughput limit until a dedicated capacity environment exists.
+- Pulp API and content continuity now have a paired drill using the private API
+  Service and a checksum-verified public artifact. It removes one Pod from each
+  independently scalable Deployment under concurrent traffic and requires both
+  Services to remain correct while replacements become ready.
 - The manual full-integration workflow now emits a retained evidence record
   bound to the exact commit, compatibility set, profile hashes, native runner,
   and versioned runtime-check contract. Candidate promotion is explicit and
