@@ -174,6 +174,7 @@ The sibling `foreman-kubernetes-upstream/` directory is intentionally not part o
 | Foreman virt-who Configure | `master` | `78b9e78650013b6ef023a4163a7d47518024cd1d` |
 | Foreman KubeVirt (reviewed upstream) | `master` | `4b89174424245289bd4cc7535a94a8c24aa19172` |
 | Foreman KubeVirt (local compatibility patch) | `fix/discover-kubevirt-api-version` | `60d6c1f8ff3497d39c63e3359ea1e8539e2a0a70` |
+| Foreman KubeVirt (local validation patch) | `fix/discover-kubevirt-api-version` | `49d4822c9be3459e02406b36e4ffc6d69e9d9044` |
 | Fog KubeVirt (reviewed upstream) | `master` | `d3277fa121609c5a2c949f3518f5f1bb07ef6447` |
 | Fog KubeVirt (local namespace-scope patch) | `fix/scope-network-attachments` | `98c874ad35d74005297b6385ede267ac78e35662` |
 | foremanctl | `master` | `cb135b25817fba875061a7d4495fe14ad2bd474e` |

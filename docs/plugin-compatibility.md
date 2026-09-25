@@ -57,6 +57,13 @@ cluster permission. A second local upstream commit passes the configured
 namespace to the client and has a focused regression test. Least-privilege RBAC
 and promotion depend on shipping both fixes.
 
+Connection validation has a separate correctness gap: failed Kubernetes and
+KubeVirt probes return `false` without adding a model error. Rails does not use
+the return value of this after-validation callback to invalidate the compute
+resource, so an unusable provider can be saved without an actionable error. A
+third local upstream commit records distinct errors for an unreachable
+Kubernetes API and a reachable API without KubeVirt, with regression coverage.
+
 An opt-in external-cluster drill is prepared for that later qualification. It
 registers the compute resource through Foreman's API without retaining token or
 CA material in its state artifact, requires Foreman and the cluster discovery
