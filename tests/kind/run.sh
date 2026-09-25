@@ -23,7 +23,55 @@ recovery_allow_candidate=0
 recovery_application_profile_override=""
 recovery_execution_profile_override=""
 
+wait_for_migration_jobs() {
+  local operation_id="$1"
+  local expected_jobs="$2"
+  local timeout_seconds="${KIND_MIGRATION_WAIT_SECONDS:-1800}"
+  local deadline=$((SECONDS + timeout_seconds))
+  local jobs
+  local failed_jobs
+  local complete_jobs
+  local total_jobs
+  local job_name
+
+  while ((SECONDS < deadline)); do
+    jobs="$(kubectl --namespace "${namespace}" get jobs \
+      --selector="platform.theforeman.org/release-operation=${operation_id}" \
+      --output=json)"
+    failed_jobs="$(jq --raw-output \
+      '.items[] |
+       select(any(.status.conditions[]?; .type == "Failed" and .status == "True")) |
+       .metadata.name' <<<"${jobs}")"
+    if [[ -n "${failed_jobs}" ]]; then
+      echo "Migration operation ${operation_id} failed in: ${failed_jobs//$'\n'/, }" >&2
+      while IFS= read -r job_name; do
+        [[ -n "${job_name}" ]] || continue
+        kubectl --namespace "${namespace}" logs \
+          "job/${job_name}" --all-containers=true --tail=100 >&2 || true
+      done <<<"${failed_jobs}"
+      return 1
+    fi
+
+    total_jobs="$(jq '.items | length' <<<"${jobs}")"
+    complete_jobs="$(jq \
+      '[.items[] |
+        select(any(.status.conditions[]?; .type == "Complete" and .status == "True"))] |
+       length' <<<"${jobs}")"
+    if [[ "${total_jobs}" -eq "${expected_jobs}" && \
+      "${complete_jobs}" -eq "${expected_jobs}" ]]; then
+      return 0
+    fi
+    sleep 2
+  done
+
+  echo "Migration operation ${operation_id} did not finish within ${timeout_seconds}s" >&2
+  kubectl --namespace "${namespace}" get jobs \
+    --selector="platform.theforeman.org/release-operation=${operation_id}" >&2 || true
+  return 1
+}
+
 helm_apply() {
+  local expected_migration_jobs
   local operation_id
   local migration_stage
 
@@ -52,11 +100,16 @@ helm_apply() {
     --set-string "releaseOperation.id=${operation_id}" \
     --set-string "releaseOperation.ownerUid=${operation_id}" | \
     ruby "${repo_root}/scripts/render-migration-stage.rb" "${release}" "${namespace}")"
+  expected_migration_jobs="$(awk \
+    '/^kind: Job$/ { count++ } END { print count + 0 }' <<<"${migration_stage}")"
+  if [[ "${expected_migration_jobs}" -lt 1 ]]; then
+    echo "Migration operation ${operation_id} rendered no Jobs" >&2
+    return 1
+  fi
   printf '%s\n' "${migration_stage}" | kubectl --namespace "${namespace}" apply --filename -
-  kubectl --namespace "${namespace}" wait \
-    --for=condition=complete job \
-    --selector="platform.theforeman.org/release-operation=${operation_id}" \
-    --timeout=30m
+  if ! wait_for_migration_jobs "${operation_id}" "${expected_migration_jobs}"; then
+    return 1
+  fi
 
   helm upgrade --install "${release}" "${repo_root}/charts/foreman-stack" \
     --namespace "${namespace}" \
