@@ -81,8 +81,9 @@
   controller-owned result;
 - a chart-owned Pulp storage probe against a digest-pinned, disposable
   S3-compatible endpoint: bucket versioning, multipart upload, byte-for-byte
-  read, delete marker verification, and permanent cleanup of every probe
-  version.
+  SDK and signed-URL reads, delete marker verification, permanent cleanup of
+  every probe version, rejection of a retired key, and a complete repeat after
+  credential rotation.
 
 The test is intentionally opt-in because it downloads the real application images and needs substantially more CPU, memory, and time than chart rendering:
 

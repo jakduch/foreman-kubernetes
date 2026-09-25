@@ -15,9 +15,12 @@ a shared content filesystem. PostgreSQL, Valkey, and
 When S3 mode is selected, `helm test` also runs a probe with the exact Pulp
 image, ServiceAccount, credentials, trust bundle, and storage settings. It
 enables bucket versioning, writes a payload above the multipart threshold,
-reads and hashes it, creates a delete marker, verifies both versions and delete
-markers, and then permanently removes the probe history. This catches a
-misconfigured identity, endpoint, prefix, multipart implementation, or egress
+reads and hashes it both through the SDK and a signed direct-download URL,
+creates a delete marker, verifies both versions and delete markers, and then
+permanently removes the probe history. The full integration drill also rotates
+the endpoint credentials, proves the retired key is rejected, and repeats the
+entire transfer with the new Secret. This catches a misconfigured identity,
+endpoint, prefix, multipart implementation, signed URL, rotation, or egress
 policy before the release is qualified.
 
 ## Configuration

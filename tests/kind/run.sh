@@ -829,6 +829,7 @@ reset_namespace_for_restore() {
     foreman-kind-pulp-data \
     foreman-kind-tmp \
     foreman-kind-avatars \
+    foreman-kind-object-storage \
     foreman-kind-recovery-repository \
     --ignore-not-found=true \
     --wait=true
@@ -845,6 +846,11 @@ reset_namespace_for_restore() {
     -exec rm -rf -- '{}' +
   docker exec "${kind_node}" \
     find /var/local/foreman-kind-avatars \
+    -mindepth 1 \
+    -maxdepth 1 \
+    -exec rm -rf -- '{}' +
+  docker exec "${kind_node}" \
+    find /var/local/foreman-kind-object-storage \
     -mindepth 1 \
     -maxdepth 1 \
     -exec rm -rf -- '{}' +

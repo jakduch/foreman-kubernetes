@@ -41,6 +41,8 @@ spec:
               import hashlib
               import json
               import os
+              import ssl
+              import urllib.request
               import uuid
 
               import django
@@ -75,6 +77,20 @@ spec:
                   if default_storage.size(saved_name) != payload_size:
                       raise RuntimeError("object size changed during round trip")
 
+                  direct_download = False
+                  if os.environ.get("PULP_REDIRECT_TO_OBJECT_STORAGE", "false").lower() == "true":
+                      ca_bundle = os.environ.get("AWS_CA_BUNDLE")
+                      context = ssl.create_default_context(cafile=ca_bundle) if ca_bundle else None
+                      with urllib.request.urlopen(
+                          default_storage.url(saved_name),
+                          timeout=60,
+                          context=context,
+                      ) as response:
+                          direct_payload = response.read()
+                      if direct_payload != payload:
+                          raise RuntimeError("signed object-storage download changed content")
+                      direct_download = True
+
                   digest = hashlib.sha256(restored).hexdigest()
                   default_storage.delete(saved_name)
                   if default_storage.exists(saved_name):
@@ -98,6 +114,7 @@ spec:
                       "sha256": digest,
                       "objectVersions": len(object_versions),
                       "deleteMarkers": len(delete_markers),
+                      "directDownload": direct_download,
                   }, sort_keys=True))
               finally:
                   versions = bucket.meta.client.list_object_versions(

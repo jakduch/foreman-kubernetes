@@ -26,7 +26,7 @@ abort 'object-storage probe does not use the isolated Pulp identity' unless pod[
 abort 'object-storage probe mounts a service-account token' unless pod['automountServiceAccountToken'] == false
 container = pod.fetch('containers').fetch(0)
 script = container.fetch('args').join("\n")
-%w[versioning.enable payload_size default_storage.save default_storage.open default_storage.delete list_object_versions delete_objects].each do |contract|
+%w[versioning.enable payload_size default_storage.save default_storage.open default_storage.url urllib.request.urlopen default_storage.delete list_object_versions delete_objects].each do |contract|
   abort "object-storage probe does not exercise #{contract}" unless script.include?(contract)
 end
 abort 'object-storage probe does not cross the multipart threshold' unless script.include?('9 * 1024 * 1024')

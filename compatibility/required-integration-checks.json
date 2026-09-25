@@ -9,6 +9,8 @@
     "candlepin-artemis-delivery-reconnect",
     "pulp-registration-mtls",
     "pulp-s3-versioned-multipart-round-trip",
+    "pulp-s3-direct-download",
+    "pulp-s3-credential-rotation",
     "pulp-python-lifecycle",
     "rex-success-failure-cancel",
     "proxy-interruption",
