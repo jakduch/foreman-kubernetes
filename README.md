@@ -45,7 +45,8 @@ The initial Helm chart is under [`charts/foreman-stack`](charts/foreman-stack). 
   PostgreSQL databases, application Secrets, and Pulp filesystem content when
   that backend is selected, with an explicit external recovery gate for S3.
 - explicit non-root identities, restricted container privileges, scoped
-  disruption budgets, and optional component-level egress isolation.
+  disruption budgets, release-wide default-deny ingress, and optional
+  component-level egress isolation.
 - consistent node selectors, taint tolerations, and verified PriorityClasses
   across long-running workloads and release-gating Jobs.
 - opt-in Prometheus Operator workload alerts for application and execution

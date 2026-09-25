@@ -4,6 +4,13 @@
 
 Application ownership does not move into this repository. Each upstream keeps its own source, tests, release cadence, and image. The orchestration layer pins compatible image versions and translates their public runtime contracts into Kubernetes resources.
 
+When NetworkPolicy is enabled, both application and execution releases first
+select every one of their pods with a default-deny ingress policy. Additive
+component policies then admit only the ingress controller, control-plane peers,
+and bounded smoke tests that actually need a listening endpoint. Background
+workers and one-shot Jobs therefore remain isolated even though they do not
+publish a Service.
+
 ```mermaid
 flowchart LR
   Client[Users and API clients] --> Edge[Ingress / mTLS edge]
