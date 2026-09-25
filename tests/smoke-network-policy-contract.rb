@@ -54,6 +54,10 @@ if smoke_policy
     'pulp-api' => Array(documents.find do |resource|
       resource['kind'] == 'Service' && resource.dig('spec', 'selector', 'app.kubernetes.io/component') == 'pulp-api'
     end&.dig('spec', 'ports')).map { |entry| entry['port'] },
+    'pulp-control-proxy' => Array(documents.find do |resource|
+      resource['kind'] == 'Deployment' &&
+        resource.dig('spec', 'selector', 'matchLabels', 'app.kubernetes.io/component') == 'pulp-control-proxy'
+    end&.dig('spec', 'template', 'spec', 'containers', 0, 'ports')).map { |entry| entry['containerPort'] },
   }
   abort "smoke egress destinations are #{permitted.inspect}, expected #{expected.inspect}" unless permitted == expected
 

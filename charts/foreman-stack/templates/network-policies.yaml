@@ -118,6 +118,7 @@ spec:
                   - dynflow-worker
                   - dynflow-worker-hosts-queue
                   - pulp-registration
+                  - smoke-test
       ports:
         - protocol: TCP
           port: {{ .Values.pulp.controlProxy.port }}

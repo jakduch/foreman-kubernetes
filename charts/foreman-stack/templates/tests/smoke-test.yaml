@@ -75,6 +75,19 @@ spec:
               abort 'Pulp has no online workers' if Array(pulp['online_workers']).empty?
               abort 'Pulp has no online content apps' if Array(pulp['online_content_apps']).empty?
               puts 'Pulp is healthy'
+
+              features = get_json('Pulp Smart Proxy features', ENV.fetch('PULP_FEATURES_URL')).fetch('pulpcore')
+              expected_capabilities = JSON.parse(ENV.fetch('PULP_EXPECTED_CAPABILITIES')).sort
+              actual_capabilities = Array(features['capabilities']).map(&:to_s).sort
+              missing_capabilities = expected_capabilities - actual_capabilities
+              unless missing_capabilities.empty?
+                abort "Pulp is missing enabled capabilities: #{missing_capabilities.join(', ')}"
+              end
+              authentication = Array(features.dig('settings', 'client_authentication'))
+              unless authentication.include?('client_certificate')
+                abort 'Pulp Smart Proxy does not advertise client-certificate authentication'
+              end
+              puts "Pulp capabilities are active: #{expected_capabilities.join(', ')}"
           env:
             - name: HOME
               value: /tmp
@@ -84,6 +97,10 @@ spec:
               value: {{ printf "https://%s:%v/candlepin/status" (include "foreman-stack.candlepinServiceName" .) .Values.candlepin.service.port | quote }}
             - name: PULP_STATUS_URL
               value: {{ printf "http://%s:%v/pulp/api/v3/status/" (include "foreman-stack.pulpApiServiceName" .) .Values.pulp.api.port | quote }}
+            - name: PULP_FEATURES_URL
+              value: {{ printf "%s/v2/features" (include "foreman-stack.pulpSmartProxyUrl" .) | quote }}
+            - name: PULP_EXPECTED_CAPABILITIES
+              value: {{ include "foreman-stack.pulpExpectedCapabilities" . | quote }}
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:

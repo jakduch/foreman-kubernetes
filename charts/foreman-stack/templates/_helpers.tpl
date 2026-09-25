@@ -197,6 +197,36 @@ runAsGroup: {{ . }}
 {{- default (printf "%s-pulp" .Values.platform.fqdn) .Values.pulp.controlProxy.registration.name }}
 {{- end }}
 
+{{- define "foreman-stack.pulpExpectedCapabilities" -}}
+{{- $capabilities := list "core" -}}
+{{- $plugins := .Values.pulp.enabledPlugins -}}
+{{- if has "pulp_certguard" $plugins -}}
+{{- $capabilities = append $capabilities "certguard" -}}
+{{- end -}}
+{{- if has "pulp_file" $plugins -}}
+{{- $capabilities = append $capabilities "file" -}}
+{{- end -}}
+{{- if has "pulp_smart_proxy" $plugins -}}
+{{- $capabilities = append $capabilities "smart_proxy" -}}
+{{- end -}}
+{{- if has "pulp_rpm" $plugins -}}
+{{- $capabilities = append $capabilities "rpm" -}}
+{{- end -}}
+{{- if has "pulp_deb" $plugins -}}
+{{- $capabilities = append $capabilities "deb" -}}
+{{- end -}}
+{{- if has "pulp_container" $plugins -}}
+{{- $capabilities = append $capabilities "container" -}}
+{{- end -}}
+{{- if has "pulp_ansible" $plugins -}}
+{{- $capabilities = append $capabilities "ansible" -}}
+{{- end -}}
+{{- if has "pulp_python" $plugins -}}
+{{- $capabilities = append $capabilities "python" -}}
+{{- end -}}
+{{- toJson (sortAlpha (uniq $capabilities)) -}}
+{{- end }}
+
 {{- define "foreman-stack.pulpContentHeadersName" -}}
 {{- printf "%s-pulp-content-headers" (include "foreman-stack.fullname" .) }}
 {{- end }}

@@ -130,10 +130,15 @@ models the packaged optional routes: Galaxy uses `/pulp_ansible/galaxy`, Python
 uses the API-backed `/pypi` endpoint, and OSTree uses the common
 `/pulp/content` distribution path. A render contract enables every packaged
 plugin together and verifies that no administrative `/pulp/api` route becomes
-public. Ansible, OSTree, and Python remain disabled by default. The opt-in amd64
-drill now creates a self-contained Python source distribution, synchronizes it
-through Katello, checks indexed metadata and the public PyPI package, publishes
-it in a Content View, and verifies the same state after clean-namespace
+public. The mTLS application smoke test also calls Pulp Smart Proxy's live
+feature endpoint and requires every enabled, advertised plugin capability plus
+client-certificate authentication; this catches a packaged plugin whose Django
+application or migrations failed to load. It is an API-surface gate, not a
+substitute for a content workflow. Ansible, OSTree, and Python remain disabled
+by default. The opt-in amd64 drill now creates a self-contained Python source
+distribution, synchronizes it through Katello, checks indexed metadata and the
+public PyPI package, publishes it in a Content View, and verifies the same state
+after clean-namespace
 recovery. Its status remains `integration-drill-implemented-unrun` until that
 complete drill passes; a package and a correct route alone are not support
 evidence.

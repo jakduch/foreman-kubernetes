@@ -488,6 +488,8 @@ ruby "${repo_root}/tests/candlepin-shutdown-contract.rb" "${rendered}"
 ruby "${repo_root}/tests/pulp-ingress-contract.rb" "${rendered_ingress}"
 ruby "${repo_root}/tests/pulp-ingress-contract.rb" "${rendered_minimal_pulp_ingress}"
 ruby "${repo_root}/tests/pulp-ingress-contract.rb" "${rendered_all_pulp_ingress}"
+ruby "${repo_root}/tests/pulp-plugin-api-contract.rb" \
+  "${rendered}" "${rendered_all_pulp_ingress}" "${rendered_egress}"
 ruby "${repo_root}/tests/foreman-ingress-contract.rb" "${rendered_ingress}"
 ruby "${repo_root}/tests/foreman-ingress-contract.rb" "${rendered_ingress_overrides}"
 ruby "${repo_root}/tests/pulp-process-contract.rb" "${rendered}"
