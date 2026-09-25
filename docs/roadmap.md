@@ -30,6 +30,11 @@
 
 ## Implemented, pending integration proof
 
+- Foreman web request continuity now has a prepared public-ingress drill: eight
+  concurrent clients issue 640 dependency-aware health requests while one of
+  two ready web Pods is deleted and replaced. Any connection failure, non-200
+  response, or unhealthy Foreman/Katello result fails promotion. The test does
+  not claim a throughput limit until a dedicated capacity environment exists.
 - The manual full-integration workflow now emits a retained evidence record
   bound to the exact commit, compatibility set, profile hashes, native runner,
   and versioned runtime-check contract. Candidate promotion is explicit and

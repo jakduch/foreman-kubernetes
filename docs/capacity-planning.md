@@ -86,6 +86,14 @@ production node carries the configured topology labels. Installations with
 custom failure-domain labels can replace `affinity.topologyKeys`; keeping both
 a zone-level and node-level key is recommended.
 
+The prepared amd64 integration drill temporarily runs two Foreman web replicas,
+sends concurrent dependency-aware health requests through the public ingress,
+deletes one ready Pod, requires a distinct replacement, and rejects every
+connection error, non-200 response, inactive database result, or unhealthy
+Katello result. This validates the Service, readiness, endpoint removal, and
+graceful shutdown contract together. It is not a throughput benchmark and must
+not be used to derive production request-per-second capacity.
+
 For a dedicated node pool, set all three fields under `scheduling`: a selector
 for the pool label, tolerations matching only its intentional taints, and an
 existing PriorityClass when Foreman must preempt lower-priority workloads.

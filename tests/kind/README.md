@@ -131,6 +131,12 @@ The receiver has a separate ingress policy that admits only the Foreman web and
 Dynflow worker components. This tests the plugin's real behavior without
 claiming an automatic retry policy the plugin does not implement.
 
+The web availability drill uses the host's existing `curl` and the public TLS
+ingress. It sends 640 dependency-aware requests while deleting one of two ready
+Foreman web Pods, requires the replacement to become ready, rejects any invalid
+response, and returns the Deployment to the profile's single test replica. It
+proves request continuity under one Pod loss, not a production load limit.
+
 The `foreman` namespace is labelled for `restricted` enforcement, audit, and
 warnings at the Kubernetes 1.34 policy version before Helm creates any product
 workload. The version intentionally matches the default pinned kind node. When

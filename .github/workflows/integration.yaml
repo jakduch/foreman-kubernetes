@@ -53,6 +53,7 @@ jobs:
           kubectl --namespace foreman get all,persistentvolumeclaims -o wide > artifacts/foreman.txt 2>&1 || true
           kubectl --namespace foreman describe pods,jobs > artifacts/foreman-describe.txt 2>&1 || true
           kubectl --namespace foreman logs deployment/artemis --all-containers > artifacts/artemis.log 2>&1 || true
+          kubectl --namespace foreman logs --selector=app.kubernetes.io/component=foreman --all-containers --prefix > artifacts/foreman-web.log 2>&1 || true
           kubectl --namespace foreman logs deployment/execution-foreman-execution-proxy --all-containers > artifacts/execution-proxy.log 2>&1 || true
           kubectl --namespace foreman logs deployment/execution-target --all-containers > artifacts/execution-target.log 2>&1 || true
           kubectl --namespace foreman logs job/execution-ansible-content-loader > artifacts/execution-ansible-content-loader.log 2>&1 || true

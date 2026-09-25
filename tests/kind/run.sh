@@ -1018,6 +1018,7 @@ assert_shared_foreman_tmp
 assert_candlepin_ha
 assert_candlepin_pod_recovery
 assert_application_smoke_test
+"${repo_root}/tests/kind/application-availability.sh" "${temporary_directory}"
 
 ruby "${repo_root}/tests/kind/image-runtime-contract.rb" \
   "${namespace}" \
