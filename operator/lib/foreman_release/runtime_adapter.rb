@@ -46,6 +46,7 @@ module ForemanRelease
       'NetworkPolicy' => 'networkpolicies',
       'PersistentVolumeClaim' => 'persistentvolumeclaims',
       'PodDisruptionBudget' => 'poddisruptionbudgets',
+      'PrometheusRule' => 'prometheusrules',
       'Service' => 'services',
       'ServiceAccount' => 'serviceaccounts'
     }.freeze

@@ -92,6 +92,11 @@ also remains explicit through `spec.reconcileToken`. A missing or modified PVC
 enters `Blocked` instead: silently creating or rewriting storage is not a valid
 recovery procedure.
 
+Managed monitoring rules participate in the same drift contract as Deployments,
+Services, Ingresses, NetworkPolicies, disruption budgets, and autoscalers. A
+deleted or edited `PrometheusRule` therefore cannot silently disable release
+alerts while the controller continues reporting `Ready`.
+
 The adapter boundary now includes three concrete, tested primitives:
 
 - `ReleaseCatalog` resolves only in-image profiles, enforces candidate and

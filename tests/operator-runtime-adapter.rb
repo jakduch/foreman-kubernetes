@@ -240,8 +240,10 @@ end
 
 runner = RecordingHelmRunner.new
 preflight = RuntimePreflight.new
+application_values = YAML.safe_load(root.join('examples/cluster-values.yaml').read)
+application_values['monitoring'] = {'prometheusRule' => {'enabled' => true, 'labels' => {}}}
 kubernetes = RuntimeKubernetesClient.new(
-  application_values: root.join('examples/cluster-values.yaml').read,
+  application_values: YAML.dump(application_values),
   execution_values: root.join('examples/execution-proxy-values.yaml').read
 )
 runtime_lease = RuntimeLeaseManager.new
@@ -642,6 +644,21 @@ unless configuration_drift.state == :drifted &&
   raise 'out-of-band ConfigMap mutation was not detected'
 end
 kubernetes.replace('configmaps', configmaps)
+
+prometheus_rules = kubernetes.resources('platform', 'prometheusrules')
+raise 'monitoring-enabled release did not render a PrometheusRule' if prometheus_rules.empty?
+
+modified_prometheus_rule = Marshal.load(Marshal.dump(prometheus_rules.first))
+modified_prometheus_rule.dig('spec', 'groups', 0, 'rules', 0)['for'] = '11m'
+kubernetes.replace('prometheusrules', [modified_prometheus_rule] + prometheus_rules.drop(1))
+monitoring_drift = adapter.audit_ready(resource, operation)
+unless monitoring_drift.state == :drifted &&
+       monitoring_drift.details.fetch('driftedResources').include?(
+         "PrometheusRule/#{modified_prometheus_rule.dig('metadata', 'name')}:modified"
+       )
+  raise 'out-of-band PrometheusRule mutation was not detected'
+end
+kubernetes.replace('prometheusrules', prometheus_rules)
 
 revision_drift = adapter.audit_ready(
   resource,
