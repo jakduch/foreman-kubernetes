@@ -33,9 +33,13 @@ includes_pulp_filesystem=false
 if [ "${PULP_STORAGE_BACKEND}" = filesystem ]; then
   includes_pulp_filesystem=true
 fi
+includes_execution_proxy=false
+if [ "${EXECUTION_PROXY_RECOVERY_ENABLED}" = true ]; then
+  includes_execution_proxy=true
+fi
 
 jq -n \
-  --arg schema_version "4" \
+  --arg schema_version "5" \
   --arg created_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
   --arg request_id "${BACKUP_REQUEST_ID}" \
   --arg chart_version "${CHART_VERSION}" \
@@ -44,6 +48,8 @@ jq -n \
   --arg namespace "${POD_NAMESPACE}" \
   --arg pulp_storage_backend "${PULP_STORAGE_BACKEND}" \
   --argjson includes_pulp_filesystem "${includes_pulp_filesystem}" \
+  --argjson includes_execution_proxy "${includes_execution_proxy}" \
+  --arg execution_proxy_release "${EXECUTION_PROXY_RELEASE:-}" \
   --arg secret_names "${BACKUP_SECRET_NAMES}" \
   '{
     schema_version: $schema_version,
@@ -57,6 +63,12 @@ jq -n \
     includes_foreman_avatars: true,
     pulp_storage_backend: $pulp_storage_backend,
     includes_pulp_filesystem: $includes_pulp_filesystem,
+    execution_proxy: {
+      enabled: $includes_execution_proxy,
+      release: (if $includes_execution_proxy then $execution_proxy_release else null end),
+      includes_state: $includes_execution_proxy,
+      includes_ansible_content: $includes_execution_proxy
+    },
     secret_names: ($secret_names | split(" ") | map(select(length > 0))),
     integrity: {
       algorithm: "sha256",
@@ -82,6 +94,11 @@ if [ "${PULP_STORAGE_BACKEND}" = filesystem ]; then
   set -- "$@" /var/lib/pulp
 else
   log "Pulp objects are external; the bucket must use an independently protected, coordinated recovery point"
+fi
+if [ "${EXECUTION_PROXY_RECOVERY_ENABLED}" = true ]; then
+  set -- "$@" \
+    /var/lib/foreman-execution-proxy/state \
+    /var/lib/foreman-execution-proxy/ansible
 fi
 backup_output=/tmp/restic-backup.jsonl
 restic backup --json \
@@ -111,14 +128,19 @@ snapshot_json="$(restic snapshots --json "${snapshot_id}")"
 printf '%s' "${snapshot_json}" | jq -e \
   --arg snapshot_id "${snapshot_id}" \
   --arg release "${HELM_RELEASE}" \
-  --arg request_tag "request-${BACKUP_REQUEST_ID}" '
+  --arg request_tag "request-${BACKUP_REQUEST_ID}" \
+  --argjson includes_execution_proxy "${includes_execution_proxy}" '
     length == 1 and
     .[0].id == $snapshot_id and
     .[0].hostname == $release and
     (.[0].tags | index("foreman-stack")) != null and
     (.[0].tags | index($request_tag)) != null and
     (.[0].paths | index("/work")) != null and
-    (.[0].paths | index("/var/lib/foreman/avatars")) != null
+    (.[0].paths | index("/var/lib/foreman/avatars")) != null and
+    (if $includes_execution_proxy then
+      (.[0].paths | index("/var/lib/foreman-execution-proxy/state")) != null and
+      (.[0].paths | index("/var/lib/foreman-execution-proxy/ansible")) != null
+    else true end)
   ' >/dev/null
 
 require_created_snapshot_path() {
@@ -150,6 +172,10 @@ if [ "${PULP_STORAGE_BACKEND}" = filesystem ]; then
   printf '%s' "${snapshot_json}" |
     jq -e '.[0].paths | index("/var/lib/pulp") != null' >/dev/null
   require_created_snapshot_path /var/lib/pulp
+fi
+if [ "${EXECUTION_PROXY_RECOVERY_ENABLED}" = true ]; then
+  require_created_snapshot_path /var/lib/foreman-execution-proxy/state
+  require_created_snapshot_path /var/lib/foreman-execution-proxy/ansible
 fi
 
 log "Validated encrypted recovery snapshot ${snapshot_id}"

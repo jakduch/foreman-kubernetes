@@ -18,8 +18,10 @@ The recovery set contains:
 - Foreman's LDAP avatar files, whose hashes but not bytes live in PostgreSQL;
 - the complete Pulp filesystem mounted at `/var/lib/pulp` when filesystem
   storage is selected;
+- the paired execution proxy's Dynflow/runner state and reviewed Ansible
+  content claims;
 - an encrypted escrow copy of the application, certificate, ingress, and image
-  pull Secrets known to the chart;
+  pull Secrets known to both Helm releases;
 - a versioned manifest identifying the Helm release, namespace, chart, and
   exact digest-pinned compatibility set;
 - an exact SHA-256 inventory of the three dumps, recovery manifest, and every
@@ -131,7 +133,10 @@ acquires their shared renewable Lease, checks the current application and
 execution proxy, and validates every recovery dependency before changing the
 release. Both installed Helm releases must identify the selected compatibility
 set in their computed values. Recovery refuses a split or differently labelled
-pair instead of storing data under the wrong release identity. It then removes
+pair instead of storing data under the wrong release identity. It derives the
+proxy's effective state and Ansible claim names plus every referenced Secret
+from the normal execution render; operators do not duplicate those names in
+the application values file. It then removes
 the database-writing Deployments and recurring tasks, waits for the execution
 proxy Pod to terminate, and only then creates the recovery Job. The application
 is stopped first so it cannot dispatch new work while the proxy drains.
@@ -230,8 +235,9 @@ A recovery mechanism is not considered verified until a disposable cluster can:
 
 1. create data in Foreman, Candlepin, and Pulp;
 2. create a recovery snapshot;
-3. replace all three databases, Pulp storage, and application Secrets, using a
-   coordinated bucket recovery point in S3 mode;
+3. replace all three databases, Pulp storage, execution Dynflow/runner state,
+   Ansible content, and release Secrets, using a coordinated bucket recovery
+   point in S3 mode;
 4. restore the snapshot into a clean namespace;
 5. pass Foreman ping, Candlepin status, Pulp content download, and Katello Pulp
    registration checks;

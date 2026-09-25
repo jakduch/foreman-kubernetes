@@ -66,7 +66,9 @@ jq -e \
   --arg namespace "${POD_NAMESPACE}" \
   --arg compatibility_set "${COMPATIBILITY_SET}" \
   --arg pulp_storage_backend "${PULP_STORAGE_BACKEND}" \
-  '.schema_version == "4" and
+  --argjson execution_proxy_enabled "${EXECUTION_PROXY_RECOVERY_ENABLED}" \
+  --arg execution_proxy_release "${EXECUTION_PROXY_RELEASE:-}" \
+  '.schema_version == "5" and
    (.request_id |
      type == "string" and
      length > 0 and length <= 16 and
@@ -80,7 +82,13 @@ jq -e \
    .integrity == {algorithm: "sha256", manifest: "/work/metadata/checksums.sha256"} and
    .includes_foreman_avatars == true and
    (.pulp_storage_backend // (if .includes_pulp_filesystem then "filesystem" else "unknown" end)) == $pulp_storage_backend and
-   (if $pulp_storage_backend == "filesystem" then .includes_pulp_filesystem == true else true end)' \
+   (if $pulp_storage_backend == "filesystem" then .includes_pulp_filesystem == true else true end) and
+   .execution_proxy.enabled == $execution_proxy_enabled and
+   (if $execution_proxy_enabled then
+      .execution_proxy.release == $execution_proxy_release and
+      .execution_proxy.includes_state == true and
+      .execution_proxy.includes_ansible_content == true
+    else true end)' \
   /work/metadata/manifest.json >/dev/null
 
 manifest_request_id="$(jq -er '.request_id' /work/metadata/manifest.json)"
@@ -92,6 +100,10 @@ restic snapshots --json "${snapshot_id}" |
 require_snapshot_path /var/lib/foreman/avatars
 if [ "${PULP_STORAGE_BACKEND}" = filesystem ]; then
   require_snapshot_path /var/lib/pulp
+fi
+if [ "${EXECUTION_PROXY_RECOVERY_ENABLED}" = true ]; then
+  require_snapshot_path /var/lib/foreman-execution-proxy/state
+  require_snapshot_path /var/lib/foreman-execution-proxy/ansible
 fi
 
 if [ "${RESTORE_SECRETS}" = true ]; then
@@ -129,6 +141,16 @@ if [ "${PULP_STORAGE_BACKEND}" = filesystem ]; then
     --include '/var/lib/pulp/**'
 else
   log "Pulp objects are external; restore the bucket to the coordinated recovery point before leaving maintenance mode"
+fi
+
+if [ "${EXECUTION_PROXY_RECOVERY_ENABLED}" = true ]; then
+  log "Replacing execution proxy state and Ansible content from the selected recovery snapshot"
+  find /var/lib/foreman-execution-proxy/state -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+  find /var/lib/foreman-execution-proxy/ansible -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+  restic restore "${snapshot_id}" \
+    --target / \
+    --include '/var/lib/foreman-execution-proxy/state/**' \
+    --include '/var/lib/foreman-execution-proxy/ansible/**'
 fi
 
 restore_database Foreman /work/databases/foreman.dump \

@@ -522,6 +522,15 @@ recovery:
     # the node's safe ephemeral-storage allowance.
     existingClaim: ""
     sizeLimit: 20Gi
+  executionProxy:
+    # The guarded recovery helper derives these values from the separately
+    # rendered execution release. Set them explicitly only for a manual Helm
+    # recovery that coordinates both releases itself.
+    enabled: false
+    release: ""
+    stateClaim: ""
+    ansibleClaim: ""
+    secretNames: []
   activeDeadlineSeconds: 21600
   quiescenceTimeoutSeconds: 600
   extraSecretNames: []

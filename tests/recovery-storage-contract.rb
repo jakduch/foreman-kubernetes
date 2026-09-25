@@ -3,12 +3,13 @@
 
 require 'yaml'
 
-unless ARGV.length == 2 && %w[true false].include?(ARGV.fetch(1))
-  abort "usage: #{$PROGRAM_NAME} RENDERED_MANIFEST EXPECT_PULP_FILESYSTEM(true|false)"
+unless ARGV.length == 3 && ARGV.drop(1).all? { |value| %w[true false].include?(value) }
+  abort "usage: #{$PROGRAM_NAME} RENDERED_MANIFEST EXPECT_PULP_FILESYSTEM(true|false) EXPECT_EXECUTION_PROXY(true|false)"
 end
 
 documents = YAML.load_stream(File.read(ARGV.fetch(0))).compact
 expect_pulp = ARGV.fetch(1) == 'true'
+expect_execution = ARGV.fetch(2) == 'true'
 
 job = documents.find do |resource|
   resource['kind'] == 'Job' &&
@@ -28,6 +29,22 @@ abort 'Foreman avatar recovery volume is not a PVC' unless avatar_volume&.dig('p
 
 pulp_mounted = mounts.key?('pulp-data') && volumes.dig('pulp-data', 'persistentVolumeClaim', 'claimName')
 abort "Pulp recovery volume expectation differs: expected #{expect_pulp}, got #{!!pulp_mounted}" unless !!pulp_mounted == expect_pulp
+
+execution_state_mounted = mounts.dig('execution-proxy-state', 'mountPath') == '/var/lib/foreman-execution-proxy/state' &&
+                          volumes.dig('execution-proxy-state', 'persistentVolumeClaim', 'claimName') == 'execution-state'
+execution_ansible_mounted = mounts.dig('execution-proxy-ansible', 'mountPath') == '/var/lib/foreman-execution-proxy/ansible' &&
+                            volumes.dig('execution-proxy-ansible', 'persistentVolumeClaim', 'claimName') == 'execution-ansible'
+unless execution_state_mounted == expect_execution && execution_ansible_mounted == expect_execution
+  abort "execution recovery volume expectation differs: expected #{expect_execution}"
+end
+
+role = documents.find { |resource| resource['kind'] == 'Role' && resource.dig('metadata', 'name').to_s.end_with?('-recovery') }
+secret_names = Array(role&.dig('rules'))
+  .select { |rule| Array(rule['resources']).include?('secrets') }
+  .flat_map { |rule| Array(rule['resourceNames']) }
+if expect_execution && !%w[execution-ssh execution-tls].all? { |name| secret_names.include?(name) }
+  abort 'execution proxy Secrets are missing from encrypted escrow RBAC'
+end
 
 scripts = documents.find do |resource|
   resource['kind'] == 'ConfigMap' && resource.dig('metadata', 'name').to_s.end_with?('-recovery-scripts')
@@ -52,10 +69,15 @@ abort 'backup does not verify all three database dumps' unless backup.include?('
                                                          backup.include?('/work/databases/pulp.dump')
 abort 'backup reports completion before validation' unless backup.index('Validated encrypted recovery snapshot') <
                                                            backup.index('Recovery snapshot completed:')
-abort 'restore does not require the release-aware schema' unless restore.include?('.schema_version == "4"')
+abort 'restore does not require the release-aware schema' unless restore.include?('.schema_version == "5"')
 abort 'restore accepts a snapshot from another release set' unless restore.include?('.compatibility_set == $compatibility_set')
 abort 'restore does not bind the manifest request ID to the Restic tag' unless restore.include?('request-${manifest_request_id}')
 abort 'restore does not replace Foreman avatars' unless restore.include?("--include '/var/lib/foreman/avatars/**'")
+abort 'backup does not include execution state' unless backup.include?('/var/lib/foreman-execution-proxy/state')
+abort 'backup does not include execution Ansible content' unless backup.include?('/var/lib/foreman-execution-proxy/ansible')
+abort 'restore does not validate execution release identity' unless restore.include?('.execution_proxy.release == $execution_proxy_release')
+abort 'restore does not replace execution state' unless restore.include?("--include '/var/lib/foreman-execution-proxy/state/**'")
+abort 'restore does not replace execution Ansible content' unless restore.include?("--include '/var/lib/foreman-execution-proxy/ansible/**'")
 abort 'restore does not inspect snapshot contents' unless restore.include?('restic ls --json')
 validation_boundary = restore.index('Snapshot validation completed; starting destructive restore')
 avatar_deletion = restore.index('find /var/lib/foreman/avatars')
@@ -63,6 +85,8 @@ pulp_deletion = restore.index('find /var/lib/pulp')
 abort 'restore is missing the destructive validation boundary' unless validation_boundary
 abort 'restore validates the snapshot after deleting avatars' unless avatar_deletion && validation_boundary < avatar_deletion
 abort 'restore validates the snapshot after deleting Pulp data' unless pulp_deletion && validation_boundary < pulp_deletion
+execution_deletion = restore.index('find /var/lib/foreman-execution-proxy/state')
+abort 'restore validates the snapshot after deleting execution state' unless execution_deletion && validation_boundary < execution_deletion
 secret_validation = restore.index('Secret escrow manifest is incomplete')
 abort 'restore validates Secret escrow after destructive changes' unless secret_validation && secret_validation < validation_boundary
 integrity_validation = restore.index('verify_recovery_integrity')
@@ -75,4 +99,4 @@ abort 'recovery ignores terminating writers' if common.include?('.metadata.delet
 abort 'recovery does not ignore successful Jobs' unless common.include?('(.status.phase // "") != "Succeeded"')
 abort 'recovery does not ignore failed Jobs' unless common.include?('(.status.phase // "") != "Failed"')
 
-puts "Recovery storage includes avatars; Pulp filesystem mounted=#{expect_pulp}."
+puts "Recovery storage includes avatars; Pulp filesystem mounted=#{expect_pulp}; execution proxy mounted=#{expect_execution}."

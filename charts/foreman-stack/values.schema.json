@@ -646,7 +646,7 @@
     "recovery": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["image", "repository", "work", "activeDeadlineSeconds", "quiescenceTimeoutSeconds", "extraSecretNames", "resources"],
+      "required": ["image", "repository", "work", "executionProxy", "activeDeadlineSeconds", "quiescenceTimeoutSeconds", "extraSecretNames", "resources"],
       "properties": {
         "image": { "$ref": "#/definitions/recoveryImage" },
         "repository": {
@@ -665,6 +665,35 @@
             "existingClaim": { "type": "string" },
             "sizeLimit": { "type": "string", "pattern": "^[1-9][0-9]*(Ei|Pi|Ti|Gi|Mi|Ki)$" }
           }
+        },
+        "executionProxy": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["enabled", "release", "stateClaim", "ansibleClaim", "secretNames"],
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "release": { "type": "string", "maxLength": 63 },
+            "stateClaim": { "type": "string", "maxLength": 253 },
+            "ansibleClaim": { "type": "string", "maxLength": 253 },
+            "secretNames": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1, "maxLength": 253 },
+              "uniqueItems": true
+            }
+          },
+          "allOf": [
+            {
+              "if": { "properties": { "enabled": { "const": true } } },
+              "then": {
+                "properties": {
+                  "release": { "minLength": 1 },
+                  "stateClaim": { "minLength": 1 },
+                  "ansibleClaim": { "minLength": 1 },
+                  "secretNames": { "minItems": 1 }
+                }
+              }
+            }
+          ]
         },
         "activeDeadlineSeconds": { "type": "integer", "minimum": 300 },
         "quiescenceTimeoutSeconds": { "type": "integer", "minimum": 30 },

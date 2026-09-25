@@ -42,8 +42,9 @@
   Pods only after the next migration succeeds.
 - One-shot, maintenance-gated recovery Jobs produce encrypted Restic snapshots
   of all three databases, Foreman's LDAP avatars, Pulp filesystem storage, and
-  application Secrets. The guarded path stops application dispatchers and the
-  paired execution proxy before a Job can access that recovery set.
+  both releases' Secrets plus execution Dynflow/runner and Ansible-content
+  claims. The guarded path stops application dispatchers and the paired
+  execution proxy before a Job can access that recovery set.
 - Restore requires an explicit confirmation value, validates snapshot identity
   and contents before deletion, and keeps recovery RBAC separate from runtime
   ServiceAccounts.

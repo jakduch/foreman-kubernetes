@@ -41,6 +41,29 @@ if [[ "$1" == template && "$2" == foreman ]]; then
     printf '%s\n' 'apiVersion: apps/v1' 'kind: Deployment' 'metadata:' '  name: foreman'
   fi
 fi
+if [[ "$1" == template && "$2" == execution && "$*" != *'maintenance.enabled=true'* ]]; then
+  cat <<'YAML'
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: execution
+  labels:
+    app.kubernetes.io/component: execution-proxy
+spec:
+  template:
+    spec:
+      volumes:
+        - name: state
+          persistentVolumeClaim:
+            claimName: execution-state
+        - name: ansible-content
+          persistentVolumeClaim:
+            claimName: execution-ansible
+        - name: server-tls
+          secret:
+            secretName: execution-tls
+YAML
+fi
 SCRIPT
 
 cat > "${fake_bin}/kubectl" <<'SCRIPT'
@@ -99,6 +122,7 @@ application_normal='--set maintenance.enabled=false --set backup.enabled=false -
 execution_maintenance='--set maintenance.enabled=true --set smokeTest.enabled=false'
 execution_normal='--set maintenance.enabled=false'
 grep -Fq -- '--set backup.enabled=true --set-string backup.requestId=request-1 --set backup.initializeRepository=true' "${tool_log}"
+grep -Fq -- '--set recovery.executionProxy.enabled=true --set-string recovery.executionProxy.release=execution --set-string recovery.executionProxy.stateClaim=execution-state --set-string recovery.executionProxy.ansibleClaim=execution-ansible --set-json recovery.executionProxy.secretNames=["execution-tls"]' "${tool_log}"
 grep -Fq -- "${application_normal}" "${tool_log}"
 grep -Fq -- "${execution_maintenance}" "${tool_log}"
 grep -Fq 'kubectl --namespace foreman apply --dry-run=server --filename -' "${tool_log}"

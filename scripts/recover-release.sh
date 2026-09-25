@@ -213,6 +213,18 @@ execution_normal_resources="$(helm template "${execution_release}" "${repo_root}
   --values "${execution_values}" \
   --values "${execution_profile}" \
   "${execution_normal_arguments[@]}")"
+if [[ "${operation}" != resume ]]; then
+  execution_recovery_inputs="$(ruby "${repo_root}/scripts/execution-recovery-inputs.rb" \
+    <<<"${execution_normal_resources}")" || \
+    fail 'cannot derive execution proxy recovery inputs from its rendered release'
+  recovery_arguments+=(
+    --set recovery.executionProxy.enabled=true
+    --set-string "recovery.executionProxy.release=${execution_release}"
+    --set-string "recovery.executionProxy.stateClaim=$(jq --exit-status --raw-output '.stateClaim' <<<"${execution_recovery_inputs}")"
+    --set-string "recovery.executionProxy.ansibleClaim=$(jq --exit-status --raw-output '.ansibleClaim' <<<"${execution_recovery_inputs}")"
+    --set-json "recovery.executionProxy.secretNames=$(jq --compact-output '.secretNames' <<<"${execution_recovery_inputs}")"
+  )
+fi
 normal_resources="$(printf '%s\n---\n%s\n' \
   "${application_normal_resources}" "${execution_normal_resources}")"
 

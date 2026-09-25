@@ -11,6 +11,7 @@ rendered_execution_registration="$(mktemp)"
 rendered_ingress_overrides="$(mktemp)"
 rendered_minimal_pulp_ingress="$(mktemp)"
 rendered_backup="$(mktemp)"
+rendered_backup_execution="$(mktemp)"
 rendered_restore="$(mktemp)"
 rendered_egress="$(mktemp)"
 rendered_egress_backup="$(mktemp)"
@@ -50,7 +51,7 @@ rendered_scheduled_stack="$(mktemp)"
 rendered_scheduled_backup="$(mktemp)"
 rendered_scheduled_execution="$(mktemp)"
 rendered_scheduled_operator="$(mktemp)"
-trap 'rm -f "${rendered}" "${rendered_ingress}" "${rendered_execution_registration}" "${rendered_ingress_overrides}" "${rendered_minimal_pulp_ingress}" "${rendered_backup}" "${rendered_restore}" "${rendered_egress}" "${rendered_egress_backup}" "${rendered_egress_backup_local}" "${rendered_singletons}" "${rendered_ha}" "${rendered_candlepin_port}" "${rendered_foreman_service_port}" "${rendered_foreman_secret_contract}" "${rendered_database_tls_disabled}" "${rendered_image_pull_secrets}" "${rendered_no_migrations}" "${rendered_release_operation}" "${rendered_release_application}" "${rendered_manual_migration_stage}" "${rendered_secret_rotation}" "${rendered_monitoring}" "${rendered_monitoring_maintenance}" "${rendered_s3}" "${rendered_azure_identity}" "${rendered_s3_backup}" "${rendered_smtp}" "${rendered_smtp_backup}" "${rendered_kind}" "${rendered_kind_backup}" "${rendered_execution}" "${rendered_execution_egress}" "${rendered_execution_kind}" "${rendered_execution_operation}" "${rendered_execution_secret_rotation}" "${rendered_execution_monitoring}" "${rendered_execution_maintenance}" "${rendered_operator}" "${rendered_operator_monitoring}" "${rendered_operator_egress}" "${rendered_scheduled_stack}" "${rendered_scheduled_backup}" "${rendered_scheduled_execution}" "${rendered_scheduled_operator}"' EXIT
+trap 'rm -f "${rendered}" "${rendered_ingress}" "${rendered_execution_registration}" "${rendered_ingress_overrides}" "${rendered_minimal_pulp_ingress}" "${rendered_backup}" "${rendered_backup_execution}" "${rendered_restore}" "${rendered_egress}" "${rendered_egress_backup}" "${rendered_egress_backup_local}" "${rendered_singletons}" "${rendered_ha}" "${rendered_candlepin_port}" "${rendered_foreman_service_port}" "${rendered_foreman_secret_contract}" "${rendered_database_tls_disabled}" "${rendered_image_pull_secrets}" "${rendered_no_migrations}" "${rendered_release_operation}" "${rendered_release_application}" "${rendered_manual_migration_stage}" "${rendered_secret_rotation}" "${rendered_monitoring}" "${rendered_monitoring_maintenance}" "${rendered_s3}" "${rendered_azure_identity}" "${rendered_s3_backup}" "${rendered_smtp}" "${rendered_smtp_backup}" "${rendered_kind}" "${rendered_kind_backup}" "${rendered_execution}" "${rendered_execution_egress}" "${rendered_execution_kind}" "${rendered_execution_operation}" "${rendered_execution_secret_rotation}" "${rendered_execution_monitoring}" "${rendered_execution_maintenance}" "${rendered_operator}" "${rendered_operator_monitoring}" "${rendered_operator_egress}" "${rendered_scheduled_stack}" "${rendered_scheduled_backup}" "${rendered_scheduled_execution}" "${rendered_scheduled_operator}"' EXIT
 
 ruby "${repo_root}/tests/yaml-duplicates.rb"
 ruby "${repo_root}/tests/workflow-action-pins.rb" "${repo_root}/.github/workflows"
@@ -243,6 +244,17 @@ helm template test "${chart}" \
 helm template test "${chart}" \
   --values "${repo_root}/profiles/nightly-candidate-2026-09-23.yaml" \
   --values "${repo_root}/tests/recovery-image-values.yaml" \
+  --set maintenance.enabled=true \
+  --set backup.enabled=true \
+  --set backup.requestId=execution-data \
+  --set recovery.executionProxy.enabled=true \
+  --set-string recovery.executionProxy.release=execution \
+  --set-string recovery.executionProxy.stateClaim=execution-state \
+  --set-string recovery.executionProxy.ansibleClaim=execution-ansible \
+  --set-json 'recovery.executionProxy.secretNames=["execution-tls","execution-ssh"]' > "${rendered_backup_execution}"
+helm template test "${chart}" \
+  --values "${repo_root}/profiles/nightly-candidate-2026-09-23.yaml" \
+  --values "${repo_root}/tests/recovery-image-values.yaml" \
   --values "${repo_root}/tests/scheduling-values.yaml" \
   --set maintenance.enabled=true \
   --set backup.enabled=true \
@@ -427,9 +439,10 @@ ruby "${repo_root}/tests/scheduling-contract.rb" \
   "${rendered_scheduled_stack}" "${rendered_scheduled_backup}" \
   "${rendered_scheduled_execution}" "${rendered_scheduled_operator}"
 ruby "${repo_root}/tests/smtp-contract.rb" "${rendered_smtp}" "${rendered_smtp_backup}"
-ruby "${repo_root}/tests/recovery-storage-contract.rb" "${rendered_backup}" true
-ruby "${repo_root}/tests/recovery-storage-contract.rb" "${rendered_restore}" true
-ruby "${repo_root}/tests/recovery-storage-contract.rb" "${rendered_s3_backup}" false
+ruby "${repo_root}/tests/recovery-storage-contract.rb" "${rendered_backup}" true false
+ruby "${repo_root}/tests/recovery-storage-contract.rb" "${rendered_backup_execution}" true true
+ruby "${repo_root}/tests/recovery-storage-contract.rb" "${rendered_restore}" true false
+ruby "${repo_root}/tests/recovery-storage-contract.rb" "${rendered_s3_backup}" false false
 ruby "${repo_root}/tests/secret-rollout-contract.rb" "${rendered}" "${rendered_secret_rotation}"
 
 ruby "${repo_root}/tests/kubernetes-invariants.rb" "${rendered_execution}"
@@ -464,7 +477,16 @@ ruby "${repo_root}/tests/workload-monitoring-contract.rb" \
   "${rendered_execution_maintenance}"
 ruby "${repo_root}/tests/execution-maintenance-contract.rb" \
   "${rendered_execution}" "${rendered_execution_maintenance}"
+execution_recovery_inputs="$(ruby "${repo_root}/scripts/execution-recovery-inputs.rb" < "${rendered_execution}")"
+jq --exit-status '
+  .stateClaim == "execution-foreman-execution-proxy-state" and
+  .ansibleClaim == "execution-foreman-execution-proxy-ansible" and
+  (.secretNames | index("foreman-execution-proxy-tls")) != null and
+  (.secretNames | index("foreman-execution-proxy-ssh")) != null and
+  (.secretNames | index("foreman-execution-proxy-known-hosts")) != null
+' <<<"${execution_recovery_inputs}" >/dev/null
 ruby -c "${execution_chart}/files/check-features.rb"
+ruby -c "${repo_root}/scripts/execution-recovery-inputs.rb"
 
 grep -q 'name: FOREMAN_PROXY_ENABLED_PLUGINS' "${rendered_execution}"
 grep -A1 'command:' "${rendered_execution}" | grep -q '/usr/share/foreman-proxy/bin/smart-proxy'

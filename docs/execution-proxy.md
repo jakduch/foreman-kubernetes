@@ -41,14 +41,18 @@ The replica count is fixed to one. This is intentional, not a missing HPA:
 The state PVC contains the Dynflow database plus REx and Ansible runner working
 directories. `Recreate` prevents two pods from owning it during a rollout. A
 restart can retain the Dynflow plan and runner files, but site-loss recovery of
-an in-flight command is not yet claimed. Treat Foreman as the job source of
-truth and retry interrupted jobs after validating their target-side effects.
+an in-flight command is not yet claimed. The platform recovery set does include
+this state claim, the Ansible content claim, and all external Secrets referenced
+by the execution release once the proxy is stopped. Restoring those files
+recovers the control-plane inputs; it cannot prove whether a remote command
+completed while connectivity was lost. Treat Foreman as the job source of truth
+and retry interrupted jobs only after validating their target-side effects.
 During an application backup or restore, the guarded recovery helper first
 stops application dispatchers and then sets `maintenance.enabled=true` on this
 release. Maintenance removes the executor Deployment and smoke Job while
 retaining its Service, identity, configuration, network isolation, and both
 PVCs. The helper waits for the old Pod to disappear before the application
-recovery Job may run. A failed recovery leaves the proxy stopped; use the same
+recovery Job mounts and captures those claims. A failed recovery leaves the proxy stopped; use the same
 guarded `recover-release.sh resume` path to restart the application and then
 the proxy.
 Use `scheduling.nodeSelector` and `scheduling.tolerations` when these RWO claims

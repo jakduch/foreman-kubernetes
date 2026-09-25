@@ -251,9 +251,10 @@ the guarded scripts.
 Maintenance-gated recovery Jobs stop all application database writers and the
 paired execution proxy before making a logical dump of each database and an
 encrypted Restic snapshot of application Secrets plus Pulp filesystem storage
-when that backend is selected. S3 objects remain under the bucket operator's
-versioning, replication, and recovery policy. Their lifecycle and external
-ownership boundaries are defined in
+when that backend is selected. The same snapshot contains execution Dynflow
+and runner state, immutable Ansible content, and execution identity Secrets.
+S3 objects remain under the bucket operator's versioning, replication, and
+recovery policy. Their lifecycle and external ownership boundaries are defined in
 [`disaster-recovery.md`](disaster-recovery.md).
 
 ## Network services

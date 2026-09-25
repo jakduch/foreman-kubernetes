@@ -5,6 +5,9 @@
 {{- if and (not .Values.recovery.image.allowMutableTagForTesting) (not (regexMatch "@sha256:[0-9a-f]{64}$" .Values.recovery.image.tag)) }}
 {{- fail "recovery.image.tag must end with an immutable @sha256 digest" }}
 {{- end }}
+{{- if and .Values.recovery.executionProxy.enabled (eq .Values.recovery.executionProxy.stateClaim .Values.recovery.executionProxy.ansibleClaim) }}
+{{- fail "recovery.executionProxy stateClaim and ansibleClaim must be distinct" }}
+{{- end }}
 {{- $root := . -}}
 {{- $operation := ternary "backup" "restore" .Values.backup.enabled -}}
 {{- $requestId := ternary .Values.backup.requestId .Values.restore.requestId .Values.backup.enabled -}}
@@ -54,6 +57,11 @@
 {{- end }}
 {{- range .Values.recovery.extraSecretNames }}
 {{- $secretNames = append $secretNames . }}
+{{- end }}
+{{- if .Values.recovery.executionProxy.enabled }}
+{{- range .Values.recovery.executionProxy.secretNames }}
+{{- $secretNames = append $secretNames . }}
+{{- end }}
 {{- end }}
 {{- $secretNames = uniq $secretNames | sortAlpha }}
 apiVersion: v1
@@ -230,6 +238,12 @@ spec:
             {{- end }}
             - name: PULP_STORAGE_BACKEND
               value: {{ .Values.pulp.storage.backend | quote }}
+            - name: EXECUTION_PROXY_RECOVERY_ENABLED
+              value: {{ .Values.recovery.executionProxy.enabled | quote }}
+            {{- if .Values.recovery.executionProxy.enabled }}
+            - name: EXECUTION_PROXY_RELEASE
+              value: {{ .Values.recovery.executionProxy.release | quote }}
+            {{- end }}
             - name: RESTIC_CACHE_DIR
               value: /tmp/restic-cache
             {{- if .Values.recovery.repository.existingClaim }}
@@ -284,6 +298,12 @@ spec:
             - name: pulp-data
               mountPath: /var/lib/pulp
             {{- end }}
+            {{- if .Values.recovery.executionProxy.enabled }}
+            - name: execution-proxy-state
+              mountPath: /var/lib/foreman-execution-proxy/state
+            - name: execution-proxy-ansible
+              mountPath: /var/lib/foreman-execution-proxy/ansible
+            {{- end }}
             {{- if .Values.recovery.repository.existingClaim }}
             - name: recovery-repository
               mountPath: {{ .Values.recovery.repository.path }}
@@ -325,6 +345,14 @@ spec:
         - name: pulp-data
           persistentVolumeClaim:
             claimName: {{ default (printf "%s-pulp" (include "foreman-stack.fullname" .)) .Values.pulp.storage.existingClaim }}
+        {{- end }}
+        {{- if .Values.recovery.executionProxy.enabled }}
+        - name: execution-proxy-state
+          persistentVolumeClaim:
+            claimName: {{ .Values.recovery.executionProxy.stateClaim }}
+        - name: execution-proxy-ansible
+          persistentVolumeClaim:
+            claimName: {{ .Values.recovery.executionProxy.ansibleClaim }}
         {{- end }}
         {{- if .Values.recovery.repository.existingClaim }}
         - name: recovery-repository
