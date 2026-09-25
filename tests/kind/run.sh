@@ -17,6 +17,9 @@ content_lifecycle_state="${temporary_directory}/content-lifecycle.json"
 foreman_database_url_backup=""
 application_secret_rollout_token=initial
 execution_secret_rollout_token=initial
+recovery_allow_candidate=0
+recovery_application_profile_override=""
+recovery_execution_profile_override=""
 
 helm_apply() {
   local operation_id
@@ -75,6 +78,25 @@ helm_execution_apply() {
     --wait \
     --timeout 15m \
     "$@"
+}
+
+run_recovery() {
+  local operation="$1"
+  local request_id="$2"
+
+  ALLOW_CANDIDATE="${recovery_allow_candidate}" \
+    COMPATIBILITY_SET="${compatibility_set}" \
+    NAMESPACE="${namespace}" \
+    INITIALIZE_REPOSITORY="$([[ "${operation}" == backup ]] && echo 1 || echo 0)" \
+    RESTORE_SECRETS="$([[ "${operation}" == restore ]] && echo 1 || echo 0)" \
+    BOOTSTRAP_RESTORE="$([[ "${operation}" == restore ]] && echo 1 || echo 0)" \
+    APPLICATION_PROFILE_OVERRIDE="${recovery_application_profile_override}" \
+    EXECUTION_PROXY_PROFILE_OVERRIDE="${recovery_execution_profile_override}" \
+    "${repo_root}/scripts/recover-release.sh" \
+      "${operation}" \
+      "${repo_root}/tests/kind/values.yaml" \
+      "${repo_root}/tests/kind/execution-proxy-values.yaml" \
+      "${request_id}"
 }
 
 foreman_pod() {
@@ -345,6 +367,42 @@ assert_avatar_probe() {
   fi
 }
 
+set_execution_state_probe() {
+  local expected_value="$1"
+
+  # The inner shell expands its positional argument inside the container.
+  # shellcheck disable=SC2016
+  kubectl --namespace "${namespace}" exec \
+    deployment/execution-foreman-execution-proxy -- \
+    sh -c 'printf "%s\n" "$1" > /var/lib/foreman-proxy/recovery-probe' \
+    sh "${expected_value}"
+}
+
+assert_execution_state_probe() {
+  local expected_value="$1"
+  local actual_value
+
+  actual_value="$(
+    kubectl --namespace "${namespace}" exec \
+      deployment/execution-foreman-execution-proxy -- \
+      sh -c 'cat /var/lib/foreman-proxy/recovery-probe'
+  )"
+  if [[ "${actual_value}" != "${expected_value}" ]]; then
+    echo "Execution proxy recovery probe is '${actual_value}', expected '${expected_value}'" >&2
+    exit 1
+  fi
+}
+
+assert_ansible_content_revision() {
+  local expected_revision="$1"
+
+  kubectl --namespace "${namespace}" exec \
+    deployment/execution-foreman-execution-proxy -- \
+    grep -Fxq \
+      "foreman_kubernetes_content_revision: \"${expected_revision}\"" \
+      /etc/ansible/roles/foreman_kubernetes_test/defaults/main.yml
+}
+
 assert_shared_foreman_tmp() {
   kubectl --namespace "${namespace}" exec "$(foreman_pod)" -- \
     sh -c 'printf "%s\n" shared-between-pods > /usr/share/foreman/tmp/shared-volume-probe'
@@ -402,6 +460,8 @@ assert_database_probes_absent() {
 }
 
 install_dependencies() {
+  local ansible_revision="${1:-v1}"
+
   kubectl create namespace "${namespace}" --dry-run=client --output=yaml | kubectl apply --filename=-
   kubectl apply --filename="${repo_root}/tests/kind/dependencies.yaml"
   kubectl --namespace "${namespace}" rollout status deployment/postgresql --timeout=5m
@@ -410,7 +470,7 @@ install_dependencies() {
   kubectl --namespace "${namespace}" rollout status deployment/content-source --timeout=5m
   "${repo_root}/tests/kind/apply-secrets.sh" "${temporary_directory}"
   kubectl apply --filename="${repo_root}/tests/kind/execution-target.yaml"
-  "${repo_root}/tests/kind/publish-ansible-content.sh" v1
+  "${repo_root}/tests/kind/publish-ansible-content.sh" "${ansible_revision}"
   kubectl --namespace "${namespace}" rollout status deployment/execution-target --timeout=5m
 }
 
@@ -648,7 +708,7 @@ reset_namespace_for_restore() {
     -exec rm -rf -- '{}' +
   docker exec "${kind_node}" test -f /var/local/foreman-kind-recovery/config
 
-  install_dependencies
+  install_dependencies v2
   set_secret_probe after-reset
   assert_secret_probe after-reset
   assert_database_probes_absent
@@ -685,6 +745,10 @@ if [[ -n "${image_profile}" && -z "${execution_proxy_image_profile}" ]] ||
   echo 'IMAGE_PROFILE and EXECUTION_PROXY_IMAGE_PROFILE must be overridden together' >&2
   exit 1
 fi
+if [[ -n "${image_profile}" ]]; then
+  recovery_application_profile_override="${image_profile}"
+  recovery_execution_profile_override="${execution_proxy_image_profile}"
+fi
 
 if [[ -z "${compatibility_set}" ]]; then
   compatibility_set="$(jq --exit-status --raw-output '.default' \
@@ -694,6 +758,11 @@ if ! jq --exit-status --arg set "${compatibility_set}" \
   '.sets[$set]' "${compatibility_sets_file}" >/dev/null; then
   echo "unknown compatibility set: ${compatibility_set}" >&2
   exit 1
+fi
+if [[ "$(jq --exit-status --raw-output \
+  --arg set "${compatibility_set}" '.sets[$set].status' \
+  "${compatibility_sets_file}")" == candidate ]]; then
+  recovery_allow_candidate=1
 fi
 
 if [[ -z "${image_profile}" ]]; then
@@ -799,15 +868,11 @@ if [[ "${skip_recovery_test}" != 1 ]]; then
   set_database_probes before-backup
   set_pulp_probe before-backup
   set_avatar_probe before-backup
+  set_execution_state_probe before-backup
+  assert_ansible_content_revision v1
   assert_secret_probe before-backup
 
-  helm_apply \
-    --set maintenance.enabled=true \
-    --set backup.enabled=true \
-    --set backup.requestId=e2e-backup \
-    --set backup.initializeRepository=true
-
-  helm_apply
+  run_recovery backup e2e-backup
 
   set_database_probes after-backup
   set_pulp_probe after-backup
@@ -816,20 +881,13 @@ if [[ "${skip_recovery_test}" != 1 ]]; then
   assert_database_probes after-backup
   assert_pulp_probe after-backup
   assert_avatar_probe after-backup
+  assert_execution_state_probe before-backup
+  assert_ansible_content_revision v1
   assert_secret_probe after-backup
 
   reset_namespace_for_restore
 
-  helm_apply \
-    --set maintenance.enabled=true \
-    --set restore.enabled=true \
-    --set restore.requestId=e2e-restore \
-    --set restore.snapshot=latest \
-    --set restore.secrets=true \
-    --set restore.confirmation=RESTORE
-
-  helm_apply
-  helm_execution_apply
+  run_recovery restore e2e-restore
 
   assert_foreman_ready
   assert_candlepin_ha
@@ -840,6 +898,8 @@ if [[ "${skip_recovery_test}" != 1 ]]; then
   assert_database_probes before-backup
   assert_pulp_probe before-backup
   assert_avatar_probe before-backup
+  assert_execution_state_probe before-backup
+  assert_ansible_content_revision v1
   assert_secret_probe before-backup
   assert_execution_plane
 fi

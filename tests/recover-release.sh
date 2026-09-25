@@ -7,6 +7,8 @@ fake_bin="${temporary_directory}/bin"
 tool_log="${temporary_directory}/tools.log"
 application_values="${temporary_directory}/application.yaml"
 execution_values="${temporary_directory}/execution.yaml"
+application_profile_override="${temporary_directory}/application-profile.yaml"
+execution_profile_override="${temporary_directory}/execution-profile.yaml"
 
 cleanup() {
   rm -rf "${temporary_directory}"
@@ -16,6 +18,8 @@ trap cleanup EXIT
 mkdir -p "${fake_bin}"
 : > "${application_values}"
 : > "${execution_values}"
+: > "${application_profile_override}"
+: > "${execution_profile_override}"
 : > "${tool_log}"
 export RELEASE_HOLDER_ID=test-recovery-holder
 
@@ -98,6 +102,21 @@ fi
 : > "${tool_log}"
 if PATH="${fake_bin}:${PATH}" \
   FAKE_TOOL_LOG="${tool_log}" \
+  ALLOW_CANDIDATE=1 \
+  APPLICATION_PROFILE_OVERRIDE="${application_profile_override}" \
+  "${repo_root}/scripts/recover-release.sh" backup \
+    "${application_values}" "${execution_values}" request-pair >/dev/null 2>&1; then
+  echo 'recovery accepted only one qualification profile override' >&2
+  exit 1
+fi
+if [[ -s "${tool_log}" ]]; then
+  echo 'incomplete recovery profile override invoked cluster tools' >&2
+  exit 1
+fi
+
+: > "${tool_log}"
+if PATH="${fake_bin}:${PATH}" \
+  FAKE_TOOL_LOG="${tool_log}" \
   FAKE_EXECUTION_SET='previous-set' \
   ALLOW_CANDIDATE=1 \
   "${repo_root}/scripts/recover-release.sh" backup \
@@ -114,6 +133,8 @@ fi
 PATH="${fake_bin}:${PATH}" \
   FAKE_TOOL_LOG="${tool_log}" \
   ALLOW_CANDIDATE=1 \
+  APPLICATION_PROFILE_OVERRIDE="${application_profile_override}" \
+  EXECUTION_PROXY_PROFILE_OVERRIDE="${execution_profile_override}" \
   INITIALIZE_REPOSITORY=1 \
   "${repo_root}/scripts/recover-release.sh" backup \
     "${application_values}" "${execution_values}" request-1 >/dev/null
@@ -125,6 +146,8 @@ application_normal='--set maintenance.enabled=false --set backup.enabled=false -
 execution_maintenance='--set maintenance.enabled=true --set smokeTest.enabled=false'
 execution_normal='--set maintenance.enabled=false'
 grep -Fq -- '--set backup.enabled=true --set-string backup.requestId=request-1 --set backup.initializeRepository=true' "${tool_log}"
+grep -Fq -- "--values ${application_profile_override}" "${tool_log}"
+grep -Fq -- "--values ${execution_profile_override}" "${tool_log}"
 grep -Fq -- '--set recovery.executionProxy.enabled=true --set-string recovery.executionProxy.release=execution --set-string recovery.executionProxy.stateClaim=execution-state --set-string recovery.executionProxy.ansibleClaim=execution-ansible --set-json recovery.executionProxy.secretNames=["execution-tls"]' "${tool_log}"
 grep -Fq -- "${application_normal}" "${tool_log}"
 grep -Fq -- "${execution_maintenance}" "${tool_log}"

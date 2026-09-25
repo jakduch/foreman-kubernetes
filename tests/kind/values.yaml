@@ -30,6 +30,13 @@ valkey:
 
 foreman:
   replicas: 1
+  pluginPolicy:
+    allowUnverified: true
+  enabledPlugins:
+    - foreman-tasks
+    - katello
+    - foreman_remote_execution
+    - foreman_ansible
   existingDatabaseCaSecret: ""
   database:
     sslMode: disable

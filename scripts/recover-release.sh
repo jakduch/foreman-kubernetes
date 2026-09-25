@@ -38,6 +38,8 @@ execution_release="${EXECUTION_RELEASE:-execution}"
 compatibility_sets_file="${repo_root}/compatibility/release-sets.json"
 compatibility_set="${COMPATIBILITY_SET:-}"
 allow_candidate="${ALLOW_CANDIDATE:-0}"
+application_profile_override="${APPLICATION_PROFILE_OVERRIDE:-}"
+execution_profile_override="${EXECUTION_PROXY_PROFILE_OVERRIDE:-}"
 recovery_timeout="${RECOVERY_TIMEOUT:-6h}"
 resume_timeout="${RESUME_TIMEOUT:-30m}"
 smoke_timeout="${SMOKE_TIMEOUT:-10m}"
@@ -115,10 +117,21 @@ case "${release_set_status}" in
   *) fail "unsupported compatibility-set state: ${release_set_status}" ;;
 esac
 
-application_profile="${repo_root}/$(jq --exit-status --raw-output \
-  '.applicationProfile' <<<"${release_set}")"
-execution_profile="${repo_root}/$(jq --exit-status --raw-output \
-  '.executionProxyProfile' <<<"${release_set}")"
+if [[ -n "${application_profile_override}" || -n "${execution_profile_override}" ]]; then
+  if [[ -z "${application_profile_override}" || -z "${execution_profile_override}" ]]; then
+    fail 'APPLICATION_PROFILE_OVERRIDE and EXECUTION_PROXY_PROFILE_OVERRIDE must be supplied together'
+  fi
+  if [[ "${release_set_status}" != candidate || "${allow_candidate}" != 1 ]]; then
+    fail 'recovery profile overrides are allowed only while explicitly qualifying a candidate set'
+  fi
+  application_profile="${application_profile_override}"
+  execution_profile="${execution_profile_override}"
+else
+  application_profile="${repo_root}/$(jq --exit-status --raw-output \
+    '.applicationProfile' <<<"${release_set}")"
+  execution_profile="${repo_root}/$(jq --exit-status --raw-output \
+    '.executionProxyProfile' <<<"${release_set}")"
+fi
 [[ -f "${application_profile}" ]] || fail "application profile does not exist: ${application_profile}"
 [[ -f "${execution_profile}" ]] || fail "execution profile does not exist: ${execution_profile}"
 

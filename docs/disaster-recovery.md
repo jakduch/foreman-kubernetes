@@ -250,8 +250,12 @@ scripts/recover-release.sh resume \
 `ALLOW_CANDIDATE`, `COMPATIBILITY_SET`, the release/namespace overrides, and
 the shared `RELEASE_LEASE_*` settings have the same meaning as in the install
 and upgrade helpers. `RECOVERY_TIMEOUT`, `RESUME_TIMEOUT`, and `SMOKE_TIMEOUT`
-control their respective waits. `BOOTSTRAP_RESTORE=1` is accepted only by the
-restore operation and only when both Helm releases are absent.
+control their respective waits. Candidate qualification may additionally pass
+`APPLICATION_PROFILE_OVERRIDE` and `EXECUTION_PROXY_PROFILE_OVERRIDE`
+together. A single override and overrides of supported releases are rejected,
+so production recovery remains bound to its declared digest-pinned set.
+`BOOTSTRAP_RESTORE=1` is accepted only by the restore operation and only when
+both Helm releases are absent.
 
 ## Required recovery drill
 
