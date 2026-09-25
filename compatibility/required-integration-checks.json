@@ -17,6 +17,7 @@
     "pulp-s3-version-recovery",
     "pulp-debian-lifecycle",
     "pulp-python-lifecycle",
+    "pulp-rpm-lifecycle",
     "pulp-api-content-request-continuity",
     "rex-success-failure-cancel",
     "proxy-interruption",

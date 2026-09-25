@@ -142,7 +142,9 @@ after clean-namespace
 recovery. The same lifecycle now creates an unsigned deterministic APT
 repository, synchronizes its Debian package through Katello, includes it in the
 published Content View, and verifies both the library and published package
-after clean recovery. Both plugin statuses remain
+after clean recovery. A minimal repository built from Katello's own `squirrel`
+RPM fixture now covers the same synchronization, publication, metadata, and
+recovery boundary for RPM content. All three plugin statuses remain
 `integration-drill-implemented-unrun` until the complete amd64 drill passes; a
 package and a correct route alone are not support evidence.
 

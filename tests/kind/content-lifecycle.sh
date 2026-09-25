@@ -18,6 +18,12 @@ python_package_filename="foreman_kubernetes_pkg-1.0.0.tar.gz"
 deb_package_name="foreman-kubernetes-deb"
 deb_package_version="1.0.0"
 deb_package_filename="foreman-kubernetes-deb_1.0.0_all.deb"
+rpm_package_name="squirrel"
+rpm_package_version="0.3"
+rpm_package_release="0.8"
+rpm_package_arch="noarch"
+rpm_package_filename="squirrel-0.3-0.8.noarch.rpm"
+rpm_package_checksum="251768bdd15f13d78487c27638aa6aecd01551e253756093cde1c0ae878a17d2"
 
 foreman_pod() {
   kubectl --namespace "${namespace}" get pod \
@@ -168,6 +174,7 @@ seed_content_lifecycle() {
   local published_python_repository_id
   local published_python_relative_path
   local published_deb_repository_id
+  local published_rpm_repository_id
   local published_repository
   local published_repository_id
   local published_relative_path
@@ -179,6 +186,9 @@ seed_content_lifecycle() {
   local relative_path
   local repository
   local repository_id
+  local rpm_packages
+  local rpm_repository
+  local rpm_repository_id
   local sync_task
 
   organization="$(foreman_api POST /katello/api/organizations \
@@ -291,17 +301,58 @@ seed_content_lifecycle() {
     "${deb_package_filename}" "synced Debian package filename"
   deb_package_checksum="$(jq --exit-status --raw-output '.results[0].checksum' <<<"${deb_packages}")"
 
+  rpm_repository="$(foreman_api POST /katello/api/repositories "$(
+    jq --compact-output --null-input --argjson product_id "${product_id}" '{
+      product_id: $product_id,
+      repository: {
+        name: "Kubernetes Integration RPM",
+        label: "Kubernetes_Integration_RPM",
+        content_type: "yum",
+        download_policy: "immediate",
+        mirroring_policy: "additive",
+        url: "http://content-source.foreman.svc.cluster.local/rpm/"
+      }
+    }'
+  )")"
+  rpm_repository_id="$(jq --exit-status --raw-output '.id' <<<"${rpm_repository}")"
+
+  sync_task="$(foreman_api POST "/katello/api/repositories/${rpm_repository_id}/sync" '{}')"
+  wait_for_task "$(task_id_from <<<"${sync_task}")"
+
+  rpm_packages="$(foreman_api GET \
+    "/katello/api/repositories/${rpm_repository_id}/packages?per_page=all")"
+  assert_equal "$(jq --raw-output '.total' <<<"${rpm_packages}")" "1" \
+    "synced RPM package count"
+  assert_equal "$(jq --exit-status --raw-output '.results[0].name' <<<"${rpm_packages}")" \
+    "${rpm_package_name}" "synced RPM package name"
+  assert_equal "$(jq --exit-status --raw-output '.results[0].version' <<<"${rpm_packages}")" \
+    "${rpm_package_version}" "synced RPM package version"
+  assert_equal "$(jq --exit-status --raw-output '.results[0].release' <<<"${rpm_packages}")" \
+    "${rpm_package_release}" "synced RPM package release"
+  assert_equal "$(jq --exit-status --raw-output '.results[0].arch' <<<"${rpm_packages}")" \
+    "${rpm_package_arch}" "synced RPM package architecture"
+  assert_equal "$(jq --exit-status --raw-output '.results[0].filename' <<<"${rpm_packages}")" \
+    "${rpm_package_filename}" "synced RPM package filename"
+  assert_equal "$(jq --exit-status --raw-output '.results[0].checksum' <<<"${rpm_packages}")" \
+    "${rpm_package_checksum}" "synced RPM package checksum"
+
   content_view="$(foreman_api POST /katello/api/content_views "$(
     jq --compact-output --null-input \
       --argjson organization_id "${organization_id}" \
       --argjson repository_id "${repository_id}" \
       --argjson python_repository_id "${python_repository_id}" \
-      --argjson deb_repository_id "${deb_repository_id}" '{
+      --argjson deb_repository_id "${deb_repository_id}" \
+      --argjson rpm_repository_id "${rpm_repository_id}" '{
         organization_id: $organization_id,
         content_view: {
           name: "Kubernetes Integration View",
           label: "Kubernetes_Integration_View",
-          repository_ids: [$repository_id, $python_repository_id, $deb_repository_id]
+          repository_ids: [
+            $repository_id,
+            $python_repository_id,
+            $deb_repository_id,
+            $rpm_repository_id
+          ]
         }
       }'
   )")"
@@ -340,6 +391,16 @@ seed_content_lifecycle() {
     "published Debian package count"
   assert_equal "$(jq --exit-status --raw-output '.results[0].checksum' <<<"${deb_packages}")" \
     "${deb_package_checksum}" "published Debian package checksum"
+  published_rpm_repository_id="$(jq --exit-status --raw-output \
+    --argjson repository_id "${rpm_repository_id}" \
+    '.repositories[] | select(.library_instance_id == $repository_id) | .id' \
+    <<<"${content_view_version}")"
+  rpm_packages="$(foreman_api GET \
+    "/katello/api/repositories/${published_rpm_repository_id}/packages?per_page=all")"
+  assert_equal "$(jq --raw-output '.total' <<<"${rpm_packages}")" "1" \
+    "published RPM package count"
+  assert_equal "$(jq --exit-status --raw-output '.results[0].checksum' <<<"${rpm_packages}")" \
+    "${rpm_package_checksum}" "published RPM package checksum"
 
   library_environment="$(foreman_api GET \
     "/katello/api/organizations/${organization_id}/environments?library=true")"
@@ -379,6 +440,7 @@ seed_content_lifecycle() {
     --arg python_package_checksum "${python_package_checksum}" \
     --argjson deb_repository_id "${deb_repository_id}" \
     --arg deb_package_checksum "${deb_package_checksum}" \
+    --argjson rpm_repository_id "${rpm_repository_id}" \
     --argjson content_view_id "${content_view_id}" \
     --argjson content_view_version_id "${content_view_version_id}" \
     --argjson published_repository_id "${published_repository_id}" \
@@ -386,6 +448,7 @@ seed_content_lifecycle() {
     --argjson published_python_repository_id "${published_python_repository_id}" \
     --arg published_python_relative_path "${published_python_relative_path}" \
     --argjson published_deb_repository_id "${published_deb_repository_id}" \
+    --argjson published_rpm_repository_id "${published_rpm_repository_id}" \
     --argjson content_view_environment_id "${content_view_environment_id}" \
     --argjson activation_key_id "${activation_key_id}" '{
       organization_id: $organization_id,
@@ -397,6 +460,7 @@ seed_content_lifecycle() {
       python_package_checksum: $python_package_checksum,
       deb_repository_id: $deb_repository_id,
       deb_package_checksum: $deb_package_checksum,
+      rpm_repository_id: $rpm_repository_id,
       content_view_id: $content_view_id,
       content_view_version_id: $content_view_version_id,
       published_repository_id: $published_repository_id,
@@ -404,6 +468,7 @@ seed_content_lifecycle() {
       published_python_repository_id: $published_python_repository_id,
       published_python_relative_path: $published_python_relative_path,
       published_deb_repository_id: $published_deb_repository_id,
+      published_rpm_repository_id: $published_rpm_repository_id,
       content_view_environment_id: $content_view_environment_id,
       activation_key_id: $activation_key_id
     }' >"${state_file}"
@@ -427,6 +492,7 @@ assert_content_lifecycle() {
   local published_python_repository_id
   local published_python_relative_path
   local published_deb_repository_id
+  local published_rpm_repository_id
   local published_repository_id
   local published_relative_path
   local python_package_checksum
@@ -437,14 +503,19 @@ assert_content_lifecycle() {
   local relative_path
   local repository
   local repository_id
+  local rpm_packages
+  local rpm_repository
+  local rpm_repository_id
 
   jq --exit-status '
     .organization_id and .product_id and .repository_id and .relative_path and
     .python_repository_id and .python_relative_path and .python_package_checksum and
     .deb_repository_id and .deb_package_checksum and
+    .rpm_repository_id and
     .content_view_id and .content_view_version_id and .published_repository_id and
     .published_relative_path and .published_python_repository_id and
     .published_python_relative_path and .published_deb_repository_id and
+    .published_rpm_repository_id and
     .content_view_environment_id and .activation_key_id
   ' "${state_file}" >/dev/null
 
@@ -457,6 +528,7 @@ assert_content_lifecycle() {
   python_package_checksum="$(jq --raw-output '.python_package_checksum' "${state_file}")"
   deb_repository_id="$(jq --raw-output '.deb_repository_id' "${state_file}")"
   deb_package_checksum="$(jq --raw-output '.deb_package_checksum' "${state_file}")"
+  rpm_repository_id="$(jq --raw-output '.rpm_repository_id' "${state_file}")"
   content_view_id="$(jq --raw-output '.content_view_id' "${state_file}")"
   content_view_version_id="$(jq --raw-output '.content_view_version_id' "${state_file}")"
   published_repository_id="$(jq --raw-output '.published_repository_id' "${state_file}")"
@@ -467,6 +539,8 @@ assert_content_lifecycle() {
     '.published_python_relative_path' "${state_file}")"
   published_deb_repository_id="$(jq --raw-output \
     '.published_deb_repository_id' "${state_file}")"
+  published_rpm_repository_id="$(jq --raw-output \
+    '.published_rpm_repository_id' "${state_file}")"
   content_view_environment_id="$(jq --raw-output '.content_view_environment_id' "${state_file}")"
   activation_key_id="$(jq --raw-output '.activation_key_id' "${state_file}")"
 
@@ -518,6 +592,24 @@ assert_content_lifecycle() {
   assert_equal "$(jq --exit-status --raw-output '.results[0].checksum' <<<"${deb_packages}")" \
     "${deb_package_checksum}" "restored Debian package checksum"
 
+  rpm_repository="$(foreman_api GET "/katello/api/repositories/${rpm_repository_id}")"
+  assert_equal "$(jq --raw-output '.id' <<<"${rpm_repository}")" \
+    "${rpm_repository_id}" "restored RPM repository"
+  rpm_packages="$(foreman_api GET \
+    "/katello/api/repositories/${rpm_repository_id}/packages?per_page=all")"
+  assert_equal "$(jq --raw-output '.total' <<<"${rpm_packages}")" "1" \
+    "restored RPM package count"
+  assert_equal "$(jq --exit-status --raw-output '.results[0].name' <<<"${rpm_packages}")" \
+    "${rpm_package_name}" "restored RPM package name"
+  assert_equal "$(jq --exit-status --raw-output '.results[0].version' <<<"${rpm_packages}")" \
+    "${rpm_package_version}" "restored RPM package version"
+  assert_equal "$(jq --exit-status --raw-output '.results[0].release' <<<"${rpm_packages}")" \
+    "${rpm_package_release}" "restored RPM package release"
+  assert_equal "$(jq --exit-status --raw-output '.results[0].arch' <<<"${rpm_packages}")" \
+    "${rpm_package_arch}" "restored RPM package architecture"
+  assert_equal "$(jq --exit-status --raw-output '.results[0].checksum' <<<"${rpm_packages}")" \
+    "${rpm_package_checksum}" "restored RPM package checksum"
+
   content_view="$(foreman_api GET "/katello/api/content_views/${content_view_id}")"
   assert_equal "$(jq --raw-output '.latest_version' <<<"${content_view}")" "1.0" \
     "restored content view version"
@@ -530,6 +622,9 @@ assert_content_lifecycle() {
   assert_equal "$(jq --argjson repository_id "${deb_repository_id}" \
     '[.repository_ids[] | select(. == $repository_id)] | length' <<<"${content_view}")" \
     "1" "restored content view Debian repository count"
+  assert_equal "$(jq --argjson repository_id "${rpm_repository_id}" \
+    '[.repository_ids[] | select(. == $repository_id)] | length' <<<"${content_view}")" \
+    "1" "restored content view RPM repository count"
 
   content_view_version="$(foreman_api GET "/katello/api/content_view_versions/${content_view_version_id}")"
   assert_equal "$(jq --argjson published_repository_id "${published_repository_id}" \
@@ -554,6 +649,15 @@ assert_content_lifecycle() {
     "restored published Debian package count"
   assert_equal "$(jq --exit-status --raw-output '.results[0].checksum' <<<"${deb_packages}")" \
     "${deb_package_checksum}" "restored published Debian package checksum"
+  assert_equal "$(jq --argjson published_repository_id "${published_rpm_repository_id}" \
+    '[.repositories[].id | select(. == $published_repository_id)] | length' \
+    <<<"${content_view_version}")" "1" "restored published RPM repository count"
+  rpm_packages="$(foreman_api GET \
+    "/katello/api/repositories/${published_rpm_repository_id}/packages?per_page=all")"
+  assert_equal "$(jq --raw-output '.total' <<<"${rpm_packages}")" "1" \
+    "restored published RPM package count"
+  assert_equal "$(jq --exit-status --raw-output '.results[0].checksum' <<<"${rpm_packages}")" \
+    "${rpm_package_checksum}" "restored published RPM package checksum"
 
   activation_key="$(foreman_api GET "/katello/api/activation_keys/${activation_key_id}")"
   assert_equal "$(jq --exit-status --raw-output \

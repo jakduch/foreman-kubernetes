@@ -234,6 +234,10 @@ data:
         try_files $uri $uri/ =404;
       }
     }
+binaryData:
+  # Katello test fixture: test/fixtures/files/squirrel-0.3-0.8.noarch.rpm
+  # SHA-256: 251768bdd15f13d78487c27638aa6aecd01551e253756093cde1c0ae878a17d2
+  rpm-squirrel.rpm: 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
 ---
 apiVersion: v1
 kind: Service
@@ -425,6 +429,91 @@ spec:
                ${packages_sha256} ${packages_size} main/binary-amd64/Packages
                ${packages_gz_sha256} ${packages_gz_size} main/binary-amd64/Packages.gz
               EOF
+
+              rpm_root=/served/rpm
+              rpm_metadata_root="${temporary_root}/rpm-metadata"
+              rpm_checksum=251768bdd15f13d78487c27638aa6aecd01551e253756093cde1c0ae878a17d2
+              mkdir -p "${rpm_root}/repodata" "${rpm_metadata_root}"
+              cp /source/rpm-squirrel.rpm "${rpm_root}/squirrel-0.3-0.8.noarch.rpm"
+              cat > "${rpm_metadata_root}/primary.xml" <<EOF
+              <?xml version="1.0" encoding="UTF-8"?>
+              <metadata xmlns="http://linux.duke.edu/metadata/common" xmlns:rpm="http://linux.duke.edu/metadata/rpm" packages="1">
+              <package type="rpm">
+                <name>squirrel</name>
+                <arch>noarch</arch>
+                <version epoch="0" ver="0.3" rel="0.8"/>
+                <checksum type="sha256" pkgid="YES">${rpm_checksum}</checksum>
+                <summary>A dummy package of squirrel</summary>
+                <description>A dummy package of squirrel</description>
+                <packager></packager>
+                <url>http://tstrachota.fedorapeople.org</url>
+                <time file="1629229056" build="1308257502"/>
+                <size package="2248" installed="42" archive="296"/>
+                <location href="squirrel-0.3-0.8.noarch.rpm"/>
+                <format>
+                  <rpm:license>GPLv2</rpm:license>
+                  <rpm:vendor/>
+                  <rpm:group>Internet/Applications</rpm:group>
+                  <rpm:buildhost>dhcp-26-118.brq.redhat.com</rpm:buildhost>
+                  <rpm:sourcerpm>squirrel-0.3-0.8.src.rpm</rpm:sourcerpm>
+                  <rpm:header-range start="280" end="2028"/>
+                  <rpm:provides>
+                    <rpm:entry name="squirrel" flags="EQ" epoch="0" ver="0.3" rel="0.8"/>
+                  </rpm:provides>
+                  <rpm:requires>
+                    <rpm:entry name="/bin/sh" pre="1"/>
+                  </rpm:requires>
+                </format>
+              </package>
+              </metadata>
+              EOF
+              cat > "${rpm_metadata_root}/filelists.xml" <<EOF
+              <?xml version="1.0" encoding="UTF-8"?>
+              <filelists xmlns="http://linux.duke.edu/metadata/filelists" packages="1">
+              <package pkgid="${rpm_checksum}" name="squirrel" arch="noarch">
+                <version epoch="0" ver="0.3" rel="0.8"/>
+                <file>/squirrel.txt</file>
+              </package>
+              </filelists>
+              EOF
+              cat > "${rpm_metadata_root}/other.xml" <<EOF
+              <?xml version="1.0" encoding="UTF-8"?>
+              <otherdata xmlns="http://linux.duke.edu/metadata/other" packages="1">
+              <package pkgid="${rpm_checksum}" name="squirrel" arch="noarch">
+                <version epoch="0" ver="0.3" rel="0.8"/>
+              </package>
+              </otherdata>
+              EOF
+              rpm_repomd_entries="${rpm_metadata_root}/repomd-entries.xml"
+              : > "${rpm_repomd_entries}"
+              for rpm_metadata_type in primary filelists other; do
+                rpm_metadata="${rpm_metadata_root}/${rpm_metadata_type}.xml"
+                rpm_metadata_gz="${rpm_metadata}.gz"
+                gzip -c < "${rpm_metadata}" > "${rpm_metadata_gz}"
+                rpm_metadata_checksum="$(sha256sum "${rpm_metadata_gz}" | awk '{print $1}')"
+                rpm_metadata_open_checksum="$(sha256sum "${rpm_metadata}" | awk '{print $1}')"
+                rpm_metadata_size="$(wc -c < "${rpm_metadata_gz}" | tr -d ' ')"
+                rpm_metadata_open_size="$(wc -c < "${rpm_metadata}" | tr -d ' ')"
+                rpm_metadata_filename="${rpm_metadata_checksum}-${rpm_metadata_type}.xml.gz"
+                mv "${rpm_metadata_gz}" "${rpm_root}/repodata/${rpm_metadata_filename}"
+                cat >> "${rpm_repomd_entries}" <<EOF
+              <data type="${rpm_metadata_type}">
+                <checksum type="sha256">${rpm_metadata_checksum}</checksum>
+                <open-checksum type="sha256">${rpm_metadata_open_checksum}</open-checksum>
+                <location href="repodata/${rpm_metadata_filename}"/>
+                <timestamp>1790294400</timestamp>
+                <size>${rpm_metadata_size}</size>
+                <open-size>${rpm_metadata_open_size}</open-size>
+              </data>
+              EOF
+              done
+              cat > "${rpm_root}/repodata/repomd.xml" <<'EOF'
+              <?xml version="1.0" encoding="UTF-8"?>
+              <repomd xmlns="http://linux.duke.edu/metadata/repo" xmlns:rpm="http://linux.duke.edu/metadata/rpm">
+                <revision>1790294400</revision>
+              EOF
+              cat "${rpm_repomd_entries}" >> "${rpm_root}/repodata/repomd.xml"
+              printf '%s\n' '</repomd>' >> "${rpm_root}/repodata/repomd.xml"
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:

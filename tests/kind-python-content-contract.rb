@@ -1,6 +1,7 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
+require 'base64'
 require 'digest'
 require 'fileutils'
 require 'json'
@@ -62,6 +63,9 @@ Dir.mktmpdir('foreman-kubernetes-python-source') do |directory|
   FileUtils.mkdir_p([source, served, temporary])
   fixture.fetch('data').each do |name, contents|
     File.binwrite(File.join(source, name), contents)
+  end
+  fixture.fetch('binaryData', {}).each do |name, contents|
+    File.binwrite(File.join(source, name), Base64.strict_decode64(contents))
   end
 
   test_script = builder_script.gsub('/source', source).gsub('/served', served)
