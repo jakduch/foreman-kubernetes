@@ -14,6 +14,7 @@ created_cluster=false
 temporary_directory="$(mktemp -d)"
 skip_recovery_test="${SKIP_RECOVERY_TEST:-0}"
 content_lifecycle_state="${temporary_directory}/content-lifecycle.json"
+image_runtime_contract_file="${IMAGE_RUNTIME_CONTRACT_FILE:-artifacts/image-runtime-contract.json}"
 foreman_database_url_backup=""
 application_secret_rollout_token=initial
 execution_secret_rollout_token=initial
@@ -849,6 +850,12 @@ assert_shared_foreman_tmp
 assert_candlepin_ha
 assert_candlepin_pod_recovery
 assert_application_smoke_test
+
+ruby "${repo_root}/tests/kind/image-runtime-contract.rb" \
+  "${namespace}" \
+  "${image_profile}" \
+  "${execution_proxy_image_profile}" \
+  "${image_runtime_contract_file}"
 
 pulp_api_status="$(curl --silent --output /dev/null --write-out '%{http_code}' \
   --cacert "${temporary_directory}/ca.crt" \

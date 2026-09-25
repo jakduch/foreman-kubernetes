@@ -43,6 +43,14 @@ artifact. The record binds the run to:
 - the GitHub Actions run and attempt;
 - every completed runtime check.
 
+The same artifact also contains `image-runtime-contract.json`. Before any
+content or execution workflow is accepted, the drill compares every running
+Foreman, Pulp, Candlepin, and execution-proxy container with the exact digest
+from the selected profiles. It records the kubelet image ID, non-root runtime
+identity, installed package versions, enabled plugin allow-lists, and the Pulp
+component versions reported by the live API. This closes the gap between a
+registry manifest lookup and proving what was actually started in Kubernetes.
+
 A local run or a run with `SKIP_RECOVERY_TEST=1` may still write diagnostic
 evidence, but it is marked ineligible for promotion. Low-level profile
 overrides cannot produce evidence for a declared set unless both resolved files
@@ -68,10 +76,10 @@ set by itself.
 
 | Component | Published tag | OCI digest | Platform | Status |
 | --- | --- | --- | --- | --- |
-| Foreman with Katello | `quay.io/foreman/foreman:nightly` | `sha256:9c77128c7acd629c62686a9119816d6f6b7726cd6492d9eaa894d54c345c4941` | `linux/amd64` | Manifest verified; integration pending |
-| Candlepin | `quay.io/foreman/candlepin:foreman-nightly` | `sha256:b9fe6c5f161132b39982e1951e8b4a16bf00d2565ecb17e53b13b56196a1f280` | `linux/amd64` | Manifest verified; integration pending |
-| Pulp | `quay.io/foreman/pulp:foreman-nightly` | `sha256:c3d32a385d09225c40f70d60128fcf62c94cb669536b10ccbadc0ec8ac4afa6b` | `linux/amd64` | Manifest verified; integration pending |
-| Execution Smart Proxy | `quay.io/foreman/foreman-proxy:nightly` | `sha256:244c756844a137990779ad153998c426eb0326d8d6f376192ea6e84947affd47` | `linux/amd64` | Manifest verified; success/failure/cancel and role drill implemented but unrun |
+| Foreman with Katello | `quay.io/foreman/foreman:nightly` | `sha256:9c77128c7acd629c62686a9119816d6f6b7726cd6492d9eaa894d54c345c4941` | `linux/amd64` | Manifest verified; runtime contract implemented but unrun |
+| Candlepin | `quay.io/foreman/candlepin:foreman-nightly` | `sha256:b9fe6c5f161132b39982e1951e8b4a16bf00d2565ecb17e53b13b56196a1f280` | `linux/amd64` | Manifest verified; runtime contract implemented but unrun |
+| Pulp | `quay.io/foreman/pulp:foreman-nightly` | `sha256:c3d32a385d09225c40f70d60128fcf62c94cb669536b10ccbadc0ec8ac4afa6b` | `linux/amd64` | Manifest verified; runtime contract implemented but unrun |
+| Execution Smart Proxy | `quay.io/foreman/foreman-proxy:nightly` | `sha256:244c756844a137990779ad153998c426eb0326d8d6f376192ea6e84947affd47` | `linux/amd64` | Manifest verified; runtime and execution drills implemented but unrun |
 
 The manifests were read from the official Quay repositories on 2026-09-24. No layers were downloaded. The current images are single-platform, so an ARM cluster needs explicit emulation and is not a release target until upstream publishes multi-architecture manifests.
 

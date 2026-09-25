@@ -2,6 +2,7 @@
   "schemaVersion": 1,
   "checks": [
     "application-smoke",
+    "pinned-image-runtime-contract",
     "candlepin-ha-pod-recovery",
     "pulp-registration-mtls",
     "pulp-python-lifecycle",

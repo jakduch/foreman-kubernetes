@@ -11,6 +11,10 @@
 - Foreman health both with and without the optional client certificate;
 - the chart-owned Helm smoke test against Foreman/Katello aggregate health,
   Candlepin status, and Pulp status through the default NetworkPolicies;
+- the exact digest and non-root runtime identity of every application image,
+  its required executable and packaged plugin inventory, and the enabled Pulp
+  components reported by the live API; the resulting report is retained with
+  the compatibility evidence;
 - automatic Pulp Smart Proxy registration through the private mTLS endpoint;
 - deployment and API registration of a separate, singleton execution Smart
   Proxy whose advertised features must equal Ansible, Dynflow, and Script;

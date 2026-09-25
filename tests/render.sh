@@ -75,6 +75,7 @@ ruby "${repo_root}/tests/values-schema-coverage.rb"
 ruby "${repo_root}/tests/recovery-image-contract.rb"
 ruby "${repo_root}/tests/operator-image-contract.rb"
 ruby "${repo_root}/tests/kind-release-sequencing.rb"
+ruby "${repo_root}/tests/kind-image-runtime-contract.rb"
 ruby "${repo_root}/tests/kind-python-content-contract.rb"
 bash "${repo_root}/tests/collect-diagnostics.sh"
 

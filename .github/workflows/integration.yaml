@@ -14,6 +14,7 @@ jobs:
     env:
       KEEP_CLUSTER: "1"
       INTEGRATION_EVIDENCE_FILE: artifacts/integration-result.json
+      IMAGE_RUNTIME_CONTRACT_FILE: artifacts/image-runtime-contract.json
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: azure/setup-helm@bf6a7d304bc2fdb57e0331155b7ebf2c504acf0a # v4
@@ -33,7 +34,9 @@ jobs:
         if: success()
         with:
           name: foreman-stack-integration-evidence
-          path: artifacts/integration-result.json
+          path: |
+            artifacts/integration-result.json
+            artifacts/image-runtime-contract.json
           if-no-files-found: error
           retention-days: 90
       - name: Collect failure diagnostics
