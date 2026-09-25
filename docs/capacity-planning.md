@@ -78,7 +78,15 @@ incident rather than an ordinary cache-capacity signal.
 
 Resource-based HPAs require a healthy `v1beta1.metrics.k8s.io` APIService. The
 guarded install and upgrade scripts verify it before changing a release. The
-production example also makes topology spread hard: if the cluster cannot
+Foreman web, Dynflow worker, Dynflow hosts-queue worker, Pulp API, and Pulp
+content autoscalers are independent. Dynflow never scales the singleton
+orchestrator, and its ten-minute scale-down stabilization gives active Sidekiq
+work time to finish during normal load reduction. Size PostgreSQL and durable
+Valkey for each worker HPA maximum multiplied by that worker's configured
+concurrency; minimum replicas are the availability floor, not the capacity
+ceiling.
+
+The production example also makes topology spread hard: if the cluster cannot
 place the minimum replicas across `topology.kubernetes.io/zone` and
 `kubernetes.io/hostname` domains, workloads remain Pending rather than
 silently giving up the requested failure separation. Ensure every eligible

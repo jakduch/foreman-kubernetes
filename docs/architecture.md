@@ -48,7 +48,7 @@ flowchart LR
 
 Katello is packaged and developed independently, but its runtime is a Foreman Rails plugin. The compatible Foreman image therefore contains both applications. Web replicas are stateless only when database, cache, certificates, and configuration are externalized.
 
-Foreman web replicas can use an `autoscaling/v2` HPA with a stabilization window. CPU is a usable first signal for request-serving pods because every container has a CPU request; queue workers are excluded from this policy.
+Foreman web replicas can use an `autoscaling/v2` HPA with a stabilization window. CPU is a usable first signal for request-serving pods because every container has a CPU request. Dynflow queue workers use separate opt-in HPAs so web load cannot scale task executors and neither policy can scale the singleton orchestrator.
 
 ### Dynflow
 
@@ -57,6 +57,11 @@ The upstream Sidekiq entry point supports distinct queue configurations. Kuberne
 - `orchestrator`: always one replica;
 - `worker`: horizontally scalable;
 - `worker-hosts-queue`: independently scalable for host work.
+
+The two worker Deployments can each use a resource HPA. Their scale-down window
+is longer than the web window, and Sidekiq receives the full graceful-shutdown
+allowance before Kubernetes kills a removed replica. Keep `minReplicas` above
+one when that queue requires a disruption budget during voluntary maintenance.
 
 This preserves the upstream Redis lock and single-orchestrator contract instead of allowing an HPA to scale every process indiscriminately. The chart gives Dynflow its own endpoint contract rather than treating numbered databases on a disposable cache as isolation. A production Dynflow endpoint must be persistent and use `noeviction`; the Foreman cache can use a cache-oriented policy independently.
 

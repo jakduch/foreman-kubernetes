@@ -170,8 +170,18 @@ foreman:
   dynflow:
     workers: 2
     workerConcurrency: 10
+    workerAutoscaling:
+      enabled: false
+      minReplicas: 2
+      maxReplicas: 10
+      targetCPUUtilizationPercentage: 70
     hostsQueueWorkers: 1
     hostsQueueConcurrency: 5
+    hostsQueueAutoscaling:
+      enabled: false
+      minReplicas: 1
+      maxReplicas: 5
+      targetCPUUtilizationPercentage: 70
     # Matches the upstream systemd service's five-minute stop allowance. The
     # Pod receives another 30 seconds so Sidekiq can finish its own shutdown.
     shutdownTimeoutSeconds: 300

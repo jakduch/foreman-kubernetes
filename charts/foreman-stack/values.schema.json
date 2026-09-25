@@ -232,13 +232,15 @@
         },
         "dynflow": {
           "type": "object",
-          "required": ["workers", "workerConcurrency", "hostsQueueWorkers", "hostsQueueConcurrency", "shutdownTimeoutSeconds"],
+          "required": ["workers", "workerConcurrency", "workerAutoscaling", "hostsQueueWorkers", "hostsQueueConcurrency", "hostsQueueAutoscaling", "shutdownTimeoutSeconds"],
           "additionalProperties": false,
           "properties": {
             "workers": { "type": "integer", "minimum": 1 },
             "workerConcurrency": { "type": "integer", "minimum": 1 },
+            "workerAutoscaling": { "$ref": "#/definitions/autoscaling" },
             "hostsQueueWorkers": { "type": "integer", "minimum": 1 },
             "hostsQueueConcurrency": { "type": "integer", "minimum": 1 },
+            "hostsQueueAutoscaling": { "$ref": "#/definitions/autoscaling" },
             "shutdownTimeoutSeconds": { "type": "integer", "minimum": 25, "maximum": 3600 }
           }
         },

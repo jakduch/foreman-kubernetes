@@ -34,7 +34,17 @@ foreman:
     targetCPUUtilizationPercentage: 70
   dynflow:
     workers: 4
+    workerAutoscaling:
+      enabled: true
+      minReplicas: 4
+      maxReplicas: 12
+      targetCPUUtilizationPercentage: 70
     hostsQueueWorkers: 2
+    hostsQueueAutoscaling:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 6
+      targetCPUUtilizationPercentage: 70
   enabledPlugins:
     - foreman-tasks
     - katello

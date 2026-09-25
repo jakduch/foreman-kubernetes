@@ -38,7 +38,8 @@ The initial Helm chart is under [`charts/foreman-stack`](charts/foreman-stack). 
   S3-compatible object storage;
 - a private, mutually authenticated Pulp control endpoint and automatic registration of Pulp in Foreman;
 - an optional ingress-nginx profile for Foreman and public Pulp content;
-- independent optional HPAs for Foreman web, Pulp API, and Pulp content replicas;
+- independent optional HPAs for Foreman web, both Dynflow worker pools, Pulp
+  API, and Pulp content replicas; the Dynflow orchestrator remains a singleton;
 - separate Candlepin, Pulp, and Foreman migration Jobs;
 - Foreman recurring tasks as non-overlapping CronJobs.
 - maintenance-gated, encrypted backup and restore Jobs covering all three

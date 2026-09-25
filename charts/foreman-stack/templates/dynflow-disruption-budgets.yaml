@@ -1,5 +1,7 @@
 {{- if and .Values.podDisruptionBudget.enabled (not .Values.maintenance.enabled) }}
-{{- if gt (int .Values.foreman.dynflow.workers) 1 }}
+{{- $workerMinimum := ternary .Values.foreman.dynflow.workerAutoscaling.minReplicas .Values.foreman.dynflow.workers .Values.foreman.dynflow.workerAutoscaling.enabled }}
+{{- $hostsQueueMinimum := ternary .Values.foreman.dynflow.hostsQueueAutoscaling.minReplicas .Values.foreman.dynflow.hostsQueueWorkers .Values.foreman.dynflow.hostsQueueAutoscaling.enabled }}
+{{- if gt (int $workerMinimum) 1 }}
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
@@ -13,8 +15,8 @@ spec:
       app.kubernetes.io/instance: {{ .Release.Name }}
       app.kubernetes.io/component: dynflow-worker
 {{- end }}
-{{- if gt (int .Values.foreman.dynflow.hostsQueueWorkers) 1 }}
-{{- if gt (int .Values.foreman.dynflow.workers) 1 }}
+{{- if gt (int $hostsQueueMinimum) 1 }}
+{{- if gt (int $workerMinimum) 1 }}
 ---
 {{- end }}
 apiVersion: policy/v1

@@ -25,9 +25,11 @@ Foreman, Katello, Dynflow, Candlepin, Tomcat, and non-secret Pulp settings are g
 See examples/secrets.example.yaml and docs/runtime-contracts.md before installing.
 
 {{- $webReplicas := ternary .Values.foreman.autoscaling.maxReplicas .Values.foreman.replicas .Values.foreman.autoscaling.enabled }}
+{{- $workerReplicas := ternary .Values.foreman.dynflow.workerAutoscaling.maxReplicas .Values.foreman.dynflow.workers .Values.foreman.dynflow.workerAutoscaling.enabled }}
+{{- $hostsQueueReplicas := ternary .Values.foreman.dynflow.hostsQueueAutoscaling.maxReplicas .Values.foreman.dynflow.hostsQueueWorkers .Values.foreman.dynflow.hostsQueueAutoscaling.enabled }}
 {{- $webConnections := mul (int $webReplicas) (int .Values.foreman.puma.workers) (int .Values.foreman.databasePools.web) }}
-{{- $workerConnections := mul (int .Values.foreman.dynflow.workers) (int .Values.foreman.databasePools.dynflowWorker) }}
-{{- $hostsQueueConnections := mul (int .Values.foreman.dynflow.hostsQueueWorkers) (int .Values.foreman.databasePools.dynflowHostsQueue) }}
+{{- $workerConnections := mul (int $workerReplicas) (int .Values.foreman.databasePools.dynflowWorker) }}
+{{- $hostsQueueConnections := mul (int $hostsQueueReplicas) (int .Values.foreman.databasePools.dynflowHostsQueue) }}
 {{- $fixedUtilityConnections := mul 2 (int .Values.foreman.databasePools.utility) }}
 {{- $rollingSurgeConnections := add (mul (int .Values.foreman.puma.workers) (int .Values.foreman.databasePools.web)) (int .Values.foreman.databasePools.dynflowWorker) (int .Values.foreman.databasePools.dynflowHostsQueue) }}
 Foreman PostgreSQL steady-state connection ceiling for this profile: {{ add $webConnections $workerConnections $hostsQueueConnections $fixedUtilityConnections }}

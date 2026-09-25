@@ -58,7 +58,10 @@ rendered_scheduled_backup="$(mktemp)"
 rendered_scheduled_execution="$(mktemp)"
 rendered_execution_scheduled_backup="$(mktemp)"
 rendered_scheduled_operator="$(mktemp)"
-trap 'rm -f "${rendered}" "${rendered_ingress}" "${rendered_execution_registration}" "${rendered_ingress_overrides}" "${rendered_minimal_pulp_ingress}" "${rendered_all_pulp_ingress}" "${rendered_backup}" "${rendered_backup_execution}" "${rendered_restore}" "${rendered_egress}" "${rendered_egress_backup}" "${rendered_egress_backup_local}" "${rendered_outbound_proxy}" "${rendered_outbound_proxy_backup}" "${rendered_webhooks}" "${rendered_compute_provider}" "${rendered_singletons}" "${rendered_ha}" "${rendered_candlepin_port}" "${rendered_foreman_service_port}" "${rendered_foreman_secret_contract}" "${rendered_database_tls_disabled}" "${rendered_image_pull_secrets}" "${rendered_no_migrations}" "${rendered_release_operation}" "${rendered_release_application}" "${rendered_manual_migration_stage}" "${rendered_secret_rotation}" "${rendered_monitoring}" "${rendered_monitoring_maintenance}" "${rendered_s3}" "${rendered_s3_egress}" "${rendered_azure_identity}" "${rendered_s3_backup}" "${rendered_smtp}" "${rendered_smtp_backup}" "${rendered_kind}" "${rendered_kind_backup}" "${rendered_execution}" "${rendered_execution_egress}" "${rendered_execution_kind}" "${rendered_execution_operation}" "${rendered_execution_secret_rotation}" "${rendered_execution_monitoring}" "${rendered_execution_maintenance}" "${rendered_operator}" "${rendered_operator_monitoring}" "${rendered_operator_egress}" "${rendered_scheduled_stack}" "${rendered_scheduled_backup}" "${rendered_scheduled_execution}" "${rendered_execution_scheduled_backup}" "${rendered_scheduled_operator}"' EXIT
+rendered_dynflow_autoscaling="$(mktemp)"
+rendered_dynflow_autoscaling_maintenance="$(mktemp)"
+rendered_capacity_notes="$(mktemp)"
+trap 'rm -f "${rendered}" "${rendered_ingress}" "${rendered_execution_registration}" "${rendered_ingress_overrides}" "${rendered_minimal_pulp_ingress}" "${rendered_all_pulp_ingress}" "${rendered_backup}" "${rendered_backup_execution}" "${rendered_restore}" "${rendered_egress}" "${rendered_egress_backup}" "${rendered_egress_backup_local}" "${rendered_outbound_proxy}" "${rendered_outbound_proxy_backup}" "${rendered_webhooks}" "${rendered_compute_provider}" "${rendered_singletons}" "${rendered_ha}" "${rendered_candlepin_port}" "${rendered_foreman_service_port}" "${rendered_foreman_secret_contract}" "${rendered_database_tls_disabled}" "${rendered_image_pull_secrets}" "${rendered_no_migrations}" "${rendered_release_operation}" "${rendered_release_application}" "${rendered_manual_migration_stage}" "${rendered_secret_rotation}" "${rendered_monitoring}" "${rendered_monitoring_maintenance}" "${rendered_s3}" "${rendered_s3_egress}" "${rendered_azure_identity}" "${rendered_s3_backup}" "${rendered_smtp}" "${rendered_smtp_backup}" "${rendered_kind}" "${rendered_kind_backup}" "${rendered_execution}" "${rendered_execution_egress}" "${rendered_execution_kind}" "${rendered_execution_operation}" "${rendered_execution_secret_rotation}" "${rendered_execution_monitoring}" "${rendered_execution_maintenance}" "${rendered_operator}" "${rendered_operator_monitoring}" "${rendered_operator_egress}" "${rendered_scheduled_stack}" "${rendered_scheduled_backup}" "${rendered_scheduled_execution}" "${rendered_execution_scheduled_backup}" "${rendered_scheduled_operator}" "${rendered_dynflow_autoscaling}" "${rendered_dynflow_autoscaling_maintenance}" "${rendered_capacity_notes}"' EXIT
 
 ruby "${repo_root}/tests/yaml-duplicates.rb"
 ruby "${repo_root}/tests/workflow-action-pins.rb" "${repo_root}/.github/workflows"
@@ -105,6 +108,13 @@ if helm lint "${chart}" --set-string releaseOperation.id=orphan-operation >/dev/
   exit 1
 fi
 helm template test "${chart}" > "${rendered}"
+helm template test "${chart}" \
+  --values "${repo_root}/tests/dynflow-autoscaling-values.yaml" \
+  > "${rendered_dynflow_autoscaling}"
+helm template test "${chart}" \
+  --values "${repo_root}/tests/dynflow-autoscaling-values.yaml" \
+  --set maintenance.enabled=true \
+  > "${rendered_dynflow_autoscaling_maintenance}"
 helm template test "${chart}" \
   --values "${repo_root}/tests/scheduling-values.yaml" > "${rendered_scheduled_stack}"
 helm template test "${chart}" \
@@ -214,6 +224,10 @@ helm lint "${chart}" --values "${repo_root}/examples/execution-control-plane-val
 helm template test "${chart}" \
   --values "${repo_root}/examples/execution-control-plane-values.yaml" >/dev/null
 helm template test "${chart}" --values "${repo_root}/examples/cluster-values.yaml" > "${rendered_ingress}"
+helm install test "${chart}" \
+  --values "${repo_root}/examples/cluster-values.yaml" \
+  --dry-run=client \
+  --hide-secret > "${rendered_capacity_notes}"
 helm template foreman "${chart}" \
   --values "${repo_root}/examples/cluster-values.yaml" \
   --values "${repo_root}/tests/egress-values.yaml" > "${rendered_execution_registration}"
@@ -435,6 +449,7 @@ for manifest in \
   "${rendered_outbound_proxy_backup}" \
   "${rendered_webhooks}" \
   "${rendered_compute_provider}" \
+  "${rendered_dynflow_autoscaling}" \
   "${rendered_singletons}" \
   "${rendered_ha}" \
   "${rendered_candlepin_port}" \
@@ -490,6 +505,10 @@ ruby "${repo_root}/tests/image-pull-secrets-contract.rb" \
 ruby "${repo_root}/tests/katello-event-daemon-contract.rb" "${rendered_egress}"
 ruby "${repo_root}/tests/foreman-readiness-contract.rb" "${rendered}"
 ruby "${repo_root}/tests/dynflow-lifecycle-contract.rb" "${rendered}"
+ruby "${repo_root}/tests/dynflow-autoscaling-contract.rb" \
+  "${rendered_dynflow_autoscaling}" \
+  "${rendered_dynflow_autoscaling_maintenance}"
+ruby "${repo_root}/tests/capacity-notes-contract.rb" "${rendered_capacity_notes}"
 ruby "${repo_root}/tests/backend-readiness-contract.rb" "${rendered}"
 ruby "${repo_root}/tests/candlepin-migration-barrier.rb" "${rendered}" true
 ruby "${repo_root}/tests/candlepin-migration-barrier.rb" "${rendered_no_migrations}" false
@@ -821,8 +840,8 @@ if grep -q 'path: /pulp_ansible/galaxy' "${rendered_ingress}"; then
   echo 'disabled pulp_ansible must not publish a Galaxy endpoint' >&2
   exit 1
 fi
-if [[ "$(grep -c '^kind: HorizontalPodAutoscaler$' "${rendered_ingress}")" -ne 3 ]]; then
-  echo 'expected Foreman, Pulp API, and Pulp content autoscalers' >&2
+if [[ "$(grep -c '^kind: HorizontalPodAutoscaler$' "${rendered_ingress}")" -ne 5 ]]; then
+  echo 'expected Foreman, both Dynflow worker, Pulp API, and Pulp content autoscalers' >&2
   exit 1
 fi
 grep -q 'whenUnsatisfiable: DoNotSchedule' "${rendered_ingress}"
@@ -1212,6 +1231,14 @@ if helm template test "${chart}" \
   --set foreman.autoscaling.minReplicas=5 \
   --set foreman.autoscaling.maxReplicas=2 >/dev/null 2>&1; then
   echo 'expected an inverted autoscaling range to be rejected' >&2
+  exit 1
+fi
+
+if helm template test "${chart}" \
+  --set foreman.dynflow.workerAutoscaling.enabled=true \
+  --set foreman.dynflow.workerAutoscaling.minReplicas=5 \
+  --set foreman.dynflow.workerAutoscaling.maxReplicas=2 >/dev/null 2>&1; then
+  echo 'expected an inverted Dynflow worker autoscaling range to be rejected' >&2
   exit 1
 fi
 
