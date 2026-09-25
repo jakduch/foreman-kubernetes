@@ -509,6 +509,8 @@ ruby "${repo_root}/tests/dynflow-autoscaling-contract.rb" \
   "${rendered_dynflow_autoscaling}" \
   "${rendered_dynflow_autoscaling_maintenance}"
 ruby "${repo_root}/tests/capacity-notes-contract.rb" "${rendered_capacity_notes}"
+ruby "${repo_root}/tests/certificate-secret-inventory.rb" \
+  "${rendered}" "${rendered_execution}"
 ruby "${repo_root}/tests/backend-readiness-contract.rb" "${rendered}"
 ruby "${repo_root}/tests/candlepin-migration-barrier.rb" "${rendered}" true
 ruby "${repo_root}/tests/candlepin-migration-barrier.rb" "${rendered_no_migrations}" false

@@ -97,6 +97,11 @@ kubectl apply --server-side \
   --filename operator/crd/platform.theforeman.org_foremanreleases.yaml
 ```
 
+Preflight follows Secret-backed environment variables, projected keys, and
+file-level `subPath` mounts. A Secret that exists but lacks a certificate or
+key consumed through an unfiltered Secret volume is rejected before any
+release mutation.
+
 Store the two environment value documents in one same-namespace Secret. They
 may reference the normal runtime credential Secrets; their contents are not
 copied into the custom resource or its status.

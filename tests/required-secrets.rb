@@ -35,6 +35,13 @@ manifest = <<~YAML
                     optional: true
         containers:
           - name: app
+            volumeMounts:
+              - name: certificate
+                mountPath: /certificates/server.crt
+                subPath: certificate
+              - name: unfiltered-certificate
+                mountPath: /certificates/client.crt
+                subPath: client.crt
             envFrom:
               - secretRef:
                   name: runtime
@@ -66,6 +73,9 @@ manifest = <<~YAML
                     items:
                       - key: token
                         path: token
+          - name: unfiltered-certificate
+            secret:
+              secretName: unfiltered-certificate
           - name: optional-volume
             secret:
               secretName: optional-volume
@@ -115,6 +125,7 @@ expected = <<~OUTPUT
   projected\ttoken
   registry-auth\t
   runtime\t
+  unfiltered-certificate\tclient.crt
 OUTPUT
 
 abort "unexpected required Secret inventory:\n#{output}" unless output == expected

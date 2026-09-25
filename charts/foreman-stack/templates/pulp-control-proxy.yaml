@@ -105,6 +105,13 @@ spec:
         - name: certificates
           secret:
             secretName: {{ .Values.pulp.controlProxy.existingCertificateSecret }}
+            items:
+              - key: ca.crt
+                path: ca.crt
+              - key: tls.crt
+                path: tls.crt
+              - key: tls.key
+                path: tls.key
         - name: temporary
           emptyDir: {}
       {{- include "foreman-stack.topologySpread" (dict "Values" .Values "Release" .Release "component" "pulp-control-proxy") | nindent 6 }}

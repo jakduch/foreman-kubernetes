@@ -94,6 +94,7 @@ module ForemanRelease
       Array(pod_spec['imagePullSecrets']).each do |secret|
         add_reference(references, secret, name_key: 'name')
       end
+      secret_volumes = direct_secret_volumes(pod_spec, references)
       %w[initContainers containers ephemeralContainers].each do |container_type|
         Array(pod_spec[container_type]).each do |container|
           Array(container['envFrom']).each do |source|
@@ -105,14 +106,47 @@ module ForemanRelease
               name_key: 'name', key_key: 'key'
             )
           end
+          Array(container['volumeMounts']).each do |mount|
+            add_secret_subpath_reference(references, secret_volumes, mount)
+          end
         end
       end
       Array(pod_spec['volumes']).each do |volume|
-        add_volume_secret(references, volume['secret'], name_key: 'secretName')
         Array(volume.dig('projected', 'sources')).each do |source|
           add_volume_secret(references, source['secret'], name_key: 'name')
         end
       end
+    end
+
+    def direct_secret_volumes(pod_spec, references)
+      Array(pod_spec['volumes']).each_with_object({}) do |volume, result|
+        secret = volume['secret']
+        add_volume_secret(references, secret, name_key: 'secretName')
+        next unless secret.is_a?(Hash) && secret['optional'] != true
+
+        secret_name = secret['secretName'].to_s
+        volume_name = volume['name'].to_s
+        next if secret_name.empty? || volume_name.empty?
+
+        paths = Array(secret['items']).each_with_object({}) do |item, mapped|
+          key = item['key'].to_s
+          path = item.fetch('path', key).to_s
+          mapped[path] = key unless key.empty? || path.empty?
+        end
+        result[volume_name] = {'name' => secret_name, 'paths' => paths}
+      end
+    end
+
+    def add_secret_subpath_reference(references, secret_volumes, mount)
+      return if mount.key?('subPathExpr')
+
+      sub_path = mount['subPath'].to_s
+      volume = secret_volumes[mount['name'].to_s]
+      return if sub_path.empty? || volume.nil?
+
+      paths = volume.fetch('paths')
+      key = paths.empty? ? sub_path : paths[sub_path]
+      references[volume.fetch('name')] << key unless key.to_s.empty?
     end
 
     def add_volume_secret(references, secret, name_key:)
