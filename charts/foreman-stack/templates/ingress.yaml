@@ -165,7 +165,7 @@ spec:
                 port:
                   number: {{ .Values.pulp.api.port }}
           {{- if has "pulp_container" .Values.pulp.enabledPlugins }}
-          - path: /pulpcore_registry
+          - path: /v2
             pathType: Prefix
             backend:
               service:
@@ -174,6 +174,41 @@ spec:
                   number: {{ .Values.pulp.api.port }}
           {{- end }}
 ---
+{{- if has "pulp_container" .Values.pulp.enabledPlugins }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "foreman-stack.fullname" . }}-pulp-registry-api
+  labels:
+    {{- include "foreman-stack.componentLabels" (dict "root" . "component" "pulp-content-edge") | nindent 4 }}
+  annotations:
+    {{- toYaml (mergeOverwrite (deepCopy $pulpAnnotations) (dict
+      "nginx.ingress.kubernetes.io/proxy-set-headers" (printf "%s/%s" .Release.Namespace (include "foreman-stack.pulpPublicApiHeadersName" .))
+      "nginx.ingress.kubernetes.io/use-regex" "true"
+      "nginx.ingress.kubernetes.io/rewrite-target" "/$2"
+    )) | nindent 4 }}
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  tls:
+    - hosts:
+        - {{ .Values.ingress.pulpContent.host }}
+      secretName: {{ .Values.ingress.pulpContent.tlsSecret }}
+  rules:
+    - host: {{ .Values.ingress.pulpContent.host }}
+      http:
+        paths:
+          # Katello deliberately addresses the Pulp registry through this
+          # private prefix. The traditional Apache deployment strips it before
+          # forwarding the Registry API request to Pulp.
+          - path: /pulpcore_registry(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: {{ include "foreman-stack.pulpApiServiceName" . }}
+                port:
+                  number: {{ .Values.pulp.api.port }}
+---
+{{- end }}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:

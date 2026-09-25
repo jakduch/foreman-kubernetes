@@ -34,6 +34,11 @@ end
 path_map = paths.each_with_object({}) do |path, result|
   result[path['path']] = path.dig('backend', 'service', 'name')
 end
+ingress_by_path = pulp_ingresses.each_with_object({}) do |ingress, result|
+  Array(ingress.dig('spec', 'rules')).each do |rule|
+    Array(rule.dig('http', 'paths')).each { |path| result[path['path']] = ingress }
+  end
+end
 content_service = documents.find do |resource|
   resource['kind'] == 'Service' &&
     resource.dig('metadata', 'labels', 'app.kubernetes.io/component') == 'pulp-content'
@@ -56,7 +61,8 @@ required_routes = {
 plugin_routes = {
   'pulp_container' => {
     '/pulp/container' => content_service_name,
-    '/pulpcore_registry' => api_service_name
+    '/v2' => api_service_name,
+    '/pulpcore_registry(/|$)(.*)' => api_service_name
   },
   'pulp_deb' => {'/pulp/deb' => content_service_name},
   'pulp_ansible' => {'/pulp_ansible/galaxy' => api_service_name},
@@ -77,5 +83,22 @@ plugin_routes.each do |plugin, routes|
 end
 
 abort 'Pulp administrative API must not be public' if path_map.keys.any? { |path| path.start_with?('/pulp/api') }
+
+if enabled_plugins.include?('pulp_container')
+  registry_ingress = ingress_by_path.fetch('/pulpcore_registry(/|$)(.*)')
+  registry_annotations = registry_ingress.dig('metadata', 'annotations') || {}
+  abort 'Katello registry prefix is not treated as a regular expression' unless \
+    registry_annotations['nginx.ingress.kubernetes.io/use-regex'] == 'true'
+  abort 'Katello registry prefix is not stripped before reaching Pulp' unless \
+    registry_annotations['nginx.ingress.kubernetes.io/rewrite-target'] == '/$2'
+  registry_path = paths.find { |path| path['path'] == '/pulpcore_registry(/|$)(.*)' }
+  abort 'Katello registry prefix does not use ImplementationSpecific path matching' unless \
+    registry_path.fetch('pathType') == 'ImplementationSpecific'
+
+  public_registry_ingress = ingress_by_path.fetch('/v2')
+  public_registry_annotations = public_registry_ingress.dig('metadata', 'annotations') || {}
+  abort 'public OCI Registry API must not inherit the Katello prefix rewrite' if \
+    public_registry_annotations.key?('nginx.ingress.kubernetes.io/rewrite-target')
+end
 
 puts "Pulp public routes match enabled plugins: #{enabled_plugins.sort.join(', ')}."
