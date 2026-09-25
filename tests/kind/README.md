@@ -60,9 +60,13 @@
 - Dynflow worker scaling;
 - a deliberately failed Foreman migration caused by temporary invalid database
   credentials: no application Helm revision or replacement Pod may be created,
-  the previous Foreman and Dynflow Pods must remain present, an
+  every previous application workload Pod must remain present, an
   already-running Remote Execution job and a fresh job must succeed, and a
-  subsequent healthy revision must run migrations and replace the held Pods;
+  subsequent healthy revision must run migrations and replace the affected
+  Pods;
+- the same migration gate with temporary invalid Candlepin credentials, then a
+  healthy roll-forward which replaces both Candlepin replicas through its
+  `Recreate` strategy and restores the two-member Quartz cluster;
 - a second Helm revision with migration gates and confirmed Foreman and Dynflow
   Pod replacement while a Remote Execution job remains active and completes;
 - a configuration-changing execution-proxy rollout while another active job

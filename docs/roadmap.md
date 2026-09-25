@@ -35,11 +35,12 @@
   applies application migrations before upgrading the proxy, and reruns health
   checks. It stops on the first failed phase and never performs an unsafe
   manifest-only rollback after database migrations.
-- The integration harness now prepares a failed Foreman migration followed by
-  a roll-forward revision. It requires the old application and Dynflow Pods to
-  remain available through the failure, preserves an active Remote Execution
-  job, restores the injected Secret even during cleanup, and replaces the held
-  Pods only after the next migration succeeds.
+- The integration harness now prepares independent failed Foreman and Candlepin
+  migrations followed by one roll-forward revision. It requires every old
+  application workload Pod to remain available through both failures,
+  preserves an active Remote Execution job, restores either injected Secret
+  even during cleanup, and replaces the affected Foreman, Dynflow, and
+  `Recreate`-managed Candlepin Pods only after all migrations succeed.
 - One-shot, maintenance-gated recovery Jobs produce encrypted Restic snapshots
   of all three databases, Foreman's LDAP avatars, Pulp filesystem storage, and
   both releases' Secrets plus execution Dynflow/runner and Ansible-content
@@ -100,7 +101,8 @@ Still required:
    harness now forces the real `ExpiredPoolsCleanupJob` trigger, deletes the
    scheduler that fired it, requires a distinct replacement while retaining
    exactly two live cluster rows, and requires one execution after takeover.
-3. Exercise failed and successful migrations against the pinned image set.
+3. Run the prepared failed Foreman and Candlepin migration roll-forward against
+   the pinned image set, including the Candlepin `Recreate` replacement.
 4. Exercise the operator's migration-before-rollout sequence, then replace
    `Recreate` with a rolling strategy only after adjacent-version schema
    compatibility is proven.

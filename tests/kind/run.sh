@@ -17,8 +17,10 @@ content_lifecycle_state="${temporary_directory}/content-lifecycle.json"
 image_runtime_contract_file="${IMAGE_RUNTIME_CONTRACT_FILE:-artifacts/image-runtime-contract.json}"
 candlepin_job_delivery_file="${CANDLEPIN_JOB_DELIVERY_FILE:-artifacts/candlepin-job-delivery.json}"
 foreman_database_url_backup=""
+candlepin_database_password_backup=""
 application_secret_rollout_token=initial
 execution_secret_rollout_token=initial
+candlepin_java_xms=512m
 recovery_allow_candidate=0
 recovery_application_profile_override=""
 recovery_execution_profile_override=""
@@ -82,6 +84,7 @@ helm_apply() {
       --values "${repo_root}/examples/execution-control-plane-values.yaml" \
       --values "${image_profile}" \
       --set-string secretRolloutToken="${application_secret_rollout_token}" \
+      --set-string candlepin.java.xms="${candlepin_java_xms}" \
       --wait \
       --wait-for-jobs \
       --timeout 30m \
@@ -96,6 +99,7 @@ helm_apply() {
     --values "${repo_root}/examples/execution-control-plane-values.yaml" \
     --values "${image_profile}" \
     --set-string secretRolloutToken="${application_secret_rollout_token}" \
+    --set-string candlepin.java.xms="${candlepin_java_xms}" \
     "$@" \
     --set-string "releaseOperation.id=${operation_id}" \
     --set-string "releaseOperation.ownerUid=${operation_id}" | \
@@ -117,6 +121,7 @@ helm_apply() {
     --values "${repo_root}/examples/execution-control-plane-values.yaml" \
     --values "${image_profile}" \
     --set-string secretRolloutToken="${application_secret_rollout_token}" \
+    --set-string candlepin.java.xms="${candlepin_java_xms}" \
     "$@" \
     --set releaseOperation.skipMigrationJobs=true \
     --wait \
@@ -178,6 +183,34 @@ pod_uids() {
   kubectl --namespace "${namespace}" get pods \
     --selector="${selector}" \
     --output=json | jq --raw-output '.items[].metadata.uid' | sort
+}
+
+application_workload_pod_uids() {
+  kubectl --namespace "${namespace}" get pods \
+    --selector="app.kubernetes.io/instance=${release}" \
+    --output=json | jq --raw-output '
+      [.items[] |
+       select(any(.metadata.ownerReferences[]?; .kind == "ReplicaSet")) |
+       [.metadata.labels["app.kubernetes.io/component"], .metadata.uid]] |
+      sort_by(.[0], .[1])[] |
+      @tsv'
+}
+
+assert_application_workloads_unchanged() {
+  local previous_uids="$1"
+  local current_uids
+
+  current_uids="$(application_workload_pod_uids)"
+  if [[ -z "${previous_uids}" || -z "${current_uids}" ]]; then
+    echo 'Cannot prove application workload Pod retention' >&2
+    exit 1
+  fi
+  if [[ "${current_uids}" != "${previous_uids}" ]]; then
+    echo 'Application workload Pods changed before migrations succeeded' >&2
+    diff -u <(printf '%s\n' "${previous_uids}") \
+      <(printf '%s\n' "${current_uids}") >&2 || true
+    exit 1
+  fi
 }
 
 assert_pods_replaced() {
@@ -588,8 +621,22 @@ restore_foreman_database_url() {
   foreman_database_url_backup=""
 }
 
+restore_candlepin_database_password() {
+  [[ -n "${candlepin_database_password_backup}" ]] || return 0
+
+  kubectl --namespace "${namespace}" patch secret candlepin-runtime \
+    --type=merge \
+    --patch "$(jq --compact-output --null-input \
+      --arg database_password "${candlepin_database_password_backup}" \
+      '{data: {"database-password": $database_password}}')" >/dev/null
+  candlepin_database_password_backup=""
+}
+
 assert_failed_migration_gate() {
   local upgrade_state="${temporary_directory}/failed-migration-upgrade.json"
+  local application_workload_uids_before
+  local candlepin_uids_before
+  local wrong_database_password
   local wrong_database_url
   local foreman_uids_before
   local dynflow_orchestrator_uids_before
@@ -597,6 +644,8 @@ assert_failed_migration_gate() {
   local dynflow_hosts_queue_uids_before
   local helm_revision_before
 
+  application_workload_uids_before="$(application_workload_pod_uids)"
+  candlepin_uids_before="$(pod_uids 'app.kubernetes.io/component=candlepin')"
   foreman_uids_before="$(pod_uids 'app.kubernetes.io/component=foreman')"
   dynflow_orchestrator_uids_before="$(pod_uids 'app.kubernetes.io/component=dynflow-orchestrator')"
   dynflow_worker_uids_before="$(pod_uids 'app.kubernetes.io/component=dynflow-worker')"
@@ -634,6 +683,7 @@ assert_failed_migration_gate() {
         any(.status.conditions[]?; .type == "Failed" and .status == "True"))' >/dev/null
   restore_foreman_database_url
 
+  assert_application_workloads_unchanged "${application_workload_uids_before}"
   assert_pods_unchanged 'app.kubernetes.io/component=foreman' "${foreman_uids_before}"
   assert_pods_unchanged \
     'app.kubernetes.io/component=dynflow-orchestrator' \
@@ -643,10 +693,43 @@ assert_failed_migration_gate() {
     'app.kubernetes.io/component=dynflow-worker-hosts-queue' \
     "${dynflow_hosts_queue_uids_before}"
   assert_foreman_ready
+
+  candlepin_java_xms=544m
+  candlepin_database_password_backup="$(kubectl --namespace "${namespace}" get secret \
+    candlepin-runtime --output=jsonpath='{.data.database-password}')"
+  wrong_database_password="$(printf '%s' 'wrong-password' | openssl base64 -A)"
+  kubectl --namespace "${namespace}" patch secret candlepin-runtime \
+    --type=merge \
+    --patch "$(jq --compact-output --null-input \
+      --arg database_password "${wrong_database_password}" \
+      '{data: {"database-password": $database_password}}')" >/dev/null
+
+  if helm_apply \
+    --set foreman.dynflow.workerConcurrency=4 \
+    --set migrations.activeDeadlineSeconds=90 \
+    --timeout 5m; then
+    restore_candlepin_database_password
+    echo 'Application upgrade unexpectedly succeeded with invalid Candlepin database credentials' >&2
+    exit 1
+  fi
+
+  helm status "${release}" --namespace "${namespace}" --output=json | \
+    jq --exit-status --argjson revision "${helm_revision_before}" \
+      '.info.status == "deployed" and .version == $revision' >/dev/null
+  kubectl --namespace "${namespace}" get jobs \
+    --selector=app.kubernetes.io/component=candlepin-migrate \
+    --output=json | jq --exit-status \
+      'sort_by(.metadata.creationTimestamp) | last |
+       any(.status.conditions[]?; .type == "Failed" and .status == "True")' >/dev/null
+  restore_candlepin_database_password
+
+  assert_application_workloads_unchanged "${application_workload_uids_before}"
+  assert_candlepin_ha
+  assert_foreman_ready
   finish_execution_upgrade_job failed-migration-upgrade "${upgrade_state}"
   assert_application_smoke_test
 
-  helm_apply
+  helm_apply --set foreman.dynflow.workerConcurrency=4
   assert_pods_replaced 'app.kubernetes.io/component=foreman' "${foreman_uids_before}"
   assert_pods_replaced \
     'app.kubernetes.io/component=dynflow-orchestrator' \
@@ -655,6 +738,8 @@ assert_failed_migration_gate() {
   assert_pods_replaced \
     'app.kubernetes.io/component=dynflow-worker-hosts-queue' \
     "${dynflow_hosts_queue_uids_before}"
+  assert_pods_replaced 'app.kubernetes.io/component=candlepin' "${candlepin_uids_before}"
+  assert_candlepin_ha
   assert_foreman_ready
   assert_application_smoke_test
 }
@@ -776,6 +861,10 @@ cleanup() {
   if [[ -n "${foreman_database_url_backup}" ]] && \
     kubectl get namespace "${namespace}" >/dev/null 2>&1; then
     restore_foreman_database_url || true
+  fi
+  if [[ -n "${candlepin_database_password_backup}" ]] && \
+    kubectl get namespace "${namespace}" >/dev/null 2>&1; then
+    restore_candlepin_database_password || true
   fi
   if [[ ${exit_status} -ne 0 ]] && kubectl get namespace "${namespace}" >/dev/null 2>&1; then
     kubectl --namespace "${namespace}" get pods,jobs

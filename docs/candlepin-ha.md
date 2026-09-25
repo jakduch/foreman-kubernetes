@@ -102,7 +102,11 @@ that scheduler pod, waits until its stale cluster row is replaced, and advances
 the trigger again. The second job must be created by another live scheduler and
 must also execute exactly once.
 
-Before production use, the remaining live proof is a failed migration and a
-`Recreate` upgrade. A trigger already handed to an asynchronous worker is
-covered by the separate Artemis delivery contract; Quartz ownership failover is
-covered at the trigger boundary described above.
+The full integration harness also injects invalid credentials into a distinct
+Candlepin migration operation. It requires the current two replicas to remain
+unchanged, restores the Secret, and then requires a successful roll-forward to
+replace both replicas through the `Recreate` strategy and reconstruct the
+two-member Quartz cluster. A trigger already handed to an asynchronous worker
+is covered by the separate Artemis delivery contract; Quartz ownership failover
+is covered at the trigger boundary described above. These remain prepared
+contracts until the pinned amd64 workflow completes.

@@ -16,6 +16,8 @@
     "clean-namespace-recovery",
     "identity-rotation",
     "failed-migration-roll-forward",
+    "candlepin-failed-migration-roll-forward",
+    "candlepin-recreate-upgrade",
     "dynflow-scale",
     "active-application-upgrade",
     "active-proxy-upgrade"

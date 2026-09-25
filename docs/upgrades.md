@@ -130,11 +130,13 @@ Database rollback requires a separately validated recovery point and the
 maintenance-gated restore procedure.
 
 The disposable integration harness prepares the failure branch explicitly. It
-temporarily gives only a new Foreman migration Job an invalid database URL,
-requires Helm to fail, and verifies that every previous Foreman and Dynflow Pod
-is still present and serving the in-flight Remote Execution job. After restoring
-the Secret, a new revision must complete migrations before those held Pods are
-replaced. The cleanup trap also restores the original Secret if the drill exits
+first gives a new Foreman migration Job an invalid database URL and then gives
+a separate Candlepin migration Job an invalid password. Each attempt must fail
+without creating a Helm revision or replacing any application workload Pod,
+while the in-flight Remote Execution job continues. After both Secrets are
+restored, one roll-forward revision must complete all migrations before
+replacing the affected Foreman, Dynflow, and both `Recreate`-managed Candlepin
+Pods. The cleanup trap restores either original Secret if the drill exits
 between injection and the expected failure.
 
 The final Helm smoke test does not execute a managed-host command. Before the
