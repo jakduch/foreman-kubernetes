@@ -79,20 +79,21 @@ check_required_cluster_resources() {
           return 1
         }
         ;;
-      NodeArchitecture)
+      NodeSelector)
         resource_json="$(kubectl get nodes --output=json)" || {
           echo 'unable to inspect Kubernetes nodes' >&2
           return 1
         }
-        jq --exit-status --arg architecture "${resource_name}" '
+        jq --exit-status --argjson selector "${resource_name}" '
           any(
             .items[];
-            .metadata.labels["kubernetes.io/arch"] == $architecture and
+            . as $node |
             (.spec.unschedulable // false) != true and
-            any(.status.conditions[]?; .type == "Ready" and .status == "True")
+            any(.status.conditions[]?; .type == "Ready" and .status == "True") and
+            all($selector | to_entries[]; $node.metadata.labels[.key] == .value)
           )
         ' <<<"${resource_json}" >/dev/null || {
-          echo "rendered workloads require a Ready, uncordoned ${resource_name} node, but none is available" >&2
+          echo "rendered workloads require a Ready, uncordoned node matching ${resource_name}, but none is available" >&2
           return 1
         }
         ;;

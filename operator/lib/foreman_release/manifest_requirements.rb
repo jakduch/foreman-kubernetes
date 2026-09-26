@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require 'json'
 require 'set'
 
 module ForemanRelease
@@ -25,8 +26,10 @@ module ForemanRelease
         end
         priority_class = pod_spec['priorityClassName'].to_s
         requirements << ['PriorityClass', priority_class] unless priority_class.empty?
-        architecture = pod_spec.dig('nodeSelector', 'kubernetes.io/arch').to_s
-        requirements << ['NodeArchitecture', architecture] unless architecture.empty?
+        node_selector = pod_spec['nodeSelector']
+        if node_selector.is_a?(Hash) && !node_selector.empty?
+          requirements << ['NodeSelector', JSON.generate(node_selector.sort.to_h)]
+        end
         Array(pod_spec['volumes']).each do |volume|
           claim_name = volume.dig('persistentVolumeClaim', 'claimName').to_s
           next if claim_name.empty? || @rendered.include?(['PersistentVolumeClaim', claim_name])

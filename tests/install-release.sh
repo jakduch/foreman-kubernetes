@@ -70,13 +70,14 @@ if [[ "$1" == template && "$2" == foreman ]]; then
       '                  name: required-runtime' \
       '                  key: password'
   fi
-  if [[ "${FAKE_RENDER_ARCH:-0}" == 1 ]]; then
+  if [[ "${FAKE_RENDER_SELECTOR:-0}" == 1 ]]; then
     printf '%s\n' \
       'spec:' \
       '  template:' \
       '    spec:' \
       '      nodeSelector:' \
-      '        kubernetes.io/arch: amd64'
+      '        kubernetes.io/arch: amd64' \
+      '        workload: foreman'
   fi
   printf '%s\n' \
     '---' 'kind: Job' \
@@ -140,8 +141,8 @@ if [[ "$*" == 'get storageclass --output=json' ]]; then
   printf '%s\n' '{"items":[{"metadata":{"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}]}'
 fi
 if [[ "$*" == 'get nodes --output=json' ]]; then
-  printf '{"items":[{"metadata":{"labels":{"kubernetes.io/arch":"%s"}},"spec":{},"status":{"conditions":[{"type":"Ready","status":"True"}]}}]}\n' \
-    "${FAKE_NODE_ARCH:-amd64}"
+  printf '{"items":[{"metadata":{"labels":{"kubernetes.io/arch":"%s","workload":"%s"}},"spec":{},"status":{"conditions":[{"type":"Ready","status":"True"}]}}]}\n' \
+    "${FAKE_NODE_ARCH:-amd64}" "${FAKE_NODE_WORKLOAD:-foreman}"
 fi
 if [[ "$*" == 'get IngressClass nginx --output=json' ]]; then
   printf '{"spec":{"controller":"%s"}}\n' "${FAKE_INGRESS_CONTROLLER:-k8s.io/ingress-nginx}"
@@ -336,16 +337,16 @@ fi
 : > "${tool_log}"
 if PATH="${fake_bin}:${PATH}" \
   FAKE_TOOL_LOG="${tool_log}" \
-  FAKE_RENDER_ARCH=1 \
-  FAKE_NODE_ARCH=arm64 \
+  FAKE_RENDER_SELECTOR=1 \
+  FAKE_NODE_WORKLOAD=other \
   ALLOW_CANDIDATE=1 \
   "${repo_root}/scripts/install-release.sh" \
     "${application_values}" "${execution_values}" >/dev/null 2>&1; then
-  echo 'installation accepted workloads without a compatible node architecture' >&2
+  echo 'installation accepted workloads without a matching node selector' >&2
   exit 1
 fi
 if grep -Fq 'helm upgrade --install ' "${tool_log}"; then
-  echo 'installation started after node architecture preflight failed' >&2
+  echo 'installation started after node selector preflight failed' >&2
   exit 1
 fi
 

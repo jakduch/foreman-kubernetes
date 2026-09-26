@@ -13,7 +13,7 @@ class PreflightKubernetesClient
     @objects = {}
     @nodes = [
       {
-        'metadata' => {'labels' => {'kubernetes.io/arch' => 'amd64'}},
+        'metadata' => {'labels' => {'kubernetes.io/arch' => 'amd64', 'workload' => 'foreman'}},
         'spec' => {},
         'status' => {'conditions' => [{'type' => 'Ready', 'status' => 'True'}]}
       }
@@ -133,7 +133,7 @@ documents = [
     'spec' => {
       'template' => {
         'spec' => {
-          'nodeSelector' => {'kubernetes.io/arch' => 'amd64'},
+          'nodeSelector' => {'kubernetes.io/arch' => 'amd64', 'workload' => 'foreman'},
           'priorityClassName' => 'foreman-platform-critical',
           'serviceAccountName' => 'external-runtime',
           'containers' => [
@@ -208,17 +208,17 @@ raise 'preflight did not submit the complete rendered manifest' unless dry_run.l
 
 client.nodes = [
   {
-    'metadata' => {'labels' => {'kubernetes.io/arch' => 'arm64'}},
+    'metadata' => {'labels' => {'kubernetes.io/arch' => 'arm64', 'workload' => 'foreman'}},
     'spec' => {},
     'status' => {'conditions' => [{'type' => 'Ready', 'status' => 'True'}]}
   },
   {
-    'metadata' => {'labels' => {'kubernetes.io/arch' => 'amd64'}},
+    'metadata' => {'labels' => {'kubernetes.io/arch' => 'amd64', 'workload' => 'foreman'}},
     'spec' => {'unschedulable' => true},
     'status' => {'conditions' => [{'type' => 'Ready', 'status' => 'True'}]}
   },
   {
-    'metadata' => {'labels' => {'kubernetes.io/arch' => 'amd64'}},
+    'metadata' => {'labels' => {'kubernetes.io/arch' => 'amd64', 'workload' => 'other'}},
     'spec' => {},
     'status' => {'conditions' => [{'type' => 'Ready', 'status' => 'False'}]}
   }
@@ -227,11 +227,13 @@ begin
   preflight.validate!(documents, 'platform')
   raise 'workload architecture without a usable node was accepted'
 rescue ForemanRelease::InvalidRelease => error
-  raise unless error.message.include?('require a Ready, uncordoned amd64 node')
+  raise unless error.message.include?(
+    'require a Ready, uncordoned node matching kubernetes.io/arch=amd64, workload=foreman'
+  )
 end
 client.nodes = [
   {
-    'metadata' => {'labels' => {'kubernetes.io/arch' => 'amd64'}},
+    'metadata' => {'labels' => {'kubernetes.io/arch' => 'amd64', 'workload' => 'foreman'}},
     'spec' => {},
     'status' => {'conditions' => [{'type' => 'Ready', 'status' => 'True'}]}
   }

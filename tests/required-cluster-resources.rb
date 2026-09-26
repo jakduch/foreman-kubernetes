@@ -32,6 +32,7 @@ manifest = <<~YAML
       spec:
         nodeSelector:
           kubernetes.io/arch: amd64
+          workload: foreman
         priorityClassName: foreman-platform-critical
         serviceAccountName: external-runtime
         containers:
@@ -97,7 +98,7 @@ expected = <<~OUTPUT
   CustomResourceDefinition\tprometheusrules.monitoring.coreos.com
   DefaultStorageClass\t
   IngressClass\tnginx\tk8s.io/ingress-nginx
-  NodeArchitecture\tamd64
+  NodeSelector\t{"kubernetes.io/arch":"amd64","workload":"foreman"}
   PersistentVolumeClaim\timported-content
   PriorityClass\tforeman-platform-critical
   ServiceAccount\texternal-runtime

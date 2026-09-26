@@ -112,15 +112,18 @@ module ForemanRelease
         required_resource(nil, 'customresourcedefinition', name)
       when 'PriorityClass'
         required_resource(nil, 'priorityclass', name)
-      when 'NodeArchitecture'
+      when 'NodeSelector'
+        selector = JSON.parse(name)
         nodes = @kubernetes_client.resources(nil, 'nodes')
         found = nodes.any? do |node|
-          node.dig('metadata', 'labels', 'kubernetes.io/arch') == name &&
-            node.dig('spec', 'unschedulable') != true && condition_true?(node, 'Ready')
+          labels = node.dig('metadata', 'labels') || {}
+          node.dig('spec', 'unschedulable') != true && condition_true?(node, 'Ready') &&
+            selector.all? { |key, value| labels[key] == value }
         end
         unless found
+          description = selector.sort.map { |key, value| "#{key}=#{value}" }.join(', ')
           raise InvalidRelease,
-                "rendered workloads require a Ready, uncordoned #{name} node, but none is available"
+                "rendered workloads require a Ready, uncordoned node matching #{description}, but none is available"
         end
       when 'PersistentVolumeClaim', 'ServiceAccount'
         required_resource(namespace, kind.downcase, name)

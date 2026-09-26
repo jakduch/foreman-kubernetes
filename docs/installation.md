@@ -167,10 +167,11 @@ the node pool used by the long-running workloads. The execution chart applies
 the same policy to its singleton proxy and smoke test; select nodes that can
 attach both RWO claims. Configure the operator separately so a bad application
 node selector cannot also remove the controller needed to report the failure.
-When a rendered selector contains `kubernetes.io/arch`, guarded preflight
-requires at least one matching Ready, uncordoned node before migrations begin.
-This catches an incompatible image platform early; other labels, taints, and
-affinity remain normal Kubernetes scheduler policy.
+For every rendered `nodeSelector`, guarded preflight requires at least one
+matching Ready, uncordoned node before migrations begin. This covers both the
+release profile's `kubernetes.io/arch` constraint and deployment-specific pool
+labels. Taints, tolerations, and affinity remain normal Kubernetes scheduler
+policy.
 
 The release controller is a privileged in-namespace client of the Kubernetes
 API. Set `networkPolicy.egress.enabled=true` only after listing the in-cluster

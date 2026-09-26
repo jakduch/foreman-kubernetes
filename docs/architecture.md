@@ -158,9 +158,10 @@ recurring, recovery, and execution-proxy workload. Environment-specific node
 pool selectors are merged with it. A mixed-architecture cluster therefore
 keeps the current amd64-only images on compatible nodes without requiring the
 operator to duplicate that constraint in deployment values.
-The guarded CLI and release operator both verify that a matching Ready,
-uncordoned node exists before they run schema migrations. The operator receives
-read-only node-list access solely for this platform check.
+The guarded CLI and release operator both verify that every exact workload
+node selector has a matching Ready, uncordoned node before they run schema
+migrations. The operator receives read-only node-list access solely for this
+scheduling preflight.
 
 The application images already declare non-root users. The chart makes those
 contracts explicit: Foreman and Dynflow run as UID/GID 994, Pulp runs as
