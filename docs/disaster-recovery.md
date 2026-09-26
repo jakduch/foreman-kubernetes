@@ -54,11 +54,12 @@ successfully restored.
 
 ## Recovery toolbox
 
-The `Recovery toolbox image` workflow builds only `linux/amd64`, executes every
-command used by the recovery scripts, and publishes the image to GHCR with an
-SBOM and build provenance. Push a `recovery-v*` tag for a versioned image or
-dispatch the workflow for a commit-tagged qualification build. Copy the
-immutable `repository@sha256:...` reference from its job summary.
+The `Recovery toolbox image` workflow builds and executes every command used by
+the recovery scripts separately on `linux/amd64` and emulated `linux/arm64`.
+Only after both checks pass does it publish one multi-platform image index to
+GHCR with an SBOM and build provenance. Push a `recovery-v*` tag for a versioned
+image or dispatch the workflow for a commit-tagged qualification build. Copy
+the immutable `repository@sha256:...` index reference from its job summary.
 
 For another registry, build and publish the same pinned Dockerfile before
 enabling either Job:

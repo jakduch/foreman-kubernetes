@@ -148,9 +148,9 @@ applications themselves.
 This is not a claim that every cluster is supported automatically. The release
 matrix still has to qualify Kubernetes versions, node architectures, container
 runtimes, ingress controllers, storage implementations, and host security
-integration. The current candidate images are Linux/amd64 only. Smart Proxies
-that own DHCP, DNS, TFTP, or another host-integrated edge service remain
-outside this node-portability boundary.
+integration. The current candidate application images are Linux/amd64 only.
+Smart Proxies that own DHCP, DNS, TFTP, or another host-integrated edge service
+remain outside this node-portability boundary.
 
 Digest-pinned release profiles carry the corresponding
 `kubernetes.io/arch` selector into every application, migration, verification,
@@ -163,6 +163,13 @@ node selector has a matching Ready, uncordoned node before they run schema
 migrations. The operator receives read-only node-list access solely for this
 scheduling preflight. Hard `NoSchedule` and `NoExecute` taints must also be
 covered by the rendered workload's tolerations.
+
+The chart-owned release operator and recovery toolbox are published as
+`linux/amd64` and `linux/arm64` from the same source, with runtime checks on
+both architectures before publication. This removes those supporting
+components as ARM blockers; the application release profile remains pinned to
+the architecture actually provided and qualified by the independent upstream
+workload images.
 
 The application images already declare non-root users. The chart makes those
 contracts explicit: Foreman and Dynflow run as UID/GID 994, Pulp runs as

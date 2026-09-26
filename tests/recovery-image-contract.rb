@@ -16,7 +16,12 @@ end
 end
 
 abort 'recovery image workflow cannot publish packages' unless workflow.include?('packages: write')
-abort 'recovery image workflow is not restricted to linux/amd64' unless workflow.include?('platforms: linux/amd64')
+abort 'recovery image workflow does not publish amd64 and arm64' unless workflow.include?('platforms: linux/amd64,linux/arm64')
+%w[linux/amd64 linux/arm64].each do |platform|
+  abort "recovery image workflow does not verify #{platform}" unless workflow.include?("platform: #{platform}")
+end
+abort 'recovery image workflow does not install emulation before cross-platform verification' unless workflow.include?('docker/setup-qemu-action@')
+abort 'recovery image publication is not gated by platform verification' unless workflow.match?(/publish:\n(?:.|\n)*?needs: verify/)
 abort 'recovery image workflow does not emit provenance' unless workflow.include?('provenance: mode=max')
 abort 'recovery image workflow does not emit an SBOM' unless workflow.include?('sbom: true')
 abort 'recovery image workflow does not report the immutable digest' unless workflow.include?('steps.publish.outputs.digest')
