@@ -64,6 +64,8 @@
   Guarded install, upgrade, recovery, and operator reconciliation also stop
   before migrations when any exact workload node selector has no matching
   Ready, uncordoned node or all matches have untolerated hard taints.
+  Externally owned PersistentVolumeClaims must likewise exist in `Bound` state
+  before a release can stage database work.
 
 - The Katello content lifecycle now builds deterministic local APT and RPM
   repositories alongside its File and Python fixtures. It synchronizes both

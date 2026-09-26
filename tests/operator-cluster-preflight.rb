@@ -179,7 +179,9 @@ client.objects = {
   [nil, 'priorityclass', 'foreman-platform-critical'] => {
     'metadata' => {'name' => 'foreman-platform-critical'}
   },
-  ['platform', 'persistentvolumeclaim', 'imported-content'] => {'metadata' => {'name' => 'imported-content'}},
+  ['platform', 'persistentvolumeclaim', 'imported-content'] => {
+    'metadata' => {'name' => 'imported-content'}, 'status' => {'phase' => 'Bound'}
+  },
   ['platform', 'serviceaccount', 'external-runtime'] => {'metadata' => {'name' => 'external-runtime'}},
   ['platform', 'secret', 'database'] => {
     'metadata' => {'resourceVersion' => '11'}, 'data' => {'password' => 'encoded'}
@@ -270,6 +272,15 @@ client.nodes = [
     'status' => {'conditions' => [{'type' => 'Ready', 'status' => 'True'}]}
   }
 ]
+
+client.objects[['platform', 'persistentvolumeclaim', 'imported-content']]['status']['phase'] = 'Pending'
+begin
+  preflight.validate!(documents, 'platform')
+  raise 'unbound external PersistentVolumeClaim was accepted'
+rescue ForemanRelease::InvalidRelease => error
+  raise unless error.message.include?('persistentvolumeclaim platform/imported-content is not Bound')
+end
+client.objects[['platform', 'persistentvolumeclaim', 'imported-content']]['status']['phase'] = 'Bound'
 
 runner.calls.clear
 certificate_validator.calls.clear

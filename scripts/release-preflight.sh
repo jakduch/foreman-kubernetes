@@ -112,7 +112,18 @@ check_required_cluster_resources() {
           return 1
         }
         ;;
-      PersistentVolumeClaim | ServiceAccount)
+      PersistentVolumeClaim)
+        resource_json="$(kubectl --namespace "${namespace}" get persistentvolumeclaim \
+          "${resource_name}" --output=json)" || {
+          echo "required PersistentVolumeClaim ${namespace}/${resource_name} does not exist" >&2
+          return 1
+        }
+        jq --exit-status '.status.phase == "Bound"' <<<"${resource_json}" >/dev/null || {
+          echo "required PersistentVolumeClaim ${namespace}/${resource_name} is not Bound" >&2
+          return 1
+        }
+        ;;
+      ServiceAccount)
         kubectl --namespace "${namespace}" get "${resource_kind}" "${resource_name}" >/dev/null || {
           echo "required ${resource_kind} ${namespace}/${resource_name} does not exist" >&2
           return 1

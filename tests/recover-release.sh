@@ -85,6 +85,9 @@ fi
 if [[ "$*" == *'get lease foreman-kubernetes-release --output=jsonpath={.spec.holderIdentity}' ]]; then
   printf '%s' "${RELEASE_HOLDER_ID}"
 fi
+if [[ "$*" == *'get persistentvolumeclaim execution-'*' --output=json' ]]; then
+  printf '{"status":{"phase":"%s"}}\n' "${FAKE_PVC_PHASE:-Bound}"
+fi
 SCRIPT
 
 chmod +x "${fake_bin}/helm" "${fake_bin}/kubectl"
@@ -128,6 +131,21 @@ if PATH="${fake_bin}:${PATH}" \
 fi
 if grep -Fq 'helm upgrade ' "${tool_log}"; then
   echo 'recovery mutation started after installed-set validation failed' >&2
+  exit 1
+fi
+
+: > "${tool_log}"
+if PATH="${fake_bin}:${PATH}" \
+  FAKE_TOOL_LOG="${tool_log}" \
+  FAKE_PVC_PHASE=Pending \
+  ALLOW_CANDIDATE=1 \
+  "${repo_root}/scripts/recover-release.sh" backup \
+    "${application_values}" "${execution_values}" request-pvc >/dev/null 2>&1; then
+  echo 'recovery accepted an unbound execution-proxy PersistentVolumeClaim' >&2
+  exit 1
+fi
+if grep -Fq 'helm upgrade ' "${tool_log}"; then
+  echo 'recovery mutation started after PersistentVolumeClaim preflight failed' >&2
   exit 1
 fi
 

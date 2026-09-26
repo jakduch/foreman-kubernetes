@@ -86,6 +86,16 @@ if [[ "$1" == template && "$2" == foreman ]]; then
       '        - key: maintenance' \
       '          operator: Exists'
   fi
+  if [[ "${FAKE_RENDER_EXTERNAL_PVC:-0}" == 1 ]]; then
+    printf '%s\n' \
+      'spec:' \
+      '  template:' \
+      '    spec:' \
+      '      volumes:' \
+      '        - name: imported' \
+      '          persistentVolumeClaim:' \
+      '            claimName: imported-content'
+  fi
   printf '%s\n' \
     '---' 'kind: Job' \
     '---' 'kind: Job' \
@@ -150,6 +160,10 @@ fi
 if [[ "$*" == 'get nodes --output=json' ]]; then
   printf '{"items":[{"metadata":{"labels":{"kubernetes.io/arch":"%s","workload":"%s"}},"spec":{"taints":[{"key":"dedicated","value":"%s","effect":"NoSchedule"},{"key":"maintenance","value":"window","effect":"NoExecute"}]},"status":{"conditions":[{"type":"Ready","status":"True"}]}}]}\n' \
     "${FAKE_NODE_ARCH:-amd64}" "${FAKE_NODE_WORKLOAD:-foreman}" "${FAKE_NODE_TAINT_VALUE:-foreman}"
+fi
+if [[ "$*" == '--namespace foreman get persistentvolumeclaim imported-content --output=json' ]]; then
+  printf '{"metadata":{"name":"imported-content"},"status":{"phase":"%s"}}\n' \
+    "${FAKE_PVC_PHASE:-Bound}"
 fi
 if [[ "$*" == 'get IngressClass nginx --output=json' ]]; then
   printf '{"spec":{"controller":"%s"}}\n' "${FAKE_INGRESS_CONTROLLER:-k8s.io/ingress-nginx}"
@@ -362,6 +376,22 @@ if PATH="${fake_bin}:${PATH}" \
 fi
 if grep -Fq 'helm upgrade --install ' "${tool_log}"; then
   echo 'installation started after node scheduling preflight failed' >&2
+  exit 1
+fi
+
+: > "${tool_log}"
+if PATH="${fake_bin}:${PATH}" \
+  FAKE_TOOL_LOG="${tool_log}" \
+  FAKE_RENDER_EXTERNAL_PVC=1 \
+  FAKE_PVC_PHASE=Pending \
+  ALLOW_CANDIDATE=1 \
+  "${repo_root}/scripts/install-release.sh" \
+    "${application_values}" "${execution_values}" >/dev/null 2>&1; then
+  echo 'installation accepted an unbound external PersistentVolumeClaim' >&2
+  exit 1
+fi
+if grep -Fq 'helm upgrade --install ' "${tool_log}"; then
+  echo 'installation started after external PersistentVolumeClaim preflight failed' >&2
   exit 1
 fi
 

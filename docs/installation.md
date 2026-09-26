@@ -175,6 +175,12 @@ are not covered by that workload's tolerations. Soft `PreferNoSchedule`, node
 affinity, storage topology, and live capacity remain normal Kubernetes
 scheduler policy.
 
+An existing PersistentVolumeClaim referenced by a rendered workload but not
+owned by either chart must already be `Bound`. Guarded preflight rejects a
+missing, `Pending`, or `Lost` external claim before migrations start. Claims
+rendered by the charts are created later in the staged release and are not
+subject to this pre-existence check.
+
 The release controller is a privileged in-namespace client of the Kubernetes
 API. Set `networkPolicy.egress.enabled=true` only after listing the in-cluster
 API Service CIDR or another exact endpoint under

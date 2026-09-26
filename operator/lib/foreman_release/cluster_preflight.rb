@@ -131,8 +131,13 @@ module ForemanRelease
           raise InvalidRelease,
                 "rendered workloads require a Ready, uncordoned node matching #{description} with tolerated hard taints, but none is available"
         end
-      when 'PersistentVolumeClaim', 'ServiceAccount'
-        required_resource(namespace, kind.downcase, name)
+      when 'PersistentVolumeClaim'
+        claim = required_resource(namespace, 'persistentvolumeclaim', name)
+        unless claim.dig('status', 'phase') == 'Bound'
+          raise InvalidRelease, "required persistentvolumeclaim #{namespace}/#{name} is not Bound"
+        end
+      when 'ServiceAccount'
+        required_resource(namespace, 'serviceaccount', name)
       else
         raise InvalidRelease, "unsupported preflight resource kind: #{kind}"
       end
