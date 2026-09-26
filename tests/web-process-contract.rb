@@ -16,9 +16,10 @@ pod_spec = deployment.dig('spec', 'template', 'spec')
 container = Array(pod_spec['containers']).find { |candidate| candidate['name'] == 'foreman' }
 abort 'Foreman web container is missing' unless container
 
-unless container['command'] == ['/usr/share/foreman/bin/rails'] &&
-       container['args'] == ['server', '--environment', 'production', '--pid', '/tmp/rails.pid']
-  abort 'Foreman does not start Rails directly as PID 1'
+startup = Array(container['args']).join("\n")
+unless container['command'] == ['/bin/sh', '-ec'] &&
+       startup.include?('exec /usr/share/foreman/bin/rails server --environment production --pid /tmp/rails.pid')
+  abort 'Foreman startup wrapper does not replace itself with Rails as PID 1'
 end
 
 unless pod_spec['terminationGracePeriodSeconds'] == 150

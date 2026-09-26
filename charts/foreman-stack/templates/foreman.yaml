@@ -72,13 +72,12 @@ spec:
           securityContext:
             {{- include "foreman-stack.restrictedContainerSecurityContext" (dict "runAsUser" 994 "runAsGroup" 994) | nindent 12 }}
           command:
-            - /usr/share/foreman/bin/rails
+            - /bin/sh
+            - -ec
           args:
-            - server
-            - --environment
-            - production
-            - --pid
-            - /tmp/rails.pid
+            - |
+              mkdir -p "${FOREMAN_RUN_DIR}/sockets"
+              exec /usr/share/foreman/bin/rails server --environment production --pid /tmp/rails.pid
           lifecycle:
             preStop:
               exec:

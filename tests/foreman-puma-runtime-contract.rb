@@ -36,4 +36,10 @@ unless shared_tmp && volumes.dig(shared_tmp['name'], 'persistentVolumeClaim', 'c
 end
 abort 'Foreman shared tmp aliases the Puma runtime directory' if shared_tmp['mountPath'] == run_dir.fetch('value')
 
+unless container['command'] == ['/bin/sh', '-ec'] &&
+       Array(container['args']).join("\n").include?('mkdir -p "${FOREMAN_RUN_DIR}/sockets"') &&
+       Array(container['args']).join("\n").include?('exec /usr/share/foreman/bin/rails server')
+  abort 'Foreman does not create its isolated Puma socket directory before startup'
+end
+
 puts 'Foreman uses its upstream runtime-directory contract while retaining shared Katello tmp.'
