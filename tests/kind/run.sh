@@ -6,10 +6,22 @@ cluster_name="${KIND_CLUSTER_NAME:-foreman-stack-e2e}"
 namespace="foreman"
 release="foreman"
 compatibility_sets_file="${repo_root}/compatibility/release-sets.json"
+cluster_platforms_file="${repo_root}/compatibility/cluster-platforms.json"
 compatibility_set="${COMPATIBILITY_SET:-}"
 image_profile="${IMAGE_PROFILE:-}"
 execution_proxy_image_profile="${EXECUTION_PROXY_IMAGE_PROFILE:-}"
-kind_node_image="${KIND_NODE_IMAGE:-kindest/node:v1.34.11@sha256:44e222ee2132dab25ff87301682f89eb82c7880ea3a1bf543bfe9708fd08d67d}"
+cluster_platform="${CLUSTER_PLATFORM:-$(jq --exit-status --raw-output '.default' "${cluster_platforms_file}")}"
+cluster_platform_contract="$(jq --exit-status --compact-output \
+  --arg platform "${cluster_platform}" \
+  '.platforms[$platform] // empty' \
+  "${cluster_platforms_file}")"
+declared_kind_node_image="$(jq --exit-status --raw-output '.kubernetes.nodeImage' <<<"${cluster_platform_contract}")"
+declared_kubernetes_version="$(jq --exit-status --raw-output '.kubernetes.version' <<<"${cluster_platform_contract}")"
+declared_container_runtime="$(jq --exit-status --raw-output '.kubernetes.containerRuntime' <<<"${cluster_platform_contract}")"
+declared_workload_architecture="$(jq --exit-status --raw-output '.workloadPlatform | split("/")[1]' <<<"${cluster_platform_contract}")"
+ingress_chart_version="$(jq --exit-status --raw-output '.ingress.chartVersion' <<<"${cluster_platform_contract}")"
+pod_security_version="$(jq --exit-status --raw-output '.podSecurity.version' <<<"${cluster_platform_contract}")"
+kind_node_image="${KIND_NODE_IMAGE:-${declared_kind_node_image}}"
 created_cluster=false
 temporary_directory="$(mktemp -d)"
 skip_recovery_test="${SKIP_RECOVERY_TEST:-0}"
@@ -307,7 +319,52 @@ write_integration_evidence() {
     "${compatibility_set}" \
     "${image_profile}" \
     "${execution_proxy_image_profile}" \
-    "${result}"
+    "${result}" \
+    "${cluster_platform}" \
+    "${kind_node_image}"
+}
+
+assert_cluster_platform() {
+  local node_count
+  local node_architectures
+  local node_operating_systems
+  local container_runtimes
+  local server_version
+
+  node_count="$(kubectl get nodes --output=json | jq '.items | length')"
+  [[ "${node_count}" -eq 1 ]] || {
+    echo "Cluster platform ${cluster_platform} requires exactly one kind node" >&2
+    return 1
+  }
+
+  node_architectures="$(kubectl get nodes --output=json | jq --raw-output \
+    '[.items[].status.nodeInfo.architecture] | unique | join(",")')"
+  [[ "${node_architectures}" == "${declared_workload_architecture}" ]] || {
+    echo "Cluster platform ${cluster_platform} expected ${declared_workload_architecture}, got ${node_architectures}" >&2
+    return 1
+  }
+
+  node_operating_systems="$(kubectl get nodes --output=json | jq --raw-output \
+    '[.items[].status.nodeInfo.operatingSystem] | unique | join(",")')"
+  [[ "${node_operating_systems}" == linux ]] || {
+    echo "Cluster platform ${cluster_platform} expected Linux nodes, got ${node_operating_systems}" >&2
+    return 1
+  }
+
+  container_runtimes="$(kubectl get nodes --output=json | jq --raw-output \
+    '[.items[].status.nodeInfo.containerRuntimeVersion | split(":")[0]] | unique | join(",")')"
+  [[ "${container_runtimes}" == "${declared_container_runtime}" ]] || {
+    echo "Cluster platform ${cluster_platform} expected ${declared_container_runtime}, got ${container_runtimes}" >&2
+    return 1
+  }
+
+  if [[ "${kind_node_image}" == "${declared_kind_node_image}" ]]; then
+    server_version="$(kubectl version --output=json | jq --raw-output '.serverVersion.gitVersion | sub("^v"; "")')"
+    [[ "${server_version}" == "${declared_kubernetes_version}" ]] || {
+      echo "Cluster platform ${cluster_platform} expected Kubernetes ${declared_kubernetes_version}, got ${server_version}" >&2
+      return 1
+    }
+  fi
 }
 
 candlepin_quartz_instances() {
@@ -641,11 +698,11 @@ install_dependencies() {
   kubectl --namespace "${namespace}" rollout status deployment/execution-target --timeout=5m
   kubectl label namespace "${namespace}" \
     pod-security.kubernetes.io/enforce=restricted \
-    pod-security.kubernetes.io/enforce-version=v1.34 \
+    pod-security.kubernetes.io/enforce-version="${pod_security_version}" \
     pod-security.kubernetes.io/audit=restricted \
-    pod-security.kubernetes.io/audit-version=v1.34 \
+    pod-security.kubernetes.io/audit-version="${pod_security_version}" \
     pod-security.kubernetes.io/warn=restricted \
-    pod-security.kubernetes.io/warn-version=v1.34 \
+    pod-security.kubernetes.io/warn-version="${pod_security_version}" \
     --overwrite >/dev/null
 }
 
@@ -1083,6 +1140,7 @@ else
   created_cluster=true
 fi
 
+assert_cluster_platform
 prepare_kind_storage
 
 if [[ "${skip_recovery_test}" != 1 ]]; then
@@ -1113,6 +1171,7 @@ kind load docker-image \
 
 helm upgrade --install ingress-nginx ingress-nginx \
   --repo https://kubernetes.github.io/ingress-nginx \
+  --version "${ingress_chart_version}" \
   --namespace ingress-nginx \
   --create-namespace \
   --set controller.service.type=NodePort \

@@ -716,6 +716,7 @@ fi
 "${repo_root}/tests/recovery-database-archive.sh"
 
 ruby "${repo_root}/tests/plugin-compatibility.rb"
+ruby "${repo_root}/tests/cluster-platforms.rb"
 ruby "${repo_root}/tests/upstream-contracts.rb"
 ruby "${repo_root}/tests/release-sets.rb"
 ruby -c "${repo_root}/scripts/write-integration-evidence.rb"

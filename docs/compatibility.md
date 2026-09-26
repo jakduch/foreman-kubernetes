@@ -51,6 +51,22 @@ storage implementation, and host security configuration. Distribution
 independence therefore means no application packaging dependency on the node;
 it does not turn an untested cluster combination into a supported target.
 
+The machine-readable qualification target is
+`compatibility/cluster-platforms.json`. The initial `kind-v1.34-amd64` target
+pins the kind node image, Kubernetes version, container runtime,
+ingress-nginx chart, Pod Security version, and native runner platform used by
+the full integration workflow. Its `implemented-unrun` state means the harness
+exists but no retained successful run has established support. The static
+hostPath volumes and SeaweedFS service named there are disposable storage
+fixtures, not recommended production providers.
+
+`KIND_NODE_IMAGE` can still replace the node image for exploratory testing.
+Evidence from such a run records the actual image and is deliberately
+ineligible for promotion unless it exactly matches a declared qualification
+target. A new Kubernetes version, architecture, runtime, ingress
+implementation, or security policy therefore gets a new reviewed target
+instead of silently reusing evidence from a different environment.
+
 > **No supported image set exists yet.** The current nightly candidate predates
 > the upstream runtime contracts listed in
 > `compatibility/upstream-contracts.json`. It is retained for manifest and
@@ -68,8 +84,10 @@ artifact. The record binds the run to:
 
 - the tested Git commit and compatibility-set name;
 - the target and native runner platforms;
-- SHA-256 hashes of the candidate manifest, both image profiles, and the test
-  contract;
+- SHA-256 hashes of the candidate manifest, both image profiles, the test
+  contract, upstream contracts, and cluster-platform registry;
+- the declared cluster-platform identity and exact node image, Kubernetes,
+  container-runtime, ingress-chart, and Pod Security versions;
 - the GitHub Actions run and attempt;
 - every completed runtime check.
 

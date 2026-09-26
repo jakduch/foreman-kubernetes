@@ -17,10 +17,12 @@ evidence_path = Pathname.new(File.expand_path(ARGV.fetch(1)))
 abort "invalid compatibility set name: #{set_name}" unless set_name.match?(/\A[a-z0-9][a-z0-9._-]*\z/)
 
 release_sets_path = root / 'compatibility/release-sets.json'
+cluster_platforms_path = root / 'compatibility/cluster-platforms.json'
 checks_path = root / 'compatibility/required-integration-checks.json'
 upstream_contracts_path = root / 'compatibility/upstream-contracts.json'
 release_sets = JSON.parse(release_sets_path.read)
 release_set = release_sets.fetch('sets').fetch(set_name)
+cluster_platforms = JSON.parse(cluster_platforms_path.read)
 upstream_contracts = JSON.parse(upstream_contracts_path.read)
 evidence = JSON.parse(evidence_path.read)
 required_checks = JSON.parse(checks_path.read).fetch('checks')
@@ -37,12 +39,30 @@ unless missing_contracts.empty?
   abort "release set is missing published upstream contracts: #{missing_contracts.map { |contract| contract.fetch('id') }.join(', ')}"
 end
 
-abort 'unsupported integration evidence schema' unless evidence.fetch('schemaVersion') == 1
+abort 'unsupported integration evidence schema' unless evidence.fetch('schemaVersion') == 2
 abort 'integration evidence belongs to another set' unless evidence.fetch('compatibilitySet') == set_name
+cluster_platform_id = evidence.fetch('clusterPlatform')
+unless release_set.fetch('qualificationTargets').include?(cluster_platform_id)
+  abort 'integration evidence used an undeclared cluster qualification target'
+end
+cluster_platform = cluster_platforms.fetch('platforms').fetch(cluster_platform_id)
+unless cluster_platform.fetch('workloadPlatform') == release_set.fetch('platform')
+  abort 'cluster workload platform does not match the release set'
+end
+cluster_runtime = evidence.fetch('clusterRuntime')
+unless cluster_runtime.fetch('kubernetesVersion') == cluster_platform.dig('kubernetes', 'version') &&
+       cluster_runtime.fetch('nodeImage') == cluster_platform.dig('kubernetes', 'nodeImage') &&
+       cluster_runtime.fetch('containerRuntime') == cluster_platform.dig('kubernetes', 'containerRuntime') &&
+       cluster_runtime.fetch('ingressChartVersion') == cluster_platform.dig('ingress', 'chartVersion') &&
+       cluster_runtime.fetch('podSecurityVersion') == cluster_platform.dig('podSecurity', 'version')
+  abort 'integration evidence does not match the declared cluster runtime'
+end
 abort 'integration evidence is not a complete passing run' unless evidence.fetch('result') == 'passed'
 abort 'integration evidence is not eligible for promotion' unless evidence.fetch('eligibleForPromotion') == true
 abort 'integration target does not match the release set' unless evidence.fetch('targetPlatform') == release_set.fetch('platform')
-abort 'supported sets require a native linux/amd64 run' unless evidence.fetch('runnerPlatform') == 'linux/amd64'
+unless evidence.fetch('runnerPlatform') == cluster_platform.fetch('runnerPlatform')
+  abort 'integration evidence used the wrong runner platform'
+end
 
 missing_checks = required_checks - evidence.fetch('checks')
 abort "integration evidence is missing checks: #{missing_checks.join(', ')}" unless missing_checks.empty?
@@ -53,7 +73,8 @@ expected_hashes = {
   'applicationProfileSha256' => root / release_set.fetch('applicationProfile'),
   'executionProfileSha256' => root / release_set.fetch('executionProxyProfile'),
   'checksSha256' => checks_path,
-  'upstreamContractsSha256' => upstream_contracts_path
+  'upstreamContractsSha256' => upstream_contracts_path,
+  'clusterPlatformsSha256' => cluster_platforms_path
 }
 expected_hashes.each do |key, path|
   actual_hash = Digest::SHA256.file(path).hexdigest

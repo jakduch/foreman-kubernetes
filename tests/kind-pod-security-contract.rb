@@ -10,6 +10,9 @@ object_storage_drill = File.read(File.join(root, 'tests/kind/object-storage.sh')
 ssh_target_image = File.read(File.join(root, 'images/ssh-target/Dockerfile'))
 ssh_target_entrypoint = File.read(File.join(root, 'images/ssh-target/entrypoint.sh'))
 checks = JSON.parse(File.read(File.join(root, 'compatibility/required-integration-checks.json'))).fetch('checks')
+cluster_platforms = JSON.parse(File.read(File.join(root, 'compatibility/cluster-platforms.json')))
+default_cluster_platform = cluster_platforms.fetch('platforms').fetch(cluster_platforms.fetch('default'))
+pod_security_version = default_cluster_platform.dig('podSecurity', 'version')
 
 def resources(path)
   YAML.load_stream(File.read(path)).compact
@@ -57,12 +60,14 @@ abort 'SSH target still mutates host identity at runtime' if ssh_target_entrypoi
 labels = %w[enforce audit warn].flat_map do |mode|
   [
     "pod-security.kubernetes.io/#{mode}=restricted",
-    "pod-security.kubernetes.io/#{mode}-version=v1.34"
+    "pod-security.kubernetes.io/#{mode}-version=\"${pod_security_version}\""
   ]
 end
 labels.each do |label|
   abort "Kind harness omits namespace label #{label}" unless harness.include?(label)
 end
+abort 'Kind harness does not read the declared Pod Security version' unless
+  harness.include?(".podSecurity.version") && pod_security_version.match?(/\Av\d+\.\d+\z/)
 
 {
   'event.org.candlepin.audit.LoggingListener' => ['event.default', 'multicast'],

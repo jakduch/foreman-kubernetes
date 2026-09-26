@@ -49,6 +49,14 @@
 
 ## Implemented, pending integration proof
 
+- Cluster qualification now has a separate machine-readable registry. The
+  initial native amd64 target binds the full drill to an exact kind node,
+  Kubernetes version, container runtime, ingress chart, Pod Security policy,
+  and release-set pairing. Promotion evidence includes the registry digest and
+  actual node image, so an exploratory override cannot be mistaken for the
+  supported environment. The target remains `implemented-unrun` until a full
+  retained run succeeds.
+
 - The Katello content lifecycle now builds deterministic local APT and RPM
   repositories alongside its File and Python fixtures. It synchronizes both
   packages, publishes them in the same Content View, and verifies library and

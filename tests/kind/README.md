@@ -187,14 +187,19 @@ testing another node image, keep the selected policy version supported by that
 cluster instead of weakening enforcement.
 
 By default the harness resolves the paired, digest-pinned nightly candidate
-from `compatibility/release-sets.json` and uses a digest-pinned Kubernetes 1.34
-kind node. `COMPATIBILITY_SET` selects another declared pair. The published
-application images are currently `linux/amd64` only. The script refuses an ARM
-host unless `ALLOW_EMULATION=1` explicitly opts into the slower, host-dependent
-emulation path. For candidate development, `IMAGE_PROFILE` and
+from `compatibility/release-sets.json` and the `kind-v1.34-amd64` qualification
+target from `compatibility/cluster-platforms.json`. That target pins the kind
+node, Kubernetes 1.34.11, containerd, ingress-nginx chart 4.15.1, and the
+`restricted` v1.34 Pod Security policy. The harness checks the live node before
+installing dependencies. `COMPATIBILITY_SET` selects another declared pair and
+`CLUSTER_PLATFORM` selects one of that pair's declared qualification targets.
+The published application images are currently `linux/amd64` only. The script
+refuses an ARM host unless `ALLOW_EMULATION=1` explicitly opts into the slower,
+host-dependent emulation path. For candidate development, `IMAGE_PROFILE` and
 `EXECUTION_PROXY_IMAGE_PROFILE` may override both halves of the pair together;
 a one-sided override is rejected. `KIND_NODE_IMAGE=...` selects another
-Kubernetes test image.
+Kubernetes test image for diagnostics, but evidence from that override cannot
+promote the declared platform.
 
 Set `INTEGRATION_EVIDENCE_FILE` to write a result record after all assertions:
 

@@ -9,7 +9,9 @@ require 'rbconfig'
 require 'shellwords'
 require 'time'
 
-abort 'usage: write-integration-evidence.rb OUTPUT SET APPLICATION_PROFILE EXECUTION_PROFILE RESULT' unless ARGV.length == 5
+unless ARGV.length == 7
+  abort 'usage: write-integration-evidence.rb OUTPUT SET APPLICATION_PROFILE EXECUTION_PROFILE RESULT CLUSTER_PLATFORM NODE_IMAGE'
+end
 
 root = Pathname.new(File.expand_path('..', __dir__))
 output = Pathname.new(File.expand_path(ARGV.fetch(0)))
@@ -17,13 +19,22 @@ set_name = ARGV.fetch(1)
 application_profile = Pathname.new(File.expand_path(ARGV.fetch(2)))
 execution_profile = Pathname.new(File.expand_path(ARGV.fetch(3)))
 result = ARGV.fetch(4)
+cluster_platform_id = ARGV.fetch(5)
+node_image = ARGV.fetch(6)
 abort "unsupported integration result: #{result}" unless %w[passed partial].include?(result)
 
 release_sets_path = root / 'compatibility/release-sets.json'
+cluster_platforms_path = root / 'compatibility/cluster-platforms.json'
 checks_path = root / 'compatibility/required-integration-checks.json'
 upstream_contracts_path = root / 'compatibility/upstream-contracts.json'
 release_sets = JSON.parse(release_sets_path.read)
 release_set = release_sets.fetch('sets').fetch(set_name)
+cluster_platforms = JSON.parse(cluster_platforms_path.read)
+abort 'unsupported cluster-platform schema' unless cluster_platforms.fetch('schemaVersion') == 1
+cluster_platform = cluster_platforms.fetch('platforms').fetch(cluster_platform_id)
+unless release_set.fetch('qualificationTargets').include?(cluster_platform_id)
+  abort "cluster platform #{cluster_platform_id} is not a qualification target for #{set_name}"
+end
 declared_application_profile = root / release_set.fetch('applicationProfile')
 declared_execution_profile = root / release_set.fetch('executionProxyProfile')
 
@@ -81,12 +92,24 @@ provenance = if github_actions
                {'provider' => 'local'}
              end
 
+platform_matches = cluster_platform.fetch('workloadPlatform') == release_set.fetch('platform')
+node_image_matches = node_image == cluster_platform.dig('kubernetes', 'nodeImage')
+
 evidence = {
-  'schemaVersion' => 1,
+  'schemaVersion' => 2,
   'compatibilitySet' => set_name,
+  'clusterPlatform' => cluster_platform_id,
+  'clusterRuntime' => {
+    'kubernetesVersion' => cluster_platform.dig('kubernetes', 'version'),
+    'nodeImage' => node_image,
+    'containerRuntime' => cluster_platform.dig('kubernetes', 'containerRuntime'),
+    'ingressChartVersion' => cluster_platform.dig('ingress', 'chartVersion'),
+    'podSecurityVersion' => cluster_platform.dig('podSecurity', 'version')
+  },
   'result' => result,
   'eligibleForPromotion' => result == 'passed' &&
-    runner_platform == release_set.fetch('platform') && github_actions,
+    platform_matches && node_image_matches &&
+    runner_platform == cluster_platform.fetch('runnerPlatform') && github_actions,
   'targetPlatform' => release_set.fetch('platform'),
   'runnerPlatform' => runner_platform,
   'gitCommit' => git_commit,
@@ -97,7 +120,8 @@ evidence = {
     'applicationProfileSha256' => Digest::SHA256.file(application_profile).hexdigest,
     'executionProfileSha256' => Digest::SHA256.file(execution_profile).hexdigest,
     'checksSha256' => Digest::SHA256.file(checks_path).hexdigest,
-    'upstreamContractsSha256' => Digest::SHA256.file(upstream_contracts_path).hexdigest
+    'upstreamContractsSha256' => Digest::SHA256.file(upstream_contracts_path).hexdigest,
+    'clusterPlatformsSha256' => Digest::SHA256.file(cluster_platforms_path).hexdigest
   },
   'checks' => checks
 }

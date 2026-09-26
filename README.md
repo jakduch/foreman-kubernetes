@@ -128,6 +128,11 @@ Static render checks are available as `tests/render.sh` and run in the lightweig
 Application and execution-proxy image profiles are paired in
 `compatibility/release-sets.json`. Declared sets are digest-pinned and remain
 `candidate` until the complete runtime drill passes for that exact combination.
+The independent `compatibility/cluster-platforms.json` registry binds that
+qualification to an exact Kubernetes node image, container runtime, ingress
+chart, Pod Security version, and native runner architecture. A different node
+image remains useful for diagnostics but cannot promote a release set under
+another platform's identity.
 Successful full runs emit retained, input-hashed evidence; promotion remains an
 explicit reviewed change and rejects local, partial, or stale results.
 The guarded two-release upgrade sequence is implemented in

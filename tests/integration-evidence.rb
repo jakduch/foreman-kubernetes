@@ -13,6 +13,10 @@ root = Pathname.new(File.expand_path('..', __dir__))
 release_sets = JSON.parse((root / 'compatibility/release-sets.json').read)
 set_name = release_sets.fetch('default')
 release_set = release_sets.fetch('sets').fetch(set_name)
+cluster_platforms = JSON.parse((root / 'compatibility/cluster-platforms.json').read)
+cluster_platform_id = release_set.fetch('qualificationTargets').first
+cluster_platform = cluster_platforms.fetch('platforms').fetch(cluster_platform_id)
+node_image = cluster_platform.dig('kubernetes', 'nodeImage')
 application_profile = root / release_set.fetch('applicationProfile')
 execution_profile = root / release_set.fetch('executionProxyProfile')
 writer = root / 'scripts/write-integration-evidence.rb'
@@ -35,7 +39,9 @@ Dir.mktmpdir('foreman-kubernetes-evidence') do |directory|
     set_name,
     application_profile.to_s,
     execution_profile.to_s,
-    'passed'
+    'passed',
+    cluster_platform_id,
+    node_image
   )
   abort stderr unless status.success?
   abort 'evidence writer did not report its output' unless stdout.include?(set_name)
@@ -44,10 +50,16 @@ Dir.mktmpdir('foreman-kubernetes-evidence') do |directory|
   required_checks = JSON.parse((root / 'compatibility/required-integration-checks.json').read).fetch('checks')
   abort 'local evidence must not be promotable' unless evidence.fetch('eligibleForPromotion') == false
   abort 'evidence did not record the exact compatibility set' unless evidence.fetch('compatibilitySet') == set_name
+  abort 'evidence did not record the cluster platform' unless evidence.fetch('clusterPlatform') == cluster_platform_id
+  abort 'evidence did not record the cluster node image' unless evidence.dig('clusterRuntime', 'nodeImage') == node_image
   abort 'evidence omitted required integration checks' unless (required_checks - evidence.fetch('checks')).empty?
   expected_contracts_digest = Digest::SHA256.file(root / 'compatibility/upstream-contracts.json').hexdigest
   unless evidence.dig('inputs', 'upstreamContractsSha256') == expected_contracts_digest
     abort 'evidence omitted the upstream contract registry digest'
+  end
+  expected_platforms_digest = Digest::SHA256.file(root / 'compatibility/cluster-platforms.json').hexdigest
+  unless evidence.dig('inputs', 'clusterPlatformsSha256') == expected_platforms_digest
+    abort 'evidence omitted the cluster-platform registry digest'
   end
 
   partial_generated_evidence = work / 'generated-partial.json'
@@ -58,7 +70,9 @@ Dir.mktmpdir('foreman-kubernetes-evidence') do |directory|
     set_name,
     application_profile.to_s,
     execution_profile.to_s,
-    'partial'
+    'partial',
+    cluster_platform_id,
+    node_image
   )
   abort stderr unless status.success?
   partial_generated = JSON.parse(partial_generated_evidence.read)
@@ -80,7 +94,9 @@ Dir.mktmpdir('foreman-kubernetes-evidence') do |directory|
     set_name,
     undeclared_profile.to_s,
     execution_profile.to_s,
-    'passed'
+    'passed',
+    cluster_platform_id,
+    node_image
   )
   abort 'evidence writer accepted an undeclared profile path' if status.success?
   abort 'undeclared profile failure was not explicit' unless stderr.include?('does not match the declared compatibility set')
@@ -105,11 +121,30 @@ Dir.mktmpdir('foreman-kubernetes-evidence') do |directory|
     application_profile.to_s,
     execution_profile.to_s,
     'passed',
+    cluster_platform_id,
+    node_image,
     env: github_environment
   )
   abort stderr unless status.success?
   github_evidence = JSON.parse(github_evidence_path.read)
   abort 'writer omitted GitHub workflow provenance' unless github_evidence.dig('provenance', 'workflow') == 'Full integration'
+
+  custom_node_evidence_path = work / 'custom-node.json'
+  _stdout, stderr, status = run_command(
+    RbConfig.ruby,
+    writer.to_s,
+    custom_node_evidence_path.to_s,
+    set_name,
+    application_profile.to_s,
+    execution_profile.to_s,
+    'passed',
+    cluster_platform_id,
+    'kindest/node:v1.34.11@sha256:' + ('0' * 64),
+    env: github_environment
+  )
+  abort stderr unless status.success?
+  custom_node_evidence = JSON.parse(custom_node_evidence_path.read)
+  abort 'writer promoted an undeclared node image' unless custom_node_evidence.fetch('eligibleForPromotion') == false
 
   temporary_root = work / 'repository'
   FileUtils.mkdir_p(temporary_root)
