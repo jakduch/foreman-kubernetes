@@ -443,8 +443,10 @@
               "required": ["port"],
               "properties": {
                 "port": {
-                  "const": 443,
-                  "description": "Katello derives Pulp API clients from scheme and host, so the control Service must use the HTTPS default port."
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 65535,
+                  "description": "HTTPS port advertised to Katello and other internal Pulp API clients."
                 }
               }
             },

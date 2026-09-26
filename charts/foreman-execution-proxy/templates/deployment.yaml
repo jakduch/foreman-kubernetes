@@ -49,7 +49,6 @@ spec:
             - -ec
           args:
             - |
-              install -d -m 0700 /var/run/foreman-proxy/ssh
               install -m 0600 /ssh-source/private /var/run/foreman-proxy/ssh/id_rsa_foreman_proxy
               install -m 0644 /ssh-source/public /var/run/foreman-proxy/ssh/id_rsa_foreman_proxy.pub
               {{- if .Values.ssh.userCertificate.enabled }}

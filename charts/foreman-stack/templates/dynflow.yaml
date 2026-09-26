@@ -88,8 +88,6 @@ spec:
           env:
             {{- include "foreman-stack.foremanEnv" $root | nindent 12 }}
             {{- include "foreman-stack.foremanDatabasePoolEnv" $worker.databasePool | nindent 12 }}
-            - name: RUBYOPT
-              value: -r/opt/foreman-kubernetes/dynflow-lifecycle.rb
             - name: DYNFLOW_READINESS_FILE
               value: /run/foreman-kubernetes/dynflow-ready
           volumeMounts:
@@ -97,10 +95,6 @@ spec:
             - name: foreman-generated-config
               mountPath: /etc/foreman/dynflow/runtime.yml
               subPath: {{ $worker.config }}
-              readOnly: true
-            - name: foreman-generated-config
-              mountPath: /opt/foreman-kubernetes/dynflow-lifecycle.rb
-              subPath: dynflow-lifecycle.rb
               readOnly: true
             - name: dynflow-runtime
               mountPath: /run/foreman-kubernetes

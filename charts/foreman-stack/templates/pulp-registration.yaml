@@ -47,11 +47,18 @@ spec:
               until bin/rails runner '
                 name = ENV.fetch("PULP_PROXY_NAME")
                 url = ENV.fetch("PULP_PROXY_URL")
-                proxy = SmartProxy.unscoped.find_by(url: url) || SmartProxy.unscoped.find_or_initialize_by(name: name)
-                proxy.name = name if proxy.new_record?
-                proxy.url = url
-                abort(proxy.errors.full_messages.to_sentence) unless proxy.save
-                abort("Pulp proxy did not report the Pulpcore feature") unless proxy.has_feature?("Pulpcore")
+                User.as_anonymous_admin do
+                  by_url = SmartProxy.unscoped.find_by(url: url)
+                  by_name = SmartProxy.unscoped.find_by(name: name)
+                  if by_url && by_name && by_url.id != by_name.id
+                    abort("Smart Proxy name and URL belong to different records")
+                  end
+                  proxy = by_url || by_name || SmartProxy.new
+                  proxy.name = name
+                  proxy.url = url
+                  abort(proxy.errors.full_messages.to_sentence) unless proxy.save
+                  abort("Pulp proxy did not report the Pulpcore feature") unless proxy.has_feature?("Pulpcore")
+                end
               '
               do
                 if [ "${attempt}" -ge "${PULP_PROXY_RETRY_ATTEMPTS}" ]; then

@@ -20,19 +20,15 @@ abort "Candlepin migration barrier expectation differs" unless !barrier.nil? == 
 
 if barrier
   command = Array(barrier['command'])
-  unless command == ['/bin/bash', '/opt/foreman-kubernetes/candlepin-migrate.sh']
-    abort "Candlepin barrier does not use the migration wrapper: #{command.inspect}"
+  unless command == ['/usr/local/bin/candlepin-db-migrate']
+    abort "Candlepin barrier does not use the upstream migration entrypoint: #{command.inspect}"
   end
 
   env = Array(barrier['env']).to_h { |entry| [entry['name'], entry] }
-  %w[CANDLEPIN_DATABASE_URL CANDLEPIN_DATABASE_USER LIQUIBASE_COMMAND_PASSWORD].each do |name|
-    abort "Candlepin barrier lacks #{name}" unless env.key?(name)
-  end
-
-  mount = Array(barrier['volumeMounts']).find do |candidate|
-    candidate['mountPath'] == '/opt/foreman-kubernetes/candlepin-migrate.sh'
-  end
-  abort 'Candlepin barrier migration wrapper is not mounted read-only' unless mount&.fetch('readOnly', false)
+  abort 'Candlepin barrier lacks LIQUIBASE_COMMAND_PASSWORD' unless env.key?('LIQUIBASE_COMMAND_PASSWORD')
+  args = Array(barrier['args'])
+  abort 'Candlepin barrier lacks the JDBC URL' unless args.any? { |arg| arg.start_with?('--url=jdbc:postgresql://') }
+  abort 'Candlepin barrier lacks the database user' unless args.any? { |arg| arg.start_with?('--username=') }
 end
 
 puts "Candlepin migration init barrier enabled=#{expected}."

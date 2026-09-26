@@ -53,18 +53,20 @@ spec:
               until bin/rails runner '
                 name = ENV.fetch("EXECUTION_PROXY_NAME")
                 url = ENV.fetch("EXECUTION_PROXY_URL")
-                by_url = SmartProxy.unscoped.find_by(url: url)
-                by_name = SmartProxy.unscoped.find_by(name: name)
-                if by_url && by_name && by_url.id != by_name.id
-                  abort("Smart Proxy name and URL belong to different records")
+                User.as_anonymous_admin do
+                  by_url = SmartProxy.unscoped.find_by(url: url)
+                  by_name = SmartProxy.unscoped.find_by(name: name)
+                  if by_url && by_name && by_url.id != by_name.id
+                    abort("Smart Proxy name and URL belong to different records")
+                  end
+                  proxy = by_url || by_name || SmartProxy.new
+                  proxy.name = name
+                  proxy.url = url
+                  abort(proxy.errors.full_messages.to_sentence) unless proxy.save
+                  actual = proxy.features.reload.pluck(:name).sort
+                  expected = ENV.fetch("EXECUTION_PROXY_FEATURES").split(",").sort
+                  abort("Smart Proxy features are #{actual.inspect}, expected #{expected.inspect}") unless actual == expected
                 end
-                proxy = by_url || by_name || SmartProxy.new
-                proxy.name = name
-                proxy.url = url
-                abort(proxy.errors.full_messages.to_sentence) unless proxy.save
-                actual = proxy.features.reload.pluck(:name).sort
-                expected = ENV.fetch("EXECUTION_PROXY_FEATURES").split(",").sort
-                abort("Smart Proxy features are #{actual.inspect}, expected #{expected.inspect}") unless actual == expected
               '
               do
                 if [ "${attempt}" -ge "${EXECUTION_PROXY_RETRY_ATTEMPTS}" ]; then

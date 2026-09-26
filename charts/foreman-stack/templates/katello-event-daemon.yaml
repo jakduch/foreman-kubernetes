@@ -48,7 +48,7 @@ spec:
           command:
             - bin/rails
             - runner
-            - /opt/foreman-kubernetes/katello-event-daemon.rb
+            - Katello::EventDaemon::Runner.run_foreground
           env:
             {{- include "foreman-stack.foremanEnv" . | nindent 12 }}
             {{- include "foreman-stack.foremanDatabasePoolEnv" .Values.foreman.databasePools.utility | nindent 12 }}
@@ -58,12 +58,12 @@ spec:
               value: /tmp/katello-event-daemon-heartbeat
             - name: KATELLO_EVENT_DAEMON_HEARTBEAT_INTERVAL
               value: {{ .Values.foreman.katelloEventDaemon.heartbeatIntervalSeconds | quote }}
+            - name: KATELLO_EVENT_DAEMON_TMP_DIR
+              value: /run/katello-event-daemon
           volumeMounts:
             {{- include "foreman-stack.foremanVolumeMounts" . | nindent 12 }}
-            - name: foreman-generated-config
-              mountPath: /opt/foreman-kubernetes/katello-event-daemon.rb
-              subPath: katello-event-daemon.rb
-              readOnly: true
+            - name: katello-event-daemon-runtime
+              mountPath: /run/katello-event-daemon
           startupProbe:
             exec:
               command:
@@ -95,5 +95,8 @@ spec:
             {{- toYaml .Values.foreman.katelloEventDaemon.resources | nindent 12 }}
       volumes:
         {{- include "foreman-stack.foremanVolumes" . | nindent 8 }}
+        - name: katello-event-daemon-runtime
+          emptyDir:
+            sizeLimit: 1Mi
       {{- include "foreman-stack.topologySpread" (dict "Values" .Values "Release" .Release "component" "katello-event-daemon") | nindent 6 }}
 {{- end }}

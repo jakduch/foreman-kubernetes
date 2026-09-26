@@ -87,9 +87,14 @@ spec:
         runAsUser: 700
         seccompProfile:
           type: RuntimeDefault
-      {{- if $root.Values.migrations.enabled }}
+      {{- if or (eq $root.Values.pulp.storage.backend "filesystem") $root.Values.migrations.enabled }}
       initContainers:
+        {{- if eq $root.Values.pulp.storage.backend "filesystem" }}
+        {{- include "foreman-stack.pulpStoragePrepare" $root | nindent 8 }}
+        {{- end }}
+        {{- if $root.Values.migrations.enabled }}
         {{- include "foreman-stack.pulpMigrationWait" $root | nindent 8 }}
+        {{- end }}
       {{- end }}
       containers:
         - name: pulp-{{ $service.name }}
@@ -243,9 +248,14 @@ spec:
         runAsUser: 700
         seccompProfile:
           type: RuntimeDefault
-      {{- if .Values.migrations.enabled }}
+      {{- if or (eq .Values.pulp.storage.backend "filesystem") .Values.migrations.enabled }}
       initContainers:
+        {{- if eq .Values.pulp.storage.backend "filesystem" }}
+        {{- include "foreman-stack.pulpStoragePrepare" . | nindent 8 }}
+        {{- end }}
+        {{- if .Values.migrations.enabled }}
         {{- include "foreman-stack.pulpMigrationWait" . | nindent 8 }}
+        {{- end }}
       {{- end }}
       containers:
         - name: pulp-worker

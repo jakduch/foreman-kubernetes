@@ -29,7 +29,7 @@ deployments.each do |deployment|
   abort "#{component} lacks the Sidekiq shutdown timeout" unless timeout_index && args[timeout_index + 1] == '300'
 
   env = Array(container['env']).to_h { |entry| [entry['name'], entry['value']] }
-  abort "#{component} does not load lifecycle hooks" unless env['RUBYOPT'] == '-r/opt/foreman-kubernetes/dynflow-lifecycle.rb'
+  abort "#{component} must use the upstream lifecycle hooks" if env.key?('RUBYOPT')
   marker = env['DYNFLOW_READINESS_FILE']
   abort "#{component} has no readiness marker" if marker.to_s.empty?
 

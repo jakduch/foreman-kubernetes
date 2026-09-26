@@ -85,6 +85,7 @@ data:
       :rest_client_timeout: 3600
       :event_daemon:
         :enabled: <%= ENV.fetch('KATELLO_EVENT_DAEMON_ENABLED', 'false') == 'true' %>
+        :tmp_dir: <%= ENV.fetch('KATELLO_EVENT_DAEMON_TMP_DIR', '/run/katello-event-daemon') %>
       :candlepin:
         :url: {{ printf "https://%s:%v/candlepin" (include "foreman-stack.candlepinServiceName" .) .Values.candlepin.service.port | quote }}
         :oauth_key: katello
@@ -92,63 +93,8 @@ data:
         :ca_cert_file: /etc/foreman/katello-default-ca.crt
       :pulp:
         :ca_cert_file: /etc/foreman/katello-default-ca.crt
-  foreman-kubernetes-client-certificate.rb: |
-    # ingress-nginx forwards the verified client certificate URL-escaped. The
-    # Foreman and Katello certificate parsers consume PEM or base64 DER, so
-    # normalize only that trusted ingress representation before authentication.
-    require 'cgi'
-
-    class ForemanKubernetesClientCertificate
-      HEADER = 'HTTP_SSL_CLIENT_CERT'.freeze
-      ESCAPED_PEM_PREFIX = '-----BEGIN%20CERTIFICATE-----'.freeze
-
-      def initialize(app)
-        @app = app
-      end
-
-      def call(environment)
-        certificate = environment[HEADER]
-        if certificate&.start_with?(ESCAPED_PEM_PREFIX)
-          decoded = CGI.unescape(certificate)
-          environment[HEADER] = decoded if decoded.start_with?('-----BEGIN CERTIFICATE-----')
-        end
-        @app.call(environment)
-      end
-    end
-
-    Rails.application.config.middleware.insert_before(
-      0,
-      ForemanKubernetesClientCertificate
-    )
-  foreman-kubernetes-valkey-tls.rb: |
-    if ENV.fetch('VALKEY_TLS_ENABLED', 'false') == 'true'
-      require 'openssl'
-      require 'uri'
-
-      cache_url = ENV.fetch('FOREMAN_RAILS_CACHE_STORE_URLS')
-      dynflow_url = ENV.fetch('DYNFLOW_REDIS_URL')
-      [cache_url, dynflow_url].each do |url|
-        raise "Valkey TLS requires a rediss URL" unless URI.parse(url).scheme == 'rediss'
-      end
-
-      if defined?(::Sidekiq)
-        options = {
-          url: dynflow_url,
-          ssl_params: {
-            ca_file: '/etc/foreman/certs/valkey-ca.crt',
-            verify_mode: OpenSSL::SSL::VERIFY_PEER,
-          },
-        }
-        Sidekiq.configure_server { |config| config.redis = options }
-        Sidekiq.configure_client { |config| config.redis = options }
-      end
-    end
-  katello-event-daemon.rb: |
-{{ .Files.Get "files/katello-event-daemon.rb" | indent 4 }}
   foreman-readiness.rb: |
 {{ .Files.Get "files/foreman-readiness.rb" | indent 4 }}
-  dynflow-lifecycle.rb: |
-{{ .Files.Get "files/dynflow-lifecycle.rb" | indent 4 }}
   pulp-readiness.py: |
 {{ .Files.Get "files/pulp-readiness.py" | indent 4 }}
   pulp-app-readiness.py: |
@@ -181,8 +127,6 @@ metadata:
   labels:
     {{- include "foreman-stack.componentLabels" (dict "root" . "component" "candlepin-config") | nindent 4 }}
 data:
-  candlepin-migrate.sh: |
-{{ .Files.Get "files/candlepin-migrate.sh" | indent 4 }}
   candlepin.conf: |
     candlepin.consumer_system_name_pattern=.+
     candlepin.environment_content_filtering=true

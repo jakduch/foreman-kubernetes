@@ -19,6 +19,7 @@ environment = Array(container['env']).to_h { |entry| [entry['name'], entry['valu
 abort 'registration does not target the paired proxy Service' unless environment['EXECUTION_PROXY_URL'] ==
                                                                   'https://execution-foreman-execution-proxy:8443'
 abort 'registration accepts the wrong feature set' unless environment['EXECUTION_PROXY_FEATURES'] == 'Ansible,Dynflow,Script'
+abort 'registration does not run as Foreman system administrator' unless script.include?('User.as_anonymous_admin do')
 abort 'registration is not idempotent by both URL and name' unless script.include?('by_url || by_name || SmartProxy.new')
 abort 'registration does not reject split name/URL ownership' unless script.include?('by_url.id != by_name.id')
 abort 'registration does not require exact associated features' unless script.include?('proxy.features.reload.pluck(:name).sort')

@@ -186,7 +186,12 @@ runAsGroup: {{ . }}
 {{- end }}
 
 {{- define "foreman-stack.pulpControlProxyUrl" -}}
-{{- printf "https://%s" (include "foreman-stack.pulpControlProxyServiceName" .) }}
+{{- $serviceName := include "foreman-stack.pulpControlProxyServiceName" . -}}
+{{- if eq (int .Values.pulp.controlProxy.service.port) 443 -}}
+{{- printf "https://%s" $serviceName -}}
+{{- else -}}
+{{- printf "https://%s:%v" $serviceName .Values.pulp.controlProxy.service.port -}}
+{{- end -}}
 {{- end }}
 
 {{- define "foreman-stack.pulpSmartProxyUrl" -}}
@@ -274,11 +279,24 @@ server {
   ssl_certificate /etc/nginx/pki/tls.crt;
   ssl_certificate_key /etc/nginx/pki/tls.key;
   ssl_client_certificate /etc/nginx/pki/ca.crt;
-  ssl_verify_client on;
+  # Katello probes this exact endpoint without authentication. Client
+  # certificates remain mandatory for every other control-plane request.
+  ssl_verify_client optional;
   ssl_verify_depth 3;
   ssl_protocols TLSv1.2 TLSv1.3;
 
+  location = /pulp/api/v3/status/ {
+    proxy_http_version 1.1;
+    proxy_set_header Connection "";
+    proxy_set_header Host $http_host;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_set_header X-CLIENT-CERT "";
+    proxy_pass http://pulp_api;
+  }
+
   location / {
+    if ($ssl_client_verify != SUCCESS) { return 403; }
     if ($pulp_remote_user = "") { return 403; }
 
     proxy_http_version 1.1;
@@ -327,8 +345,10 @@ server {
   value: redis
 - name: FOREMAN_RAILS_CACHE_STORE_URLS
   value: {{ printf "%s://$(VALKEY_FOREMAN_CACHE_URI_AUTH)%s:%v/%v" (include "foreman-stack.valkeyScheme" .) .Values.valkey.foremanCache.host .Values.valkey.foremanCache.port .Values.valkey.foremanCache.database | quote }}
-- name: VALKEY_TLS_ENABLED
-  value: {{ .Values.valkey.tls.enabled | quote }}
+{{- if .Values.valkey.tls.enabled }}
+- name: DYNFLOW_REDIS_SSL_CA_FILE
+  value: /etc/foreman/certs/valkey-ca.crt
+{{- end }}
 - name: DATABASE_URL
   valueFrom:
     secretKeyRef:
@@ -405,14 +425,6 @@ server {
 - name: foreman-generated-config
   mountPath: /etc/foreman/plugins/katello.yaml
   subPath: katello.yaml
-  readOnly: true
-- name: foreman-generated-config
-  mountPath: /usr/share/foreman/config/initializers/foreman_kubernetes_client_certificate.rb
-  subPath: foreman-kubernetes-client-certificate.rb
-  readOnly: true
-- name: foreman-generated-config
-  mountPath: /usr/share/foreman/config/initializers/foreman_kubernetes_valkey_tls.rb
-  subPath: foreman-kubernetes-valkey-tls.rb
   readOnly: true
 - name: foreman-generated-config
   mountPath: /opt/foreman-kubernetes/foreman-readiness.rb
@@ -610,23 +622,51 @@ server {
 {{- end }}
 
 {{- define "foreman-stack.pulpStorageVolumeMount" -}}
-- name: pulp-data
 {{- if eq .Values.pulp.storage.backend "filesystem" }}
+- name: pulp-data
   mountPath: /var/lib/pulp
-{{- else }}
-  mountPath: /var/lib/pulp/tmp
 {{- end }}
+- name: pulp-tmp
+  mountPath: /var/lib/pulp/tmp
 {{- end }}
 
 {{- define "foreman-stack.pulpStorageVolume" -}}
-- name: pulp-data
 {{- if eq .Values.pulp.storage.backend "filesystem" }}
+- name: pulp-data
   persistentVolumeClaim:
     claimName: {{ default (printf "%s-pulp" (include "foreman-stack.fullname" .)) .Values.pulp.storage.existingClaim }}
-{{- else }}
+{{- end }}
+- name: pulp-tmp
   emptyDir:
     sizeLimit: {{ .Values.pulp.storage.scratch.sizeLimit }}
 {{- end }}
+
+{{- define "foreman-stack.pulpScratchVolumeMount" -}}
+- name: pulp-tmp
+  mountPath: /var/lib/pulp/tmp
+{{- end }}
+
+{{- define "foreman-stack.pulpScratchVolume" -}}
+- name: pulp-tmp
+  emptyDir:
+    sizeLimit: {{ .Values.pulp.storage.scratch.sizeLimit }}
+{{- end }}
+
+{{- define "foreman-stack.pulpStoragePrepare" -}}
+- name: prepare-pulp-storage
+  image: {{ include "foreman-stack.image" .Values.pulp.image }}
+  imagePullPolicy: {{ .Values.pulp.image.pullPolicy }}
+  securityContext:
+    {{- include "foreman-stack.restrictedContainerSecurityContext" (dict "runAsUser" 700 "runAsGroup" 700) | nindent 4 }}
+  command:
+    - /usr/bin/mkdir
+    - -p
+    - /var/lib/pulp/media
+  resources:
+    {{- toYaml .Values.pulp.resources | nindent 4 }}
+  volumeMounts:
+    - name: pulp-data
+      mountPath: /var/lib/pulp
 {{- end }}
 
 {{- define "foreman-stack.pulpObjectStorageCaVolumeMount" -}}
@@ -720,6 +760,7 @@ server {
   resources:
     {{- toYaml .Values.pulp.resources | nindent 4 }}
   volumeMounts:
+    {{- include "foreman-stack.pulpScratchVolumeMount" . | nindent 4 }}
     - name: pulp-config
       mountPath: /etc/pulp/certs/database_fields.symmetric.key
       subPath: database_fields.symmetric.key

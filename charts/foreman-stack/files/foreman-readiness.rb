@@ -25,7 +25,10 @@ module ForemanReadiness
     client = Net::HTTP.new(uri.host, uri.port)
     client.open_timeout = 2
     client.read_timeout = 8
-    response = client.start { |http| http.get(uri.request_uri) }
+    request = Net::HTTP::Get.new(uri)
+    request['Host'] = ENV.fetch('FOREMAN_READINESS_HOST')
+    request['X-Forwarded-Proto'] = 'https'
+    response = client.start { |http| http.request(request) }
 
     raise "Foreman ping returned HTTP #{response.code}" unless response.is_a?(Net::HTTPSuccess)
 

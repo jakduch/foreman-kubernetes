@@ -7,7 +7,6 @@ shellcheck -x \
   -P "${repo_root}/scripts" \
   -P "${repo_root}/charts/foreman-stack/files" \
   "${repo_root}/charts/foreman-stack/files/backup.sh" \
-  "${repo_root}/charts/foreman-stack/files/candlepin-migrate.sh" \
   "${repo_root}/charts/foreman-stack/files/recovery-common.sh" \
   "${repo_root}/charts/foreman-stack/files/restore.sh" \
   "${repo_root}/images/ssh-target/entrypoint.sh" \

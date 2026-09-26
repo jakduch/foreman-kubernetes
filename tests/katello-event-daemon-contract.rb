@@ -19,11 +19,20 @@ abort 'Katello event daemon must use Recreate' unless daemon.dig('spec', 'strate
 containers = Array(daemon.dig('spec', 'template', 'spec', 'containers'))
 container = containers.find { |candidate| candidate['name'] == component }
 abort 'Katello event daemon container is missing' unless container
-abort 'Katello event daemon must run the chart watchdog' unless Array(container['command']).last == '/opt/foreman-kubernetes/katello-event-daemon.rb'
+expected_command = ['bin/rails', 'runner', 'Katello::EventDaemon::Runner.run_foreground']
+abort 'Katello event daemon must use the upstream foreground runner' unless Array(container['command']) == expected_command
 
 env = Array(container['env']).to_h { |item| [item['name'], item['value']] }
 abort 'dedicated process must enable the Katello event daemon' unless env['KATELLO_EVENT_DAEMON_ENABLED'] == 'true'
 abort 'Katello event daemon heartbeat path is missing' unless env['KATELLO_EVENT_DAEMON_HEARTBEAT']
+abort 'Katello event daemon runtime directory is missing' unless env['KATELLO_EVENT_DAEMON_TMP_DIR'] == '/run/katello-event-daemon'
+
+runtime_mount = Array(container['volumeMounts']).find { |mount| mount['name'] == 'katello-event-daemon-runtime' }
+abort 'Katello event daemon runtime is not process-local' unless runtime_mount&.fetch('mountPath', nil) == '/run/katello-event-daemon'
+runtime_volume = Array(daemon.dig('spec', 'template', 'spec', 'volumes')).find do |volume|
+  volume['name'] == 'katello-event-daemon-runtime'
+end
+abort 'Katello event daemon runtime must use emptyDir' unless runtime_volume&.key?('emptyDir')
 
 %w[startupProbe readinessProbe livenessProbe].each do |probe|
   command = Array(container.dig(probe, 'exec', 'command')).join(' ')
@@ -45,9 +54,9 @@ config = documents.find do |resource|
   resource['kind'] == 'ConfigMap' && resource.dig('metadata', 'name').to_s.end_with?('-foreman-config')
 end
 katello_yaml = config&.dig('data', 'katello.yaml').to_s
-watchdog = config&.dig('data', 'katello-event-daemon.rb').to_s
 abort 'Katello settings do not default the embedded daemon off' unless katello_yaml.include?("ENV.fetch('KATELLO_EVENT_DAEMON_ENABLED', 'false')")
-abort 'Katello event daemon watchdog is missing from generated configuration' unless watchdog.include?('Runner.start')
+abort 'Katello settings do not configure the process-local runtime directory' unless katello_yaml.include?('KATELLO_EVENT_DAEMON_TMP_DIR')
+abort 'chart still injects an event daemon implementation' if config&.dig('data')&.key?('katello-event-daemon.rb')
 
 egress = documents.find do |resource|
   resource['kind'] == 'NetworkPolicy' && resource.dig('metadata', 'name').to_s.end_with?('-foreman-egress')

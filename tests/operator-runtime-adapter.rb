@@ -439,8 +439,8 @@ end
 prepared_kinds = kubernetes.created_resources.each_with_object(Hash.new(0)) do |item, counts|
   counts[item['kind']] += 1
 end
-unless prepared_kinds.slice('ConfigMap', 'PersistentVolumeClaim', 'ServiceAccount') == {
-  'ConfigMap' => 1, 'PersistentVolumeClaim' => 1, 'ServiceAccount' => 1
+unless prepared_kinds.slice('PersistentVolumeClaim', 'ServiceAccount') == {
+  'PersistentVolumeClaim' => 1, 'ServiceAccount' => 1
 }
   raise "migration prerequisites were not prepared: #{prepared_kinds.inspect}"
 end

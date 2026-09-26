@@ -41,7 +41,7 @@ env = container.fetch('env').to_h { |entry| [entry.fetch('name'), entry] }
 abort 'object-storage probe does not configure the S3 backend' unless env.dig('PULP_STORAGES__default__BACKEND', 'value') == 'storages.backends.s3.S3Storage'
 abort 'object-storage probe lacks Secret-backed access credentials' unless env.dig('PULP_STORAGES__default__OPTIONS__access_key', 'valueFrom', 'secretKeyRef', 'name') == 'pulp-object-storage'
 abort 'object-storage probe has no bounded local scratch volume' unless pod.fetch('volumes').any? do |volume|
-  volume['name'] == 'pulp-data' && volume.dig('emptyDir', 'sizeLimit') == '20Gi'
+  volume['name'] == 'pulp-tmp' && volume.dig('emptyDir', 'sizeLimit') == '20Gi'
 end
 
 policy = s3_egress.find do |resource|

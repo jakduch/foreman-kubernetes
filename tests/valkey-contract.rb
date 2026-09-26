@@ -50,8 +50,11 @@ foreman.each do |container|
   end
 
   if expect_tls
+    abort "#{container['name']} does not configure Dynflow TLS CA" unless \
+      env.dig('DYNFLOW_REDIS_SSL_CA_FILE', 'value') == '/etc/foreman/certs/valkey-ca.crt'
     abort "#{container['name']} has no Valkey CA mount" unless has_mount?(container, '/etc/foreman/certs/valkey-ca.crt')
   else
+    abort "#{container['name']} unexpectedly configures Dynflow TLS CA" if env.key?('DYNFLOW_REDIS_SSL_CA_FILE')
     abort "#{container['name']} unexpectedly mounts a Valkey CA" if has_mount?(container, '/etc/foreman/certs/valkey-ca.crt')
   end
 end
@@ -92,14 +95,12 @@ config = resources.find do |resource|
 end
 abort 'Foreman runtime ConfigMap not found' unless config
 
-initializer = config.dig('data', 'foreman-kubernetes-valkey-tls.rb').to_s
 settings = config.dig('data', 'settings.yaml').to_s
 if expect_tls
-  abort 'Sidekiq does not enforce peer verification' unless initializer.include?('OpenSSL::SSL::VERIFY_PEER')
-  abort 'Sidekiq does not reject a plaintext Valkey URL' unless initializer.include?("scheme == 'rediss'")
   abort 'Rails cache does not receive Valkey ssl_params' unless settings.include?(':ssl_params:')
 else
   abort 'plaintext profile unexpectedly configures Rails cache ssl_params' if settings.include?(':ssl_params:')
 end
+abort 'chart still injects Dynflow Redis TLS code' if config.dig('data').key?('foreman-kubernetes-valkey-tls.rb')
 
 puts "Valkey contract checks passed for TLS enabled=#{expect_tls}."

@@ -84,7 +84,6 @@ abort "avatar claim must be mounted only by Foreman web: #{avatar_mounts.inspect
 config = documents.find do |resource|
   resource['kind'] == 'ConfigMap' && resource.dig('metadata', 'name').to_s.end_with?('-foreman-config')
 end
-watchdog = config&.dig('data', 'katello-event-daemon.rb').to_s
-abort 'event daemon does not clear its shared stale PID before startup' unless watchdog.include?('Runner.pid_file')
+abort 'chart still injects an event daemon implementation' if config&.dig('data')&.key?('katello-event-daemon.rb')
 
 puts "Foreman shared tmp covers #{checked.length} rendered process containers."

@@ -306,7 +306,7 @@ pulp:
     replicas: 2
     port: 8443
     service:
-      port: 443
+      port: 8443
     existingCertificateSecret: pulp-control-proxy-certificates
     trustedClientCommonNames: []
     registration:

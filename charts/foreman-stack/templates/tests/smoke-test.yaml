@@ -53,7 +53,15 @@ spec:
                   client.cert = OpenSSL::X509::Certificate.new(File.read('/certificates/client_cert.pem'))
                   client.key = OpenSSL::PKey.read(File.read('/certificates/client_key.pem'))
                 end
-                response = client.start { |http| http.get(uri.request_uri) }
+                headers = if name == 'Foreman'
+                            {
+                              'Host' => ENV.fetch('FOREMAN_REQUEST_HOST'),
+                              'X-Forwarded-Proto' => 'https'
+                            }
+                          else
+                            {}
+                          end
+                response = client.start { |http| http.get(uri.request_uri, headers) }
                 abort "#{name} returned HTTP #{response.code}: #{response.body}" unless response.is_a?(Net::HTTPSuccess)
                 JSON.parse(response.body)
               end
@@ -103,6 +111,8 @@ spec:
               value: /tmp
             - name: FOREMAN_STATUS_URL
               value: {{ printf "http://%s-foreman:%v/api/v2/ping" (include "foreman-stack.fullname" .) .Values.foreman.service.port | quote }}
+            - name: FOREMAN_REQUEST_HOST
+              value: {{ .Values.platform.fqdn | quote }}
             - name: CANDLEPIN_STATUS_URL
               value: {{ printf "https://%s:%v/candlepin/status" (include "foreman-stack.candlepinServiceName" .) .Values.candlepin.service.port | quote }}
             - name: PULP_STATUS_URL

@@ -32,6 +32,11 @@ end
 references.each do |kind, names|
   present = dependencies.select { |item| item['kind'] == kind }.map { |item| item.dig('metadata', 'name') }
   missing = names - present
+  # PVCs and ServiceAccounts may be supplied by the platform and are verified
+  # by the release preflight. Only chart-rendered dependencies are staged for
+  # Helm adoption; ConfigMaps used by migrations must always come from the chart.
+  next if %w[PersistentVolumeClaim ServiceAccount].include?(kind)
+
   abort "migration render is missing #{kind}: #{missing.join(', ')}" unless missing.empty?
 end
 

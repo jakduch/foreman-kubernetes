@@ -91,9 +91,15 @@ spec:
           env:
             {{- include "foreman-stack.foremanEnv" . | nindent 12 }}
             {{- include "foreman-stack.foremanDatabasePoolEnv" .Values.foreman.databasePools.web | nindent 12 }}
+            - name: FOREMAN_RUN_DIR
+              value: /run/foreman
+            - name: FOREMAN_READINESS_HOST
+              value: {{ .Values.platform.fqdn | quote }}
           volumeMounts:
             {{- include "foreman-stack.foremanVolumeMounts" . | nindent 12 }}
             {{- include "foreman-stack.foremanAvatarVolumeMount" . | nindent 12 }}
+            - name: foreman-puma-runtime
+              mountPath: /run/foreman
           startupProbe:
             tcpSocket:
               port: http
@@ -121,6 +127,9 @@ spec:
       volumes:
         {{- include "foreman-stack.foremanVolumes" . | nindent 8 }}
         {{- include "foreman-stack.foremanAvatarVolume" . | nindent 8 }}
+        - name: foreman-puma-runtime
+          emptyDir:
+            sizeLimit: 1Mi
       {{- include "foreman-stack.topologySpread" (dict "Values" .Values "Release" .Release "component" "foreman") | nindent 6 }}
 {{- $minimumReplicas := ternary .Values.foreman.autoscaling.minReplicas .Values.foreman.replicas .Values.foreman.autoscaling.enabled }}
 {{- if and .Values.podDisruptionBudget.enabled (gt (int $minimumReplicas) 1) }}

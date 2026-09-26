@@ -64,13 +64,15 @@ spec:
           securityContext:
             {{- include "foreman-stack.restrictedContainerSecurityContext" (dict) | nindent 12 }}
           command:
-            - /bin/bash
-            - /opt/foreman-kubernetes/candlepin-migrate.sh
+            - /usr/local/bin/candlepin-db-migrate
+          args:
+            - --url=jdbc:postgresql://{{ .Values.candlepin.database.host }}:{{ .Values.candlepin.database.port }}/{{ .Values.candlepin.database.name }}?sslmode={{ .Values.candlepin.database.sslMode }}{{ if .Values.candlepin.existingDatabaseCaSecret }}&sslrootcert=/etc/candlepin/certs/db-ca.crt{{ end }}
+            - --username={{ .Values.candlepin.database.user }}
+            - --headless=true
+            - --log-level=info
+            - update
+            - -Dcommunity=true
           env:
-            - name: CANDLEPIN_DATABASE_URL
-              value: jdbc:postgresql://{{ .Values.candlepin.database.host }}:{{ .Values.candlepin.database.port }}/{{ .Values.candlepin.database.name }}?sslmode={{ .Values.candlepin.database.sslMode }}{{ if .Values.candlepin.existingDatabaseCaSecret }}&sslrootcert=/etc/candlepin/certs/db-ca.crt{{ end }}
-            - name: CANDLEPIN_DATABASE_USER
-              value: {{ .Values.candlepin.database.user | quote }}
             - name: LIQUIBASE_COMMAND_PASSWORD
               valueFrom:
                 secretKeyRef:
@@ -79,10 +81,6 @@ spec:
           resources:
             {{- toYaml .Values.candlepin.resources | nindent 12 }}
           volumeMounts:
-            - name: candlepin-generated-config
-              mountPath: /opt/foreman-kubernetes/candlepin-migrate.sh
-              subPath: candlepin-migrate.sh
-              readOnly: true
             {{- if .Values.candlepin.existingDatabaseCaSecret }}
             - name: candlepin-database-ca
               mountPath: /etc/candlepin/certs/db-ca.crt

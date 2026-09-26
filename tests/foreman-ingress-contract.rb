@@ -45,46 +45,16 @@ settings = config.dig('data', 'settings.yaml').to_s
   abort "Foreman client-certificate setting is missing: #{setting}" unless settings.include?(setting)
 end
 
-initializer = config.dig('data', 'foreman-kubernetes-client-certificate.rb').to_s
-RubyVM::InstructionSequence.compile(initializer)
-abort 'Foreman does not decode ingress-nginx escaped certificates' unless initializer.include?('CGI.unescape(certificate)')
-abort 'Foreman certificate middleware decodes arbitrary header content' unless \
-  initializer.include?("start_with?(ESCAPED_PEM_PREFIX)")
-
-middleware = Object.new
-middleware.define_singleton_method(:insert_before) { |_position, _type| }
-configuration = Struct.new(:middleware).new(middleware)
-application = Struct.new(:config).new(configuration)
-rails = Module.new
-rails.define_singleton_method(:application) { application }
-Object.const_set(:Rails, rails)
-eval(initializer, TOPLEVEL_BINDING) # rubocop:disable Security/Eval
-
-captured_environment = nil
-application_endpoint = lambda do |environment|
-  captured_environment = environment
-  [200, {}, []]
-end
-adapter = ForemanKubernetesClientCertificate.new(application_endpoint)
-adapter.call(
-  'HTTP_SSL_CLIENT_CERT' =>
-    '-----BEGIN%20CERTIFICATE-----%0AQUJD%0A-----END%20CERTIFICATE-----%0A'
-)
-expected_certificate = "-----BEGIN CERTIFICATE-----\nQUJD\n-----END CERTIFICATE-----\n"
-abort 'escaped ingress client certificate was not decoded' unless \
-  captured_environment['HTTP_SSL_CLIENT_CERT'] == expected_certificate
-
-adapter.call('HTTP_SSL_CLIENT_CERT' => 'untrusted%20header')
-abort 'arbitrary client certificate header was decoded' unless \
-  captured_environment['HTTP_SSL_CLIENT_CERT'] == 'untrusted%20header'
+abort 'chart still injects client-certificate parsing code' if \
+  config.dig('data').key?('foreman-kubernetes-client-certificate.rb')
 
 foreman = documents.find do |resource|
   resource['kind'] == 'Deployment' &&
     resource.dig('metadata', 'labels', 'app.kubernetes.io/component') == 'foreman'
 end
 mounts = Array(foreman&.dig('spec', 'template', 'spec', 'containers', 0, 'volumeMounts'))
-abort 'Foreman does not mount the client-certificate middleware' unless mounts.any? do |mount|
-  mount['mountPath'] == '/usr/share/foreman/config/initializers/foreman_kubernetes_client_certificate.rb'
+abort 'chart still mounts client-certificate parsing code' if mounts.any? do |mount|
+  mount['mountPath'].to_s.include?('foreman_kubernetes_client_certificate')
 end
 
-puts 'Foreman ingress client-certificate contract passed.'
+puts 'Foreman ingress client-certificate forwarding contract passed.'

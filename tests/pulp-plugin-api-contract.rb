@@ -68,7 +68,20 @@ manifests.each do |manifest|
   control_service = resources.find { |resource| resource['kind'] == 'Service' && component(resource) == 'pulp-control-proxy' }
   abort "#{manifest}: Pulp control proxy Service is missing" unless control_service
 
-  expected_features_url = "https://#{control_service.dig('metadata', 'name')}/pulp/api/v3/smart_proxy/v2/features"
+  control_config = resources.find do |resource|
+    resource['kind'] == 'ConfigMap' && component(resource) == 'pulp-control-proxy'
+  end
+  proxy_config = control_config&.dig('data', 'default.conf').to_s
+  abort "#{manifest}: Pulp control proxy does not permit the unauthenticated Katello status probe" unless
+    proxy_config.include?('ssl_verify_client optional;') &&
+    proxy_config.include?('location = /pulp/api/v3/status/')
+  abort "#{manifest}: Pulp administrative routes do not require a verified client certificate" unless
+    proxy_config.include?('if ($ssl_client_verify != SUCCESS) { return 403; }')
+
+  control_port = control_service.dig('spec', 'ports', 0, 'port')
+  control_authority = control_service.dig('metadata', 'name').dup
+  control_authority << ":#{control_port}" unless control_port == 443
+  expected_features_url = "https://#{control_authority}/pulp/api/v3/smart_proxy/v2/features"
   unless smoke_environment['PULP_FEATURES_URL'] == expected_features_url
     abort "#{manifest}: PULP_FEATURES_URL is #{smoke_environment['PULP_FEATURES_URL'].inspect}, " \
           "expected #{expected_features_url.inspect}"
