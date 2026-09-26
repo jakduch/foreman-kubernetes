@@ -112,18 +112,24 @@ module ForemanRelease
         required_resource(nil, 'customresourcedefinition', name)
       when 'PriorityClass'
         required_resource(nil, 'priorityclass', name)
-      when 'NodeSelector'
-        selector = JSON.parse(name)
+      when 'NodeScheduling'
+        scheduling = JSON.parse(name)
+        selector = scheduling.fetch('nodeSelector')
+        tolerations = scheduling.fetch('tolerations')
         nodes = @kubernetes_client.resources(nil, 'nodes')
         found = nodes.any? do |node|
           labels = node.dig('metadata', 'labels') || {}
+          hard_taints = Array(node.dig('spec', 'taints')).select do |taint|
+            %w[NoSchedule NoExecute].include?(taint['effect'])
+          end
           node.dig('spec', 'unschedulable') != true && condition_true?(node, 'Ready') &&
-            selector.all? { |key, value| labels[key] == value }
+            selector.all? { |key, value| labels[key] == value } &&
+            hard_taints.all? { |taint| taint_tolerated?(taint, tolerations) }
         end
         unless found
           description = selector.sort.map { |key, value| "#{key}=#{value}" }.join(', ')
           raise InvalidRelease,
-                "rendered workloads require a Ready, uncordoned node matching #{description}, but none is available"
+                "rendered workloads require a Ready, uncordoned node matching #{description} with tolerated hard taints, but none is available"
         end
       when 'PersistentVolumeClaim', 'ServiceAccount'
         required_resource(namespace, kind.downcase, name)
@@ -142,6 +148,20 @@ module ForemanRelease
     def condition_true?(resource, type)
       Array(resource.dig('status', 'conditions')).any? do |condition|
         condition['type'] == type && condition['status'] == 'True'
+      end
+    end
+
+    def taint_tolerated?(taint, tolerations)
+      tolerations.any? do |toleration|
+        effect = toleration['effect'].to_s
+        next false unless effect.empty? || effect == taint['effect']
+
+        operator = toleration.fetch('operator', 'Equal')
+        if operator == 'Exists'
+          toleration['key'].to_s.empty? || toleration['key'] == taint['key']
+        else
+          toleration['key'] == taint['key'] && toleration['value'].to_s == taint['value'].to_s
+        end
       end
     end
   end

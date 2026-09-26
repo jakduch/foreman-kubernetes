@@ -161,7 +161,8 @@ operator to duplicate that constraint in deployment values.
 The guarded CLI and release operator both verify that every exact workload
 node selector has a matching Ready, uncordoned node before they run schema
 migrations. The operator receives read-only node-list access solely for this
-scheduling preflight.
+scheduling preflight. Hard `NoSchedule` and `NoExecute` taints must also be
+covered by the rendered workload's tolerations.
 
 The application images already declare non-root users. The chart makes those
 contracts explicit: Foreman and Dynflow run as UID/GID 994, Pulp runs as

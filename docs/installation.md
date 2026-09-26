@@ -170,8 +170,10 @@ node selector cannot also remove the controller needed to report the failure.
 For every rendered `nodeSelector`, guarded preflight requires at least one
 matching Ready, uncordoned node before migrations begin. This covers both the
 release profile's `kubernetes.io/arch` constraint and deployment-specific pool
-labels. Taints, tolerations, and affinity remain normal Kubernetes scheduler
-policy.
+labels. The same check rejects nodes whose `NoSchedule` or `NoExecute` taints
+are not covered by that workload's tolerations. Soft `PreferNoSchedule`, node
+affinity, storage topology, and live capacity remain normal Kubernetes
+scheduler policy.
 
 The release controller is a privileged in-namespace client of the Kubernetes
 API. Set `networkPolicy.egress.enabled=true` only after listing the in-cluster

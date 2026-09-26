@@ -14,7 +14,13 @@ class PreflightKubernetesClient
     @nodes = [
       {
         'metadata' => {'labels' => {'kubernetes.io/arch' => 'amd64', 'workload' => 'foreman'}},
-        'spec' => {},
+        'spec' => {
+          'taints' => [
+            {'key' => 'dedicated', 'value' => 'foreman', 'effect' => 'NoSchedule'},
+            {'key' => 'maintenance', 'value' => 'window', 'effect' => 'NoExecute'},
+            {'key' => 'capacity', 'value' => 'limited', 'effect' => 'PreferNoSchedule'}
+          ]
+        },
         'status' => {'conditions' => [{'type' => 'Ready', 'status' => 'True'}]}
       }
     ]
@@ -134,6 +140,10 @@ documents = [
       'template' => {
         'spec' => {
           'nodeSelector' => {'kubernetes.io/arch' => 'amd64', 'workload' => 'foreman'},
+          'tolerations' => [
+            {'key' => 'dedicated', 'operator' => 'Equal', 'value' => 'foreman', 'effect' => 'NoSchedule'},
+            {'key' => 'maintenance', 'operator' => 'Exists'}
+          ],
           'priorityClassName' => 'foreman-platform-critical',
           'serviceAccountName' => 'external-runtime',
           'containers' => [
@@ -234,7 +244,29 @@ end
 client.nodes = [
   {
     'metadata' => {'labels' => {'kubernetes.io/arch' => 'amd64', 'workload' => 'foreman'}},
-    'spec' => {},
+    'spec' => {
+      'taints' => [
+        {'key' => 'dedicated', 'value' => 'other', 'effect' => 'NoSchedule'}
+      ]
+    },
+    'status' => {'conditions' => [{'type' => 'Ready', 'status' => 'True'}]}
+  }
+]
+begin
+  preflight.validate!(documents, 'platform')
+  raise 'workload without a tolerable node taint was accepted'
+rescue ForemanRelease::InvalidRelease => error
+  raise unless error.message.include?('with tolerated hard taints')
+end
+client.nodes = [
+  {
+    'metadata' => {'labels' => {'kubernetes.io/arch' => 'amd64', 'workload' => 'foreman'}},
+    'spec' => {
+      'taints' => [
+        {'key' => 'dedicated', 'value' => 'foreman', 'effect' => 'NoSchedule'},
+        {'key' => 'maintenance', 'value' => 'window', 'effect' => 'NoExecute'}
+      ]
+    },
     'status' => {'conditions' => [{'type' => 'Ready', 'status' => 'True'}]}
   }
 ]

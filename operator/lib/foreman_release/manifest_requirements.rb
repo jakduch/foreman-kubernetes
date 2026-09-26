@@ -26,9 +26,9 @@ module ForemanRelease
         end
         priority_class = pod_spec['priorityClassName'].to_s
         requirements << ['PriorityClass', priority_class] unless priority_class.empty?
-        node_selector = pod_spec['nodeSelector']
-        if node_selector.is_a?(Hash) && !node_selector.empty?
-          requirements << ['NodeSelector', JSON.generate(node_selector.sort.to_h)]
+        scheduling = scheduling_requirement(pod_spec)
+        unless scheduling.nil?
+          requirements << ['NodeScheduling', JSON.generate(scheduling)]
         end
         Array(pod_spec['volumes']).each do |volume|
           claim_name = volume.dig('persistentVolumeClaim', 'claimName').to_s
@@ -88,6 +88,19 @@ module ForemanRelease
     end
 
     private
+
+    def scheduling_requirement(pod_spec)
+      node_selector = pod_spec['nodeSelector']
+      return unless node_selector.is_a?(Hash) && !node_selector.empty?
+
+      tolerations = Array(pod_spec['tolerations']).each_with_object([]) do |toleration, normalized|
+        normalized << toleration.sort.to_h if toleration.is_a?(Hash)
+      end
+      {
+        'nodeSelector' => node_selector.sort.to_h,
+        'tolerations' => tolerations.sort_by { |toleration| JSON.generate(toleration) }
+      }
+    end
 
     def add_document_requirement(requirements, document)
       case document['kind']

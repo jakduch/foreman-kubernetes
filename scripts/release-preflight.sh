@@ -79,21 +79,36 @@ check_required_cluster_resources() {
           return 1
         }
         ;;
-      NodeSelector)
+      NodeScheduling)
         resource_json="$(kubectl get nodes --output=json)" || {
           echo 'unable to inspect Kubernetes nodes' >&2
           return 1
         }
-        jq --exit-status --argjson selector "${resource_name}" '
+        jq --exit-status --argjson scheduling "${resource_name}" '
+          def tolerates($taint; $tolerations):
+            any(
+              $tolerations[];
+              ((.effect // "") == "" or .effect == $taint.effect) and
+              (if (.operator // "Equal") == "Exists" then
+                 ((.key // "") == "" or .key == $taint.key)
+               else
+                 .key == $taint.key and (.value // "") == ($taint.value // "")
+               end)
+            );
           any(
             .items[];
             . as $node |
             (.spec.unschedulable // false) != true and
             any(.status.conditions[]?; .type == "Ready" and .status == "True") and
-            all($selector | to_entries[]; $node.metadata.labels[.key] == .value)
+            all($scheduling.nodeSelector | to_entries[]; $node.metadata.labels[.key] == .value) and
+            all(
+              ($node.spec.taints // [])[] |
+                select(.effect == "NoSchedule" or .effect == "NoExecute");
+              tolerates(.; $scheduling.tolerations)
+            )
           )
         ' <<<"${resource_json}" >/dev/null || {
-          echo "rendered workloads require a Ready, uncordoned node matching ${resource_name}, but none is available" >&2
+          echo "rendered workloads require a Ready, uncordoned node matching ${resource_name} with tolerated hard taints, but none is available" >&2
           return 1
         }
         ;;

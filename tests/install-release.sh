@@ -77,7 +77,14 @@ if [[ "$1" == template && "$2" == foreman ]]; then
       '    spec:' \
       '      nodeSelector:' \
       '        kubernetes.io/arch: amd64' \
-      '        workload: foreman'
+      '        workload: foreman' \
+      '      tolerations:' \
+      '        - key: dedicated' \
+      '          operator: Equal' \
+      '          value: foreman' \
+      '          effect: NoSchedule' \
+      '        - key: maintenance' \
+      '          operator: Exists'
   fi
   printf '%s\n' \
     '---' 'kind: Job' \
@@ -141,8 +148,8 @@ if [[ "$*" == 'get storageclass --output=json' ]]; then
   printf '%s\n' '{"items":[{"metadata":{"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}]}'
 fi
 if [[ "$*" == 'get nodes --output=json' ]]; then
-  printf '{"items":[{"metadata":{"labels":{"kubernetes.io/arch":"%s","workload":"%s"}},"spec":{},"status":{"conditions":[{"type":"Ready","status":"True"}]}}]}\n' \
-    "${FAKE_NODE_ARCH:-amd64}" "${FAKE_NODE_WORKLOAD:-foreman}"
+  printf '{"items":[{"metadata":{"labels":{"kubernetes.io/arch":"%s","workload":"%s"}},"spec":{"taints":[{"key":"dedicated","value":"%s","effect":"NoSchedule"},{"key":"maintenance","value":"window","effect":"NoExecute"}]},"status":{"conditions":[{"type":"Ready","status":"True"}]}}]}\n' \
+    "${FAKE_NODE_ARCH:-amd64}" "${FAKE_NODE_WORKLOAD:-foreman}" "${FAKE_NODE_TAINT_VALUE:-foreman}"
 fi
 if [[ "$*" == 'get IngressClass nginx --output=json' ]]; then
   printf '{"spec":{"controller":"%s"}}\n' "${FAKE_INGRESS_CONTROLLER:-k8s.io/ingress-nginx}"
@@ -335,18 +342,26 @@ if grep -Fq 'helm upgrade --install ' "${tool_log}"; then
 fi
 
 : > "${tool_log}"
+PATH="${fake_bin}:${PATH}" \
+  FAKE_TOOL_LOG="${tool_log}" \
+  FAKE_RENDER_SELECTOR=1 \
+  ALLOW_CANDIDATE=1 \
+  "${repo_root}/scripts/install-release.sh" \
+    "${application_values}" "${execution_values}" >/dev/null
+
+: > "${tool_log}"
 if PATH="${fake_bin}:${PATH}" \
   FAKE_TOOL_LOG="${tool_log}" \
   FAKE_RENDER_SELECTOR=1 \
-  FAKE_NODE_WORKLOAD=other \
+  FAKE_NODE_TAINT_VALUE=other \
   ALLOW_CANDIDATE=1 \
   "${repo_root}/scripts/install-release.sh" \
     "${application_values}" "${execution_values}" >/dev/null 2>&1; then
-  echo 'installation accepted workloads without a matching node selector' >&2
+  echo 'installation accepted workloads without a tolerable node taint' >&2
   exit 1
 fi
 if grep -Fq 'helm upgrade --install ' "${tool_log}"; then
-  echo 'installation started after node selector preflight failed' >&2
+  echo 'installation started after node scheduling preflight failed' >&2
   exit 1
 fi
 
