@@ -51,7 +51,9 @@ end
 sets.each do |set_name, release_set|
   status = release_set.fetch('status')
   raise "unsupported status for #{set_name}" unless %w[candidate supported retired].include?(status)
-  raise "unsupported platform for #{set_name}" unless release_set.fetch('platform') == 'linux/amd64'
+  unless %w[linux/amd64 linux/arm64].include?(release_set.fetch('platform'))
+    raise "unsupported platform for #{set_name}"
+  end
   upgrade_sources = release_set.fetch('upgradeFrom')
   unless upgrade_sources.is_a?(Array) && !upgrade_sources.empty? &&
          upgrade_sources == upgrade_sources.uniq &&

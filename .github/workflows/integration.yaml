@@ -14,6 +14,7 @@ jobs:
     env:
       KEEP_CLUSTER: "1"
       INTEGRATION_EVIDENCE_FILE: artifacts/integration-result.json
+      IMAGE_PLATFORM_CONTRACT_FILE: artifacts/image-platform-contract.json
       IMAGE_RUNTIME_CONTRACT_FILE: artifacts/image-runtime-contract.json
       CANDLEPIN_JOB_DELIVERY_FILE: artifacts/candlepin-job-delivery.json
       OPERATOR_RELEASE_EVIDENCE_FILE: artifacts/operator-release.json
@@ -39,6 +40,7 @@ jobs:
           name: foreman-stack-integration-evidence
           path: |
             artifacts/integration-result.json
+            artifacts/image-platform-contract.json
             artifacts/image-runtime-contract.json
             artifacts/candlepin-job-delivery.json
             artifacts/operator-release.json

@@ -99,6 +99,15 @@ raise 'kind harness does not resolve the cluster-platform registry' unless harne
 raise 'kind harness does not use the declared node image' unless harness.include?('declared_kind_node_image')
 raise 'kind harness does not use the declared ingress chart version' unless harness.include?('ingress_chart_version')
 raise 'kind harness does not validate the live cluster platform' unless harness.include?('assert_cluster_platform')
+unless harness.include?("'.sets[$set].qualificationTargets[0]'")
+  raise 'kind harness does not derive its default target from the selected release set'
+end
+unless harness.include?('expected_runner_architecture')
+  raise 'kind harness does not enforce the selected target runner architecture'
+end
+if harness.include?('images are currently linux/amd64 only')
+  raise 'kind harness still hard-codes the current candidate architecture'
+end
 raise 'full integration workflow no longer uses the expected amd64 runner' unless workflow.include?('runs-on: ubuntu-24.04')
 
 puts "Validated #{platforms.length} cluster platform contract(s); default is #{default_platform}."

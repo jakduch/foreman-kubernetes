@@ -10,18 +10,16 @@ cluster_platforms_file="${repo_root}/compatibility/cluster-platforms.json"
 compatibility_set="${COMPATIBILITY_SET:-}"
 image_profile="${IMAGE_PROFILE:-}"
 execution_proxy_image_profile="${EXECUTION_PROXY_IMAGE_PROFILE:-}"
-cluster_platform="${CLUSTER_PLATFORM:-$(jq --exit-status --raw-output '.default' "${cluster_platforms_file}")}"
-cluster_platform_contract="$(jq --exit-status --compact-output \
-  --arg platform "${cluster_platform}" \
-  '.platforms[$platform] // empty' \
-  "${cluster_platforms_file}")"
-declared_kind_node_image="$(jq --exit-status --raw-output '.kubernetes.nodeImage' <<<"${cluster_platform_contract}")"
-declared_kubernetes_version="$(jq --exit-status --raw-output '.kubernetes.version' <<<"${cluster_platform_contract}")"
-declared_container_runtime="$(jq --exit-status --raw-output '.kubernetes.containerRuntime' <<<"${cluster_platform_contract}")"
-declared_workload_architecture="$(jq --exit-status --raw-output '.workloadPlatform | split("/")[1]' <<<"${cluster_platform_contract}")"
-ingress_chart_version="$(jq --exit-status --raw-output '.ingress.chartVersion' <<<"${cluster_platform_contract}")"
-pod_security_version="$(jq --exit-status --raw-output '.podSecurity.version' <<<"${cluster_platform_contract}")"
-kind_node_image="${KIND_NODE_IMAGE:-${declared_kind_node_image}}"
+cluster_platform="${CLUSTER_PLATFORM:-}"
+cluster_platform_contract=''
+declared_kind_node_image=''
+declared_kubernetes_version=''
+declared_container_runtime=''
+declared_workload_architecture=''
+expected_runner_architecture=''
+ingress_chart_version=''
+pod_security_version=''
+kind_node_image=''
 created_cluster=false
 temporary_directory="$(mktemp -d)"
 skip_recovery_test="${SKIP_RECOVERY_TEST:-0}"
@@ -31,6 +29,7 @@ webhook_lifecycle_state="${temporary_directory}/webhook-lifecycle.json"
 virt_who_config_lifecycle_state="${temporary_directory}/virt-who-config-lifecycle.json"
 kubevirt_lifecycle_state="${temporary_directory}/kubevirt-lifecycle.json"
 image_runtime_contract_file="${IMAGE_RUNTIME_CONTRACT_FILE:-artifacts/image-runtime-contract.json}"
+image_platform_contract_file="${IMAGE_PLATFORM_CONTRACT_FILE:-artifacts/image-platform-contract.json}"
 candlepin_job_delivery_file="${CANDLEPIN_JOB_DELIVERY_FILE:-artifacts/candlepin-job-delivery.json}"
 operator_release_evidence_file="${OPERATOR_RELEASE_EVIDENCE_FILE:-artifacts/operator-release.json}"
 pulp_object_storage_evidence_file="${PULP_OBJECT_STORAGE_EVIDENCE_FILE:-artifacts/pulp-object-storage.json}"
@@ -1113,6 +1112,35 @@ if ! jq --exit-status --arg set "${compatibility_set}" \
   echo "unknown compatibility set: ${compatibility_set}" >&2
   exit 1
 fi
+if [[ -z "${cluster_platform}" ]]; then
+  cluster_platform="$(jq --exit-status --raw-output \
+    --arg set "${compatibility_set}" '.sets[$set].qualificationTargets[0]' \
+    "${compatibility_sets_file}")"
+fi
+cluster_platform_contract="$(jq --exit-status --compact-output \
+  --arg platform "${cluster_platform}" \
+  '.platforms[$platform] // empty' \
+  "${cluster_platforms_file}")"
+if [[ -z "${cluster_platform_contract}" ]]; then
+  echo "unknown cluster platform: ${cluster_platform}" >&2
+  exit 1
+fi
+if ! jq --exit-status \
+  --arg set "${compatibility_set}" \
+  --arg platform "${cluster_platform}" \
+  '.sets[$set].qualificationTargets | index($platform) != null' \
+  "${compatibility_sets_file}" >/dev/null; then
+  echo "cluster platform ${cluster_platform} is not a qualification target for ${compatibility_set}" >&2
+  exit 1
+fi
+declared_kind_node_image="$(jq --exit-status --raw-output '.kubernetes.nodeImage' <<<"${cluster_platform_contract}")"
+declared_kubernetes_version="$(jq --exit-status --raw-output '.kubernetes.version' <<<"${cluster_platform_contract}")"
+declared_container_runtime="$(jq --exit-status --raw-output '.kubernetes.containerRuntime' <<<"${cluster_platform_contract}")"
+declared_workload_architecture="$(jq --exit-status --raw-output '.workloadPlatform | split("/")[1]' <<<"${cluster_platform_contract}")"
+expected_runner_architecture="$(jq --exit-status --raw-output '.runnerPlatform | split("/")[1]' <<<"${cluster_platform_contract}")"
+ingress_chart_version="$(jq --exit-status --raw-output '.ingress.chartVersion' <<<"${cluster_platform_contract}")"
+pod_security_version="$(jq --exit-status --raw-output '.podSecurity.version' <<<"${cluster_platform_contract}")"
+kind_node_image="${KIND_NODE_IMAGE:-${declared_kind_node_image}}"
 if [[ "$(jq --exit-status --raw-output \
   --arg set "${compatibility_set}" '.sets[$set].status' \
   "${compatibility_sets_file}")" == candidate ]]; then
@@ -1138,11 +1166,22 @@ if [[ ! -f "${execution_proxy_image_profile}" ]]; then
   exit 1
 fi
 
-if [[ "$(uname -m)" != x86_64 && "$(uname -m)" != amd64 && "${ALLOW_EMULATION:-0}" != 1 ]]; then
-  echo "Foreman, Candlepin, and Pulp images are currently linux/amd64 only." >&2
-  echo "Run this test on amd64 or set ALLOW_EMULATION=1 to accept a slower emulated run." >&2
+runner_architecture="$(uname -m)"
+case "${runner_architecture}" in
+  amd64 | x86_64) runner_architecture=amd64 ;;
+  aarch64 | arm64 | arm64e) runner_architecture=arm64 ;;
+esac
+if [[ "${runner_architecture}" != "${expected_runner_architecture}" && "${ALLOW_EMULATION:-0}" != 1 ]]; then
+  echo "Cluster platform ${cluster_platform} requires a native ${expected_runner_architecture} runner, got ${runner_architecture}." >&2
+  echo 'Select a matching qualification target or set ALLOW_EMULATION=1 for an ineligible exploratory run.' >&2
   exit 1
 fi
+
+ruby "${repo_root}/scripts/verify-release-image-platforms.rb" \
+  "${image_platform_contract_file}" \
+  "${compatibility_set}" \
+  "${image_profile}" \
+  "${execution_proxy_image_profile}"
 
 if kind get clusters | grep -Fxq "${cluster_name}"; then
   if [[ "${REUSE_CLUSTER:-0}" != 1 ]]; then

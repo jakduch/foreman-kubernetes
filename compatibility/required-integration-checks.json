@@ -3,6 +3,7 @@
   "checks": [
     "application-smoke",
     "foreman-web-request-continuity",
+    "pinned-image-manifest-platforms",
     "pinned-image-runtime-contract",
     "candlepin-concurrent-request-replicas",
     "candlepin-ha-pod-recovery",

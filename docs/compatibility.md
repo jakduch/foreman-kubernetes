@@ -10,6 +10,14 @@ and rejects one-sided profile overrides, preventing a proxy candidate from
 being qualified accidentally against an unrelated application candidate. Every
 image reference in a declared set must be pinned by OCI digest.
 
+Before creating the disposable cluster, the integration harness reads the OCI
+configuration for every pinned Foreman/Katello, Candlepin, Pulp, and execution
+Smart Proxy image and verifies its declared operating system and architecture.
+Only registry metadata is fetched; image layers are not downloaded. The
+resulting `image-platform-contract.json` is retained with the integration
+evidence, so an ARM release set cannot qualify while any application image is
+still an amd64 build.
+
 Each set also selects one or more contract profiles from
 `compatibility/upstream-contracts.json`. A set cannot become `supported` merely
 because its runtime drill passes: every upstream contract required by those
@@ -91,6 +99,7 @@ artifact. The record binds the run to:
 
 - the tested Git commit and compatibility-set name;
 - the target and native runner platforms;
+- the registry-reported platform of every digest-pinned runtime image;
 - SHA-256 hashes of the candidate manifest, both image profiles, the test
   contract, upstream contracts, and cluster-platform registry;
 - the declared cluster-platform identity and exact node image, Kubernetes,
@@ -120,12 +129,12 @@ ruby scripts/promote-release-set.rb \
 ruby tests/release-sets.rb
 ```
 
-Promotion rejects missing checks, a non-amd64 runner, stale inputs, another
-commit, or non-GitHub provenance. It copies the evidence into
-`compatibility/evidence/`, records its digest and workflow URL in the set, and
-changes only that set from `candidate` to `supported`. The resulting manifest
-and retained evidence are reviewed and committed together; CI never promotes a
-set by itself.
+Promotion rejects missing checks, a runner that does not match the selected
+qualification target, stale inputs, another commit, or non-GitHub provenance.
+It copies the evidence into `compatibility/evidence/`, records its digest and
+workflow URL in the set, and changes only that set from `candidate` to
+`supported`. The resulting manifest and retained evidence are reviewed and
+committed together; CI never promotes a set by itself.
 
 ## Nightly candidate from 2026-09-23
 
