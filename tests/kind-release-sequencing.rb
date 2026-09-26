@@ -11,6 +11,7 @@ required = [
   'scripts/render-migration-stage.rb',
   'wait_for_operation_jobs',
   'wait_for_migration_jobs',
+  "Migration ',app.kubernetes.io/component!=dependency-preflight'",
   '.type == "Failed" and .status == "True"',
   '--set releaseOperation.skipMigrationJobs=true',
   'assert_pods_unchanged',

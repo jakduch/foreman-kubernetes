@@ -92,7 +92,8 @@ wait_for_operation_jobs() {
 }
 
 wait_for_migration_jobs() {
-  wait_for_operation_jobs "$1" "$2" Migration
+  wait_for_operation_jobs \
+    "$1" "$2" Migration ',app.kubernetes.io/component!=dependency-preflight'
 }
 
 helm_apply() {
