@@ -77,6 +77,10 @@ condition_required = conditions.dig('items', 'required')
 raise 'conditions must identify their observed generation' unless condition_required.include?('observedGeneration')
 
 operation = status_schema.dig('properties', 'operation', 'properties')
+unless operation.dig('dependencyPreflightJobs', 'type') == 'array' &&
+       operation.dig('dependencyPreflightJobs', 'items', 'type') == 'string'
+  raise 'operation status does not retain dependency preflight Jobs'
+end
 unless operation.dig('sourceSets', 'type') == 'array' && operation.dig('sourceSets', 'uniqueItems') == true
   raise 'operation status does not retain validated source compatibility sets'
 end
@@ -123,7 +127,8 @@ end
 happy_path = [
   ['Pending', 'Reconcile', 'Preflight'],
   ['Preflight', 'ValidationSucceeded', 'AcquiringLock'],
-  ['AcquiringLock', 'LeaseAcquired', 'Migrating'],
+  ['AcquiringLock', 'LeaseAcquired', 'CheckingDependencies'],
+  ['CheckingDependencies', 'DependencyPreflightSucceeded', 'Migrating'],
   ['Migrating', 'MigrationsSucceeded', 'RollingApplication'],
   ['RollingApplication', 'ApplicationAvailable', 'VerifyingApplication'],
   ['VerifyingApplication', 'ApplicationSmokeSucceeded', 'RollingProxy'],
@@ -152,7 +157,7 @@ unless lease_wait.fetch('to') == 'AcquiringLock' && lease_wait.fetch('action') =
   raise 'a busy release Lease must wait without starting migrations or blocking the release'
 end
 
-failure_phases = %w[Preflight AcquiringLock Migrating RollingApplication VerifyingApplication RollingProxy Verifying]
+failure_phases = %w[Preflight AcquiringLock CheckingDependencies Migrating RollingApplication VerifyingApplication RollingProxy Verifying]
 failure_phases.each do |phase|
   blocked_transitions = transitions.select do |transition|
     transition.fetch('from') == phase && transition.fetch('to') == 'Blocked'

@@ -410,6 +410,27 @@ ensure
 end
 
 application_render = runner.renders.fetch('foreman')
+first_dependency_preflight = adapter.ensure_dependencies(resource, operation)
+unless first_dependency_preflight.state == :pending &&
+       first_dependency_preflight.details.fetch(:dependencyPreflightJobs).length == 1
+  raise 'initial dependency preflight reconciliation did not checkpoint one Job'
+end
+dependency_jobs = kubernetes.created.select do |item|
+  item.dig('metadata', 'labels', 'app.kubernetes.io/component') ==
+    ForemanRelease::RuntimeAdapter::DEPENDENCY_PREFLIGHT_COMPONENT
+end
+raise 'controller did not submit exactly one dependency preflight Job' unless dependency_jobs.length == 1
+dependency_job = dependency_jobs.first
+unless dependency_job.dig('metadata', 'ownerReferences', 0, 'uid') == resource.dig('metadata', 'uid')
+  raise 'dependency preflight Job is not owned by the ForemanRelease'
+end
+if dependency_job.fetch('metadata').fetch('annotations', {}).keys.any? { |key| key.start_with?('helm.sh/hook') }
+  raise 'controller-owned dependency preflight Job retained Helm hook annotations'
+end
+kubernetes.replace('jobs', dependency_jobs.map { |job| complete_job(job) })
+dependency_preflight = adapter.ensure_dependencies(resource, operation)
+raise 'completed dependency preflight was not adopted' unless dependency_preflight.state == :succeeded
+
 desired_foreman_config = application_render.find do |item|
   item['kind'] == 'ConfigMap' && item.dig('metadata', 'name').end_with?('-foreman-config')
 end
@@ -440,7 +461,7 @@ prepared_kinds = kubernetes.created_resources.each_with_object(Hash.new(0)) do |
   counts[item['kind']] += 1
 end
 unless prepared_kinds.slice('PersistentVolumeClaim', 'ServiceAccount') == {
-  'PersistentVolumeClaim' => 1, 'ServiceAccount' => 1
+  'PersistentVolumeClaim' => 1, 'ServiceAccount' => 2
 }
   raise "migration prerequisites were not prepared: #{prepared_kinds.inspect}"
 end
@@ -543,7 +564,10 @@ raise 'registration Job has the wrong component' unless registration_job.dig('me
 registration_script = registration_job.dig('spec', 'template', 'spec', 'containers', 0, 'command').join("\n")
 raise 'registration Job does not verify exact Foreman features' unless registration_script.include?('proxy.features.reload.pluck(:name).sort')
 verification_jobs = kubernetes.created.reject do |job|
-  ForemanRelease::RuntimeAdapter::MIGRATION_COMPONENTS.include?(job.dig('metadata', 'labels', 'app.kubernetes.io/component'))
+  (ForemanRelease::RuntimeAdapter::MIGRATION_COMPONENTS +
+    [ForemanRelease::RuntimeAdapter::DEPENDENCY_PREFLIGHT_COMPONENT]).include?(
+      job.dig('metadata', 'labels', 'app.kubernetes.io/component')
+    )
 end
 raise 'application verification Jobs reused a name' unless verification_jobs.map { |job| job.dig('metadata', 'name') }.uniq.length == 2
 kubernetes.replace('jobs', kubernetes.resources('platform', 'jobs').map { |job| complete_job(job) })
@@ -551,7 +575,10 @@ kubernetes.replace('jobs', kubernetes.resources('platform', 'jobs').map { |job| 
 final_application_smoke = adapter.ensure_final_smoke(resource, operation)
 raise 'final application smoke Job was not submitted asynchronously' unless final_application_smoke.state == :pending
 verification_jobs = kubernetes.created.reject do |job|
-  ForemanRelease::RuntimeAdapter::MIGRATION_COMPONENTS.include?(job.dig('metadata', 'labels', 'app.kubernetes.io/component'))
+  (ForemanRelease::RuntimeAdapter::MIGRATION_COMPONENTS +
+    [ForemanRelease::RuntimeAdapter::DEPENDENCY_PREFLIGHT_COMPONENT]).include?(
+      job.dig('metadata', 'labels', 'app.kubernetes.io/component')
+    )
 end
 raise 'verification Jobs did not receive distinct names' unless verification_jobs.map { |job| job.dig('metadata', 'name') }.uniq.length == 3
 kubernetes.replace('jobs', kubernetes.resources('platform', 'jobs').map { |job| complete_job(job) })
@@ -564,7 +591,10 @@ raise 'execution smoke Job does not verify the proxy Service' unless execution_j
   entry['name'] == 'PROXY_FEATURES_URL' && entry['value'] == 'https://execution-foreman-execution-proxy:8443/features'
 end
 verification_jobs = kubernetes.created.reject do |job|
-  ForemanRelease::RuntimeAdapter::MIGRATION_COMPONENTS.include?(job.dig('metadata', 'labels', 'app.kubernetes.io/component'))
+  (ForemanRelease::RuntimeAdapter::MIGRATION_COMPONENTS +
+    [ForemanRelease::RuntimeAdapter::DEPENDENCY_PREFLIGHT_COMPONENT]).include?(
+      job.dig('metadata', 'labels', 'app.kubernetes.io/component')
+    )
 end
 raise 'four release verification Jobs did not receive distinct names' unless verification_jobs.map { |job| job.dig('metadata', 'name') }.uniq.length == 4
 kubernetes.replace('jobs', kubernetes.resources('platform', 'jobs').map { |job| complete_job(job) })

@@ -52,6 +52,9 @@ render both releases from one compatibility set
 verify dependencies, Secrets, and server-side admission of the complete render
                 |
                 v
+authenticated read-only database, Valkey, and object-storage checks
+                |
+                v
 migration dependencies + Jobs (old workloads remain running)
                 |
                 v
@@ -93,7 +96,7 @@ ALLOW_CANDIDATE=1 scripts/upgrade-release.sh \
 `RELEASE_LEASE_RENEW_INTERVAL_SECONDS` may override their defaults. The
 renew interval must remain shorter than the duration. The generated operation
 ID is deliberately unique; reuse an override only to inspect or resume the
-same already-created migration Jobs.
+same already-created dependency and migration Jobs.
 
 Before the first Helm upgrade, the helper inspects the complete render of both
 releases. It verifies every referenced named or default StorageClass,
@@ -104,11 +107,14 @@ server-side dry-run, exercising admission webhooks, quotas, Pod Security, API
 validation, and immutable-field checks without persisting it. This is the same
 read-only cluster preflight used for a first installation. A missing dependency
 or rejected object therefore fails before any migration Job can advance a
-database schema.
-It then extracts only the migration ServiceAccount, ConfigMaps, PVC, and three
-Jobs from that exact render. The dependencies carry the Helm ownership metadata
-needed for the following release, while the bounded Jobs are applied directly
-and observed before any new Deployment is submitted.
+database schema. The helper next extracts one dependency-preflight Job from an
+operation-labelled render. It authenticates to all three PostgreSQL databases,
+Foreman cache and Dynflow Valkey, Pulp Valkey, and—when configured—Pulp S3 using
+the same Secret or workload identity as runtime. Only after that read-only gate
+succeeds does the helper extract the migration ServiceAccount, ConfigMaps, PVC,
+and three Jobs from the same render. The dependencies carry the Helm ownership
+metadata needed for the following release, while the bounded Jobs are applied
+directly and observed before any new Deployment is submitted.
 
 ## Failure and rollback boundary
 
@@ -118,7 +124,8 @@ that an older application image cannot read. Automatically restoring only the
 Kubernetes manifests would therefore create a visually successful rollback
 with incompatible persistent state.
 
-Failure before migration submission leaves both releases and schemas unchanged.
+Failure before migration submission, including dependency-preflight failure,
+leaves both releases and schemas unchanged.
 A migration failure leaves the existing workload revision running and requires
 a roll-forward after the database problem is corrected. Once migrations
 succeed, the existing Pods are still running but schemas may already be newer;

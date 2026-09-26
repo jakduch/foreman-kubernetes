@@ -49,6 +49,7 @@ module ForemanRelease
         next_status['operation'] = {
           'id' => operation_id,
           'startedAt' => now,
+          'dependencyPreflightJobs' => [],
           'migrationJobs' => []
         }
       end

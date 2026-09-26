@@ -7,7 +7,9 @@ source = File.read(File.expand_path('kind/run.sh', __dir__))
 checks = JSON.parse(File.read(File.expand_path('../compatibility/required-integration-checks.json', __dir__))).fetch('checks')
 
 required = [
+  'scripts/render-dependency-preflight-stage.rb',
   'scripts/render-migration-stage.rb',
+  'wait_for_operation_jobs',
   'wait_for_migration_jobs',
   '.type == "Failed" and .status == "True"',
   '--set releaseOperation.skipMigrationJobs=true',
@@ -23,11 +25,14 @@ end
 
 normal_path = source.match(/operation_id="kind-.*?^}/m)&.to_s
 abort 'cannot identify the normal kind release path' unless normal_path
+dependency_stage = normal_path.index('scripts/render-dependency-preflight-stage.rb')
+dependency_wait = normal_path.index('Dependency preflight')
 stage = normal_path.index('scripts/render-migration-stage.rb')
 wait = normal_path.index('wait_for_migration_jobs')
 rollout = normal_path.index('helm upgrade --install', stage)
-unless stage && wait && rollout && stage < wait && wait < rollout
-  abort 'kind release drill does not finish migrations before submitting workloads'
+unless dependency_stage && dependency_wait && stage && wait && rollout &&
+  dependency_stage < dependency_wait && dependency_wait < stage && stage < wait && wait < rollout
+  abort 'kind release drill does not finish dependency preflight and migrations before submitting workloads'
 end
 
 foreman_failure = source.index("wrong_database_url=\"")
@@ -42,4 +47,4 @@ end
   abort "integration evidence does not require #{check}" unless checks.include?(check)
 end
 
-puts 'Kind release drill preserves old Pods until staged migrations succeed.'
+puts 'Kind release drill preserves old Pods until dependency preflight and staged migrations succeed.'

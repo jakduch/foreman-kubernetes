@@ -129,13 +129,27 @@ check_required_cluster_resources "${combined_resources}" "${namespace}" "${repo_
 check_required_secrets "${combined_resources}" "${namespace}" "${repo_root}"
 check_server_admission "${combined_resources}" "${namespace}"
 
-echo 'Install: applying migration prerequisites and Jobs'
-migration_stage="$(helm template "${application_release}" "${repo_root}/charts/foreman-stack" \
+operation_resources="$(helm template "${application_release}" "${repo_root}/charts/foreman-stack" \
   --namespace "${namespace}" \
   --values "${application_values}" \
   --values "${application_profile}" \
   --set-string "releaseOperation.id=${release_operation_id}" \
-  --set-string "releaseOperation.ownerUid=${release_operation_id}" | \
+  --set-string "releaseOperation.ownerUid=${release_operation_id}")"
+
+echo 'Install: checking databases, Valkey, and Pulp object storage before migrations'
+dependency_stage="$(printf '%s\n' "${operation_resources}" | \
+  ruby "${repo_root}/scripts/render-dependency-preflight-stage.rb" "${application_release}" "${namespace}")"
+printf '%s\n' "${dependency_stage}" | kubectl --namespace "${namespace}" apply \
+  --filename -
+if ! kubectl --namespace "${namespace}" wait \
+  --for=condition=complete job \
+  --selector="platform.theforeman.org/release-operation=${release_operation_id},app.kubernetes.io/component=dependency-preflight" \
+  --timeout="${wait_timeout}"; then
+  fail 'dependency preflight failed or timed out; database schemas were not changed'
+fi
+
+echo 'Install: applying migration prerequisites and Jobs'
+migration_stage="$(printf '%s\n' "${operation_resources}" | \
   ruby "${repo_root}/scripts/render-migration-stage.rb" "${application_release}" "${namespace}")"
 printf '%s\n' "${migration_stage}" | kubectl --namespace "${namespace}" apply \
   --filename -

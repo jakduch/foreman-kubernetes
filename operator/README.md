@@ -56,15 +56,15 @@ repeat a release operation.
 `operator/lib/foreman_release/reconciler.rb` turns the transition contract into
 an idempotent reconciliation loop behind a side-effect adapter. It persists a
 phase before the following reconciliation performs work, observes active
-migrations and rollouts to a safe pause boundary, reuses the persisted
+dependency checks, migrations, and rollouts to a safe pause boundary, reuses the persisted
 operation ID after restart, and accepts a blocked retry only after
 `spec.retryToken` changes. A changed `spec.reconcileToken` starts the same full
 validation and rollout for updated values or rotated Secrets without inventing
 a new compatibility set. The Helm chart carries that ID plus the owning
-ForemanRelease UID on deterministic migration and Pulp registration Jobs, so a
+ForemanRelease UID on deterministic dependency-preflight, migration, and Pulp registration Jobs, so a
 restarted controller adopts them rather than launching duplicate schema
 changes.
-Pending migration names and successfully submitted application/proxy Helm
+Pending dependency-preflight and migration names plus successfully submitted application/proxy Helm
 revisions are checkpointed into the active operation before the next poll. A
 missing member of an already submitted Deployment or registration-Job set
 causes the controller to idempotently resubmit that release with migration Jobs
@@ -113,13 +113,17 @@ The adapter boundary now includes three concrete, tested primitives:
 blocking `--wait`. Validation pins SHA-256 fingerprints for both values Secret
 keys and both in-image profiles into the operation status, so a mutable Secret
 or a controller-image change cannot silently alter an in-flight release. It
-prepares the chart-owned ServiceAccount, PVC, and desired ConfigMaps, then
-creates three ForemanRelease-owned migration Jobs without changing any
-Deployment. Existing Pods mount those ConfigMaps through `subPath`, so they
-retain their old configuration inode during migrations. Only after all three
-Jobs succeed does it submit the application Helm revision with migration Jobs
-suppressed, observe every expected Deployment and Pulp registration Job, then
-submit deterministic smoke-test Jobs. Deployment observation requires every
+first creates one ForemanRelease-owned dependency Job. That Job proves
+authenticated, read-only access to the Foreman and Pulp databases, both Valkey
+roles, optional Pulp object storage, and Candlepin's Liquibase status command.
+The `CheckingDependencies` phase must succeed before any schema-changing Job is
+created. It then prepares the chart-owned ServiceAccount, PVC, and desired
+ConfigMaps and creates three ForemanRelease-owned migration Jobs without
+changing any Deployment. Existing Pods mount those ConfigMaps through
+`subPath`, so they retain their old configuration inode during migrations. Only
+after all three Jobs succeed does it submit the application Helm revision with
+migration Jobs suppressed, observe every expected Deployment and Pulp
+registration Job, then submit deterministic smoke-test Jobs. Deployment observation requires every
 desired replica to be updated, ready, and available with no old or unavailable
 replica remaining; an `Available=True` condition backed only by the previous
 ReplicaSet cannot advance the release. The execution-proxy release follows the
@@ -212,11 +216,13 @@ The controller owns release sequencing only:
 
 1. validate the selected compatibility set and referenced values;
 2. acquire and renew a Lease for this Foreman release;
-3. create revision-owned Candlepin, Pulp, and Foreman migration Jobs and wait
+3. run authenticated, read-only dependency checks and stop before schema
+   mutation if any dependency is unavailable;
+4. create revision-owned Candlepin, Pulp, and Foreman migration Jobs and wait
    (or preserve the migrated schema for an automatically detected repair);
-4. roll and verify Foreman/Katello, Pulp, Candlepin, and Dynflow workloads;
-5. roll the paired execution proxy;
-6. run the final service and execution checks, then publish `Ready`.
+5. roll and verify Foreman/Katello, Pulp, Candlepin, and Dynflow workloads;
+6. roll the paired execution proxy;
+7. run the final service and execution checks, then publish `Ready`.
 
 The Lease is held only for one operation, renewed while a non-quiescent phase
 is active, and released after `Ready` or `Blocked`. Its expiry permits another
@@ -232,11 +238,11 @@ automatic Helm rollback after migrations.
 ## Failure and retry contract
 
 `operator/release-state-machine.json` is the machine-readable transition
-contract. Any failed validation, migration, rollout, or verification moves the
-resource to `Blocked` with a condition and keeps the last known application
-revision running where Kubernetes can do so safely. A retry is accepted only
-after the operator observes a changed `spec.retryToken`; merely reconciling the
-same failed object cannot restart migration Jobs.
+contract. Any failed validation, dependency check, migration, rollout, or
+verification moves the resource to `Blocked` with a condition and keeps the
+last known application revision running where Kubernetes can do so safely. A
+retry is accepted only after the operator observes a changed `spec.retryToken`;
+merely reconciling the same failed object cannot restart migration Jobs.
 
 `spec.paused` prevents the next phase from starting. It does not kill a running
 migration Job, terminate a rollout, or cancel active Remote Execution work.

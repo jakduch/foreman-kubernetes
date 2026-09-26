@@ -8,11 +8,12 @@ module ForemanRelease
   Observation = Struct.new(:state, :message, :details, keyword_init: true)
 
   class Reconciler
-    ACTIVE_PHASES = %w[Migrating RollingApplication RollingProxy].freeze
-    LEASED_PHASES = %w[Migrating RollingApplication VerifyingApplication RollingProxy Verifying].freeze
+    ACTIVE_PHASES = %w[CheckingDependencies Migrating RollingApplication RollingProxy].freeze
+    LEASED_PHASES = %w[CheckingDependencies Migrating RollingApplication VerifyingApplication RollingProxy Verifying].freeze
     PHASE_TIMEOUT_KEYS = {
       'Preflight' => 'preflightSeconds',
       'AcquiringLock' => 'leaseSeconds',
+      'CheckingDependencies' => 'preflightSeconds',
       'Migrating' => 'migrationSeconds',
       'RollingApplication' => 'applicationRolloutSeconds',
       'VerifyingApplication' => 'verificationSeconds',
@@ -31,6 +32,7 @@ module ForemanRelease
     PHASE_HANDLERS = {
       'Preflight' => [:validate, 'ValidationSucceeded', 'ValidationFailed'],
       'AcquiringLock' => [:acquire_lease, 'LeaseAcquired', 'LeaseFailed'],
+      'CheckingDependencies' => [:ensure_dependencies, 'DependencyPreflightSucceeded', 'DependencyPreflightFailed'],
       'Migrating' => [:ensure_migrations, 'MigrationsSucceeded', 'MigrationsFailed'],
       'RollingApplication' => [:ensure_application, 'ApplicationAvailable', 'ApplicationFailed'],
       'VerifyingApplication' => [:ensure_application_smoke, 'ApplicationSmokeSucceeded', 'ApplicationSmokeFailed'],

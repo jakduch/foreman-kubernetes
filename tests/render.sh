@@ -31,11 +31,13 @@ rendered_image_pull_secrets="$(mktemp)"
 rendered_no_migrations="$(mktemp)"
 rendered_release_operation="$(mktemp)"
 rendered_release_application="$(mktemp)"
+rendered_manual_dependency_stage="$(mktemp)"
 rendered_manual_migration_stage="$(mktemp)"
 rendered_secret_rotation="$(mktemp)"
 rendered_monitoring="$(mktemp)"
 rendered_monitoring_maintenance="$(mktemp)"
 rendered_s3="$(mktemp)"
+rendered_s3_operation="$(mktemp)"
 rendered_s3_egress="$(mktemp)"
 rendered_azure_identity="$(mktemp)"
 rendered_s3_backup="$(mktemp)"
@@ -61,7 +63,7 @@ rendered_scheduled_operator="$(mktemp)"
 rendered_dynflow_autoscaling="$(mktemp)"
 rendered_dynflow_autoscaling_maintenance="$(mktemp)"
 rendered_capacity_notes="$(mktemp)"
-trap 'rm -f "${rendered}" "${rendered_ingress}" "${rendered_execution_registration}" "${rendered_ingress_overrides}" "${rendered_minimal_pulp_ingress}" "${rendered_all_pulp_ingress}" "${rendered_backup}" "${rendered_backup_execution}" "${rendered_restore}" "${rendered_egress}" "${rendered_egress_backup}" "${rendered_egress_backup_local}" "${rendered_outbound_proxy}" "${rendered_outbound_proxy_backup}" "${rendered_webhooks}" "${rendered_compute_provider}" "${rendered_singletons}" "${rendered_ha}" "${rendered_candlepin_port}" "${rendered_foreman_service_port}" "${rendered_foreman_secret_contract}" "${rendered_database_tls_disabled}" "${rendered_image_pull_secrets}" "${rendered_no_migrations}" "${rendered_release_operation}" "${rendered_release_application}" "${rendered_manual_migration_stage}" "${rendered_secret_rotation}" "${rendered_monitoring}" "${rendered_monitoring_maintenance}" "${rendered_s3}" "${rendered_s3_egress}" "${rendered_azure_identity}" "${rendered_s3_backup}" "${rendered_smtp}" "${rendered_smtp_backup}" "${rendered_kind}" "${rendered_kind_backup}" "${rendered_execution}" "${rendered_execution_egress}" "${rendered_execution_kind}" "${rendered_execution_operation}" "${rendered_execution_secret_rotation}" "${rendered_execution_monitoring}" "${rendered_execution_maintenance}" "${rendered_operator}" "${rendered_operator_monitoring}" "${rendered_operator_egress}" "${rendered_scheduled_stack}" "${rendered_scheduled_backup}" "${rendered_scheduled_execution}" "${rendered_execution_scheduled_backup}" "${rendered_scheduled_operator}" "${rendered_dynflow_autoscaling}" "${rendered_dynflow_autoscaling_maintenance}" "${rendered_capacity_notes}"' EXIT
+trap 'rm -f "${rendered}" "${rendered_ingress}" "${rendered_execution_registration}" "${rendered_ingress_overrides}" "${rendered_minimal_pulp_ingress}" "${rendered_all_pulp_ingress}" "${rendered_backup}" "${rendered_backup_execution}" "${rendered_restore}" "${rendered_egress}" "${rendered_egress_backup}" "${rendered_egress_backup_local}" "${rendered_outbound_proxy}" "${rendered_outbound_proxy_backup}" "${rendered_webhooks}" "${rendered_compute_provider}" "${rendered_singletons}" "${rendered_ha}" "${rendered_candlepin_port}" "${rendered_foreman_service_port}" "${rendered_foreman_secret_contract}" "${rendered_database_tls_disabled}" "${rendered_image_pull_secrets}" "${rendered_no_migrations}" "${rendered_release_operation}" "${rendered_release_application}" "${rendered_manual_dependency_stage}" "${rendered_manual_migration_stage}" "${rendered_secret_rotation}" "${rendered_monitoring}" "${rendered_monitoring_maintenance}" "${rendered_s3}" "${rendered_s3_operation}" "${rendered_s3_egress}" "${rendered_azure_identity}" "${rendered_s3_backup}" "${rendered_smtp}" "${rendered_smtp_backup}" "${rendered_kind}" "${rendered_kind_backup}" "${rendered_execution}" "${rendered_execution_egress}" "${rendered_execution_kind}" "${rendered_execution_operation}" "${rendered_execution_secret_rotation}" "${rendered_execution_monitoring}" "${rendered_execution_maintenance}" "${rendered_operator}" "${rendered_operator_monitoring}" "${rendered_operator_egress}" "${rendered_scheduled_stack}" "${rendered_scheduled_backup}" "${rendered_scheduled_execution}" "${rendered_execution_scheduled_backup}" "${rendered_scheduled_operator}" "${rendered_dynflow_autoscaling}" "${rendered_dynflow_autoscaling_maintenance}" "${rendered_capacity_notes}"' EXIT
 
 ruby "${repo_root}/tests/yaml-duplicates.rb"
 ruby "${repo_root}/tests/workflow-action-pins.rb" "${repo_root}/.github/workflows"
@@ -406,10 +408,17 @@ helm template test "${chart}" \
   --set releaseOperation.skipMigrationJobs=true > "${rendered_release_application}"
 ruby "${repo_root}/scripts/render-migration-stage.rb" test foreman \
   < "${rendered_release_operation}" > "${rendered_manual_migration_stage}"
+ruby "${repo_root}/scripts/render-dependency-preflight-stage.rb" test foreman \
+  < "${rendered_release_operation}" > "${rendered_manual_dependency_stage}"
 helm template test "${chart}" \
   --set secretRolloutToken=rotated-credentials > "${rendered_secret_rotation}"
 helm template test "${chart}" \
   --values "${repo_root}/examples/pulp-s3-values.yaml" > "${rendered_s3}"
+helm template test "${chart}" \
+  --values "${repo_root}/examples/pulp-s3-values.yaml" \
+  --set-string releaseOperation.id=uid-123-generation-7 \
+  --set-string releaseOperation.ownerUid=12345678-1234-1234-1234-123456789abc \
+  > "${rendered_s3_operation}"
 helm template test "${chart}" \
   --values "${repo_root}/tests/egress-values.yaml" \
   --values "${repo_root}/examples/pulp-s3-values.yaml" > "${rendered_s3_egress}"
@@ -488,6 +497,10 @@ ruby "${repo_root}/tests/operator-migration-staging-contract.rb" \
   "${rendered_release_operation}" "${rendered_release_application}"
 ruby "${repo_root}/tests/manual-migration-staging-contract.rb" \
   "${rendered_manual_migration_stage}" uid-123-generation-7 test foreman
+ruby "${repo_root}/tests/manual-dependency-preflight-staging-contract.rb" \
+  "${rendered_manual_dependency_stage}" uid-123-generation-7 test foreman
+ruby "${repo_root}/tests/dependency-preflight-contract.rb" \
+  "${rendered_release_operation}" "${rendered_s3_operation}"
 ruby "${repo_root}/tests/candlepin-shutdown-contract.rb" "${rendered}"
 ruby "${repo_root}/tests/pulp-ingress-contract.rb" "${rendered_ingress}"
 ruby "${repo_root}/tests/pulp-ingress-contract.rb" "${rendered_minimal_pulp_ingress}"
@@ -727,6 +740,8 @@ ruby -c "${repo_root}/scripts/required-cluster-resources.rb"
 ruby -c "${repo_root}/scripts/required-secrets.rb"
 ruby -c "${repo_root}/scripts/certificate-identities.rb"
 ruby -c "${repo_root}/scripts/render-migration-stage.rb"
+ruby -c "${repo_root}/scripts/render-dependency-preflight-stage.rb"
+ruby -c "${repo_root}/scripts/release-job-stage.rb"
 ruby -c "${repo_root}/tests/integration-evidence.rb"
 ruby -c "${repo_root}/tests/operator-contract.rb"
 ruby -c "${chart}/files/foreman-readiness.rb"

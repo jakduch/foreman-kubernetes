@@ -10,9 +10,9 @@ release_name, release_namespace = ARGV
 documents = YAML.load_stream($stdin.read).compact
 stage = ReleaseJobStage.render(
   documents: documents,
-  components: %w[candlepin-migrate pulp-migrate foreman-migrate],
-  expected_count: 3,
-  stage_name: 'migration',
+  components: ['dependency-preflight'],
+  expected_count: 1,
+  stage_name: 'dependency preflight',
   release_name: release_name,
   release_namespace: release_namespace
 )

@@ -23,12 +23,19 @@ cat > "${fake_bin}/helm" <<'SCRIPT'
 #!/usr/bin/env bash
 set -euo pipefail
 printf 'helm %s\n' "$*" >> "${FAKE_TOOL_LOG}"
-if [[ "$1" == template && "$2" == foreman && "$*" == *'releaseOperation.id=test-operation'* ]]; then
+if [[ "$1" == template && "$2" == foreman && "$*" == *'releaseOperation.id=test-operation'* && "$*" != *'--show-only'* ]]; then
   printf '%s\n' \
     'apiVersion: v1' 'kind: ServiceAccount' 'metadata:' '  name: foreman-runtime' \
+    '---' 'apiVersion: v1' 'kind: ServiceAccount' 'metadata:' '  name: pulp-runtime' \
     '---' 'apiVersion: v1' 'kind: ConfigMap' 'metadata:' '  name: migration-config' \
     '---' 'apiVersion: v1' 'kind: PersistentVolumeClaim' 'metadata:' '  name: shared-tmp' \
-    '---'
+    '---' \
+    'apiVersion: batch/v1' 'kind: Job' 'metadata:' '  name: dependency-preflight-test-operation' \
+    '  annotations:' '    helm.sh/hook: pre-install,pre-upgrade' '  labels:' \
+    '    app.kubernetes.io/component: dependency-preflight' '    app.kubernetes.io/instance: foreman' \
+    '    platform.theforeman.org/release-operation: test-operation' \
+    '    platform.theforeman.org/release-owner: test-operation' 'spec:' '  template:' '    spec:' \
+    '      serviceAccountName: pulp-runtime' '---'
   for component in candlepin-migrate pulp-migrate foreman-migrate; do
     printf '%s\n' \
       'apiVersion: batch/v1' 'kind: Job' 'metadata:' "  name: ${component}-test-operation" \
@@ -74,6 +81,9 @@ case "$*" in
     ;;
   *'--show-only templates/migrations.yaml'*)
     printf '%s\n' 'kind: Job' '---' 'kind: Job' '---' 'kind: Job'
+    ;;
+  *'--show-only templates/dependency-preflight.yaml'*)
+    printf '%s\n' 'kind: Job'
     ;;
 esac
 if [[ "$1" == template && "$2" == foreman && "$*" != *'--show-only'* ]]; then
@@ -206,10 +216,13 @@ helm template foreman ${repo_root}/charts/foreman-stack --namespace foreman --va
 helm template foreman ${repo_root}/charts/foreman-stack --namespace foreman --values ${application_values} --values ${repo_root}/profiles/nightly-candidate-2026-09-23.yaml --show-only templates/foreman.yaml
 helm template foreman ${repo_root}/charts/foreman-stack --namespace foreman --values ${application_values} --values ${repo_root}/profiles/nightly-candidate-2026-09-23.yaml --show-only templates/dynflow.yaml
 helm template foreman ${repo_root}/charts/foreman-stack --namespace foreman --values ${application_values} --values ${repo_root}/profiles/nightly-candidate-2026-09-23.yaml --show-only templates/migrations.yaml
+helm template foreman ${repo_root}/charts/foreman-stack --namespace foreman --values ${application_values} --values ${repo_root}/profiles/nightly-candidate-2026-09-23.yaml --set-string releaseOperation.id=test-operation --set-string releaseOperation.ownerUid=test-operation --show-only templates/dependency-preflight.yaml
 helm lint ${repo_root}/charts/foreman-execution-proxy --values ${execution_values} --values ${repo_root}/profiles/execution-proxy-nightly-candidate-2026-09-24.yaml
 helm template execution ${repo_root}/charts/foreman-execution-proxy --namespace foreman --values ${execution_values} --values ${repo_root}/profiles/execution-proxy-nightly-candidate-2026-09-24.yaml
 kubectl --namespace foreman apply --dry-run=server --filename -
 helm template foreman ${repo_root}/charts/foreman-stack --namespace foreman --values ${application_values} --values ${repo_root}/profiles/nightly-candidate-2026-09-23.yaml --set-string releaseOperation.id=test-operation --set-string releaseOperation.ownerUid=test-operation
+kubectl --namespace foreman apply --filename -
+kubectl --namespace foreman wait --for=condition=complete job --selector=platform.theforeman.org/release-operation=test-operation,app.kubernetes.io/component=dependency-preflight --timeout=30m
 kubectl --namespace foreman apply --filename -
 kubectl --namespace foreman wait --for=condition=complete job --selector=platform.theforeman.org/release-operation=test-operation --timeout=30m
 helm upgrade foreman ${repo_root}/charts/foreman-stack --namespace foreman --values ${application_values} --values ${repo_root}/profiles/nightly-candidate-2026-09-23.yaml --set releaseOperation.skipMigrationJobs=true --wait --wait-for-jobs --timeout 30m

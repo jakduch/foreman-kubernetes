@@ -205,7 +205,8 @@ takes over only after that Lease expires or is explicitly released. A separate
 operation Lease continues to serialize the actual release mutation with manual
 install, upgrade, backup, and restore workflows. Every release operation is
 restart-safe: its input fingerprints, phase, operation Lease holder, migration
-Job names, submitted Helm revisions, and verified Helm revisions are durable.
+Job names, dependency-preflight Job name, submitted Helm revisions, and
+verified Helm revisions are durable.
 If part of a submitted Deployment or registration-Job set disappears, the
 controller reapplies the same release with migration Jobs suppressed. Change
 `spec.retryToken` only after correcting a `Blocked` condition. Set
@@ -324,9 +325,14 @@ to copy that version onto older clusters. External databases, caches, brokers,
 object stores, and infrastructure Smart Proxies remain outside the chart's
 namespace and must be secured by their respective operators.
 
-It then applies only the Helm-adoptable migration dependencies and three
-one-hour, operation-labelled migration Jobs. Application Deployments are not
-submitted until all three Jobs complete. The installer applies the application
+It first applies one operation-labelled, read-only dependency Job. Its isolated
+containers authenticate to the Foreman, Pulp, and Candlepin databases, both
+Foreman Valkey roles and Pulp Valkey; an S3-backed Pulp deployment also performs
+a bounded bucket listing through the configured static or workload identity.
+No schema command is submitted unless that Job completes. It then applies only
+the Helm-adoptable migration dependencies and three one-hour,
+operation-labelled migration Jobs. Application Deployments are not submitted
+until all three migration Jobs complete. The installer applies the application
 with migration rendering suppressed, waits for Pulp registration, runs the
 application smoke test, installs the execution proxy, and waits for its Pod.
 The final gate idempotently registers the proxy through Foreman's Rails model,
@@ -343,7 +349,8 @@ renew interval must remain shorter than the duration. A manually supplied
 operation ID must be a fresh Kubernetes label value for each attempt; normally
 the helper generates it.
 
-The controller additionally bounds Preflight, Lease acquisition, migrations,
+The controller additionally bounds Preflight, Lease acquisition, the
+`CheckingDependencies` gate, migrations,
 both workload rollouts, and verification through `spec.timeouts`. A phase that
 exceeds its budget becomes `Blocked`; the operation Lease is released, but no
 schema or workload rollback is attempted. Correct the scheduling, image,

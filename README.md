@@ -29,7 +29,8 @@ chart installs two namespaced controller candidates with Lease-based leader
 election for the durable
 `ForemanRelease` state machine. It validates the exact render and external
 dependencies, pins all input fingerprints, adopts deterministic migration and
-verification Jobs after restart, runs migrations before changing application
+verification Jobs after restart, runs an authenticated read-only dependency
+gate before migrations, runs migrations before changing application
 workloads, rolls the application before its paired
 execution proxy, and never performs an automatic post-migration rollback.
 
@@ -45,6 +46,8 @@ The initial Helm chart is under [`charts/foreman-stack`](charts/foreman-stack). 
 - independent optional HPAs for Foreman web, both Dynflow worker pools, Pulp
   API, and Pulp content replicas; the Dynflow orchestrator remains a singleton;
 - separate Candlepin, Pulp, and Foreman migration Jobs;
+- a guarded, operation-owned dependency Job that verifies all three databases,
+  Foreman's and Pulp's Valkey endpoints, and Pulp S3 access before migrations;
 - Foreman recurring tasks as non-overlapping CronJobs.
 - maintenance-gated, encrypted backup and restore Jobs covering all three
   PostgreSQL databases, both releases' Secrets, Foreman avatars, execution

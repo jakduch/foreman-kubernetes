@@ -57,7 +57,8 @@ raise 'progress checkpoint did not refresh the condition' unless progress['reaso
 
 happy_path = [
   ['ValidationSucceeded', 'AcquiringLock', 'AcquireLease', {}],
-  ['LeaseAcquired', 'Migrating', 'StartMigrationJobs', {migrationJobs: %w[candlepin pulp foreman]}],
+  ['LeaseAcquired', 'CheckingDependencies', 'StartDependencyPreflight', {}],
+  ['DependencyPreflightSucceeded', 'Migrating', 'StartMigrationJobs', {dependencyPreflightJobs: ['dependencies']}],
   ['MigrationsSucceeded', 'RollingApplication', 'RollApplication', {}],
   ['ApplicationAvailable', 'VerifyingApplication', 'RunApplicationSmokeTest', {applicationRevision: 2}],
   ['ApplicationSmokeSucceeded', 'RollingProxy', 'RollExecutionProxy', {}],
@@ -119,7 +120,9 @@ blocked = machine.transition(
   status: {
     'phase' => 'Preflight',
     'observedRetryToken' => 'attempt-1',
-    'operation' => {'id' => 'uid-2-1', 'startedAt' => now, 'migrationJobs' => []}
+    'operation' => {
+      'id' => 'uid-2-1', 'startedAt' => now, 'dependencyPreflightJobs' => [], 'migrationJobs' => []
+    }
   },
   event: 'ValidationFailed',
   generation: 2,

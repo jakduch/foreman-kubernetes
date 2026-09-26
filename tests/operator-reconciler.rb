@@ -20,7 +20,7 @@ class FakeAdapter
     @results[method] = states
   end
 
-  %i[validate acquire_lease renew_lease ensure_migrations ensure_application ensure_application_smoke ensure_proxy ensure_final_smoke audit_ready].each do |method|
+  %i[validate acquire_lease renew_lease ensure_dependencies ensure_migrations ensure_application ensure_application_smoke ensure_proxy ensure_final_smoke audit_ready].each do |method|
     define_method(method) do |_resource, operation|
       @calls << method
       @migration_operations << operation.fetch('id') if method == :ensure_migrations
@@ -29,7 +29,9 @@ class FakeAdapter
       ForemanRelease::Observation.new(
         state: state,
         message: "#{method} is #{state}",
-        details: if method == :ensure_migrations
+        details: if method == :ensure_dependencies
+                   {dependencyPreflightJobs: ['dependency-preflight']}
+                 elsif method == :ensure_migrations
                    {migrationJobs: %w[job-a job-b job-c]}
                  elsif method == :audit_ready && %i[drifted unsafe_drift].include?(state)
                    {driftedResources: ['Service/foreman']}
@@ -90,7 +92,7 @@ reconciler = ForemanRelease::Reconciler.new(
 )
 release = resource
 
-expected_phases = %w[Preflight AcquiringLock Migrating Migrating RollingApplication VerifyingApplication RollingProxy Verifying Ready]
+expected_phases = %w[Preflight AcquiringLock CheckingDependencies Migrating Migrating RollingApplication VerifyingApplication RollingProxy Verifying Ready]
 expected_phases.each do |phase|
   reconciler.reconcile(release)
   actual = release.dig('status', 'phase')
@@ -100,6 +102,9 @@ end
 operation_id = 'ae1908d5eef6b8c2-g1-o1'
 raise 'reconciliation did not use a deterministic operation ID' unless release.dig('status', 'operation', 'id') == operation_id
 raise 'initial operation was not sequenced' unless release.dig('status', 'operationSequence') == 1
+unless release.dig('status', 'operation', 'dependencyPreflightJobs') == ['dependency-preflight']
+  raise 'successful dependency preflight was not recorded'
+end
 raise 'migration Jobs were not adopted with one operation ID' unless adapter.migration_operations == [operation_id, operation_id]
 raise 'successful migrations were not recorded' unless release.dig('status', 'operation', 'migrationJobs') == %w[job-a job-b job-c]
 raise 'ready reconciliation did not release the Lease' unless adapter.calls.include?([:release_lease, operation_id])
@@ -124,7 +129,7 @@ unless release.dig('status', 'observedReconcileToken') == 'rotate-certificates'
 end
 
 # Finish the second operation before testing terminal pause behavior.
-7.times { reconciler.reconcile(release) }
+8.times { reconciler.reconcile(release) }
 raise 'reconciled release did not return to Ready' unless release.dig('status', 'phase') == 'Ready'
 
 release['spec']['paused'] = true
@@ -384,6 +389,44 @@ failed_release['metadata']['generation'] = 2
 failure_reconciler.reconcile(failed_release)
 raise 'changed retry token did not restart preflight' unless failed_release.dig('status', 'phase') == 'Preflight'
 raise 'retry reused the failed operation' unless failed_release.dig('status', 'operation', 'id').end_with?('-g2-o2')
+
+# A failed authenticated dependency check blocks before any migration is
+# submitted and releases the operation Lease.
+dependency_failure_adapter = FakeAdapter.new
+dependency_failure_adapter.results(:ensure_dependencies, :failed)
+dependency_failure_release = resource(status: {
+  'phase' => 'CheckingDependencies',
+  'phaseStartedAt' => '2026-09-24T12:00:00Z',
+  'targetSet' => 'candidate-1',
+  'operation' => {
+    'id' => operation_id,
+    'startedAt' => '2026-09-24T12:00:00Z',
+    'dependencyPreflightJobs' => []
+  }
+})
+dependency_failure_reconciler = ForemanRelease::Reconciler.new(
+  state_machine: machine,
+  adapter: dependency_failure_adapter,
+  status_writer: ->(item, status) { item['status'] = status },
+  clock: -> { '2026-09-24T12:01:00Z' }
+)
+unless dependency_failure_reconciler.reconcile(dependency_failure_release) == :blocked
+  raise 'failed dependency preflight did not block the release'
+end
+dependency_failure_condition = dependency_failure_release['status']['conditions'].find do |condition|
+  condition['type'] == 'Degraded'
+end
+unless dependency_failure_condition&.fetch('reason') == 'DependencyPreflightFailed'
+  raise 'failed dependency preflight did not retain its failure reason'
+end
+if dependency_failure_adapter.calls.include?(:ensure_migrations)
+  raise 'failed dependency preflight submitted migrations'
+end
+unless dependency_failure_adapter.calls == [
+  :renew_lease, :ensure_dependencies, [:release_lease, operation_id]
+]
+  raise 'failed dependency preflight did not renew and release its Lease'
+end
 
 # A rollout that never reaches a terminal Deployment condition is bounded by
 # the CR phase timeout and releases its operation Lease.

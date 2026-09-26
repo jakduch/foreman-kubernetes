@@ -43,9 +43,11 @@ recovery_allow_candidate=0
 recovery_application_profile_override=""
 recovery_execution_profile_override=""
 
-wait_for_migration_jobs() {
+wait_for_operation_jobs() {
   local operation_id="$1"
   local expected_jobs="$2"
+  local stage="$3"
+  local selector="platform.theforeman.org/release-operation=${operation_id}${4:-}"
   local timeout_seconds="${KIND_MIGRATION_WAIT_SECONDS:-1800}"
   local deadline=$((SECONDS + timeout_seconds))
   local jobs
@@ -56,14 +58,14 @@ wait_for_migration_jobs() {
 
   while ((SECONDS < deadline)); do
     jobs="$(kubectl --namespace "${namespace}" get jobs \
-      --selector="platform.theforeman.org/release-operation=${operation_id}" \
+      --selector="${selector}" \
       --output=json)"
     failed_jobs="$(jq --raw-output \
       '.items[] |
        select(any(.status.conditions[]?; .type == "Failed" and .status == "True")) |
        .metadata.name' <<<"${jobs}")"
     if [[ -n "${failed_jobs}" ]]; then
-      echo "Migration operation ${operation_id} failed in: ${failed_jobs//$'\n'/, }" >&2
+      echo "${stage} operation ${operation_id} failed in: ${failed_jobs//$'\n'/, }" >&2
       while IFS= read -r job_name; do
         [[ -n "${job_name}" ]] || continue
         kubectl --namespace "${namespace}" logs \
@@ -84,14 +86,20 @@ wait_for_migration_jobs() {
     sleep 2
   done
 
-  echo "Migration operation ${operation_id} did not finish within ${timeout_seconds}s" >&2
+  echo "${stage} operation ${operation_id} did not finish within ${timeout_seconds}s" >&2
   kubectl --namespace "${namespace}" get jobs \
-    --selector="platform.theforeman.org/release-operation=${operation_id}" >&2 || true
+    --selector="${selector}" >&2 || true
   return 1
 }
 
+wait_for_migration_jobs() {
+  wait_for_operation_jobs "$1" "$2" Migration
+}
+
 helm_apply() {
+  local dependency_stage
   local expected_migration_jobs
+  local operation_resources
   local operation_id
   local migration_stage
 
@@ -111,7 +119,7 @@ helm_apply() {
   fi
 
   operation_id="kind-$(date -u +%Y%m%d%H%M%S)-$$-${RANDOM}"
-  migration_stage="$(helm template "${release}" "${repo_root}/charts/foreman-stack" \
+  operation_resources="$(helm template "${release}" "${repo_root}/charts/foreman-stack" \
     --namespace "${namespace}" \
     --values "${repo_root}/examples/execution-control-plane-values.yaml" \
     --values "${repo_root}/tests/kind/values.yaml" \
@@ -120,7 +128,16 @@ helm_apply() {
     --set-string candlepin.java.xms="${candlepin_java_xms}" \
     "$@" \
     --set-string "releaseOperation.id=${operation_id}" \
-    --set-string "releaseOperation.ownerUid=${operation_id}" | \
+    --set-string "releaseOperation.ownerUid=${operation_id}")"
+  dependency_stage="$(printf '%s\n' "${operation_resources}" | \
+    ruby "${repo_root}/scripts/render-dependency-preflight-stage.rb" "${release}" "${namespace}")"
+  printf '%s\n' "${dependency_stage}" | kubectl --namespace "${namespace}" apply --filename -
+  if ! wait_for_operation_jobs \
+    "${operation_id}" 1 'Dependency preflight' ',app.kubernetes.io/component=dependency-preflight'; then
+    return 1
+  fi
+
+  migration_stage="$(printf '%s\n' "${operation_resources}" | \
     ruby "${repo_root}/scripts/render-migration-stage.rb" "${release}" "${namespace}")"
   expected_migration_jobs="$(awk \
     '/^kind: Job$/ { count++ } END { print count + 0 }' <<<"${migration_stage}")"

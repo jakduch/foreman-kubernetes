@@ -27,9 +27,16 @@ printf 'helm %s\n' "$*" >> "${FAKE_TOOL_LOG}"
 if [[ "$1" == template && "$2" == foreman && "$*" == *'releaseOperation.id=test-operation'* ]]; then
   printf '%s\n' \
     'apiVersion: v1' 'kind: ServiceAccount' 'metadata:' '  name: foreman-runtime' \
+    '---' 'apiVersion: v1' 'kind: ServiceAccount' 'metadata:' '  name: pulp-runtime' \
     '---' 'apiVersion: v1' 'kind: ConfigMap' 'metadata:' '  name: migration-config' \
     '---' 'apiVersion: v1' 'kind: PersistentVolumeClaim' 'metadata:' '  name: shared-tmp' \
-    '---'
+    '---' \
+    'apiVersion: batch/v1' 'kind: Job' 'metadata:' '  name: dependency-preflight-test-operation' \
+    '  annotations:' '    helm.sh/hook: pre-install,pre-upgrade' '  labels:' \
+    '    app.kubernetes.io/component: dependency-preflight' '    app.kubernetes.io/instance: foreman' \
+    '    platform.theforeman.org/release-operation: test-operation' \
+    '    platform.theforeman.org/release-owner: test-operation' 'spec:' '  template:' '    spec:' \
+    '      serviceAccountName: pulp-runtime' '---'
   for component in candlepin-migrate pulp-migrate foreman-migrate; do
     printf '%s\n' \
       'apiVersion: batch/v1' 'kind: Job' 'metadata:' "  name: ${component}-test-operation" \
@@ -97,6 +104,7 @@ if [[ "$1" == template && "$2" == foreman ]]; then
       '            claimName: imported-content'
   fi
   printf '%s\n' \
+    '---' 'kind: Job' \
     '---' 'kind: Job' \
     '---' 'kind: Job' \
     '---' 'kind: Job' \

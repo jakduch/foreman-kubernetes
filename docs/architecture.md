@@ -303,7 +303,11 @@ Candlepin Artemis broker are external contracts. This keeps the application
 chart usable with existing operators and managed services.
 
 Candlepin, Pulp, and Foreman migrations are release-revision Jobs with bounded
-retries. The Foreman migration Job waits until Pulp reports no pending
+retries. Guarded release operations first run a separate read-only Job that
+authenticates to all three databases, Foreman's cache and Dynflow Valkey roles,
+Pulp Valkey, and Pulp object storage when S3 is selected. The
+`CheckingDependencies` phase must complete before any migration Job is created.
+The Foreman migration Job waits until Pulp reports no pending
 migrations, preserving their dependency order. Foreman and Pulp application
 pods use init containers to wait for their own schema. Candlepin uses its
 upstream `HALT` mode and refuses to become healthy while its Liquibase Job has

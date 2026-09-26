@@ -14,10 +14,12 @@ require_relative 'release_inputs'
 
 module ForemanRelease
   class RuntimeAdapter
+    DEPENDENCY_PREFLIGHT_COMPONENT = 'dependency-preflight'
     MIGRATION_COMPONENTS = %w[candlepin-migrate pulp-migrate foreman-migrate].freeze
     REGISTRATION_COMPONENT = 'pulp-registration'
     EXECUTION_REGISTRATION_COMPONENT = 'execution-proxy-registration'
     HISTORY_COMPONENTS = (MIGRATION_COMPONENTS + [
+      DEPENDENCY_PREFLIGHT_COMPONENT,
       REGISTRATION_COMPONENT, EXECUTION_REGISTRATION_COMPONENT, 'smoke-test'
     ]).freeze
     OPERATION_LABEL = 'platform.theforeman.org/release-operation'
@@ -170,7 +172,7 @@ module ForemanRelease
         live = operation_resources(resource, operation, 'jobs')
         matching = live.select { |job| expected_names(expected).include?(job.dig('metadata', 'name')) }
         unless matching.length == expected.length
-          submit_migration_bundle(resource, operation, resources, expected, matching)
+          submit_job_bundle(resource, operation, resources, expected, matching)
           return Observation.new(
             state: :pending,
             message: 'migration resources submitted; waiting for Jobs',
@@ -179,6 +181,28 @@ module ForemanRelease
         end
 
         observe_jobs(matching, details: {migrationJobs: expected_names(expected).sort})
+      end
+    end
+
+    def ensure_dependencies(resource, operation)
+      with_rendered_application(resource, operation) do |_context, _values_path, resources|
+        expected = jobs(resources, [DEPENDENCY_PREFLIGHT_COMPONENT])
+        unless expected.length == 1
+          raise InvalidRelease, 'application chart must render exactly one dependency preflight Job'
+        end
+
+        live = operation_resources(resource, operation, 'jobs')
+        matching = live.select { |job| expected_names(expected).include?(job.dig('metadata', 'name')) }
+        unless matching.length == expected.length
+          submit_job_bundle(resource, operation, resources, expected, matching)
+          return Observation.new(
+            state: :pending,
+            message: 'dependency preflight submitted; waiting for its Job',
+            details: {dependencyPreflightJobs: expected_names(expected).sort}
+          )
+        end
+
+        observe_jobs(matching, details: {dependencyPreflightJobs: expected_names(expected).sort})
       end
     end
 
@@ -534,6 +558,10 @@ module ForemanRelease
     end
 
     def validate_rendered_contract!(application, execution)
+      dependency_preflight = jobs(application, [DEPENDENCY_PREFLIGHT_COMPONENT])
+      unless dependency_preflight.length == 1
+        raise InvalidRelease, 'application values must enable exactly one dependency preflight Job'
+      end
       migration_components = jobs(application, MIGRATION_COMPONENTS).map { |job| job.dig('metadata', 'labels', COMPONENT_LABEL) }
       unless migration_components.sort == MIGRATION_COMPONENTS.sort
         raise InvalidRelease, 'application values must enable every migration Job'
@@ -677,8 +705,8 @@ module ForemanRelease
       )
     end
 
-    def submit_migration_bundle(resource, operation, rendered, expected_jobs, live_jobs)
-      dependencies = migration_dependencies(rendered, expected_jobs)
+    def submit_job_bundle(resource, operation, rendered, expected_jobs, live_jobs)
+      dependencies = job_dependencies(rendered, expected_jobs)
       dependencies.each { |dependency| ensure_helm_dependency(resource, dependency) }
 
       live_names = expected_names(live_jobs)
@@ -687,9 +715,9 @@ module ForemanRelease
       end
     end
 
-    def migration_dependencies(rendered, migration_jobs)
+    def job_dependencies(rendered, operation_jobs)
       names = MIGRATION_DEPENDENCY_TYPES.keys.to_h { |kind| [kind, []] }
-      migration_jobs.each do |job|
+      operation_jobs.each do |job|
         pod_spec = job.dig('spec', 'template', 'spec') || {}
         names['ServiceAccount'] << pod_spec['serviceAccountName'] if pod_spec['serviceAccountName']
         Array(pod_spec['volumes']).each do |volume|
@@ -735,7 +763,7 @@ module ForemanRelease
         metadata.dig('annotations', 'meta.helm.sh/release-namespace') == namespace
       return if owned
 
-      raise InvalidRelease, "migration dependency #{metadata.fetch('name')} is not owned by Helm release #{release_name}"
+      raise InvalidRelease, "release dependency #{metadata.fetch('name')} is not owned by Helm release #{release_name}"
     end
 
     def ensure_owned_resource(resource, operation, expected, release_name)
@@ -758,6 +786,7 @@ module ForemanRelease
       result = Marshal.load(Marshal.dump(template))
       result['metadata'].delete('namespace')
       result['metadata']['labels']['app.kubernetes.io/managed-by'] = 'foreman-release-controller'
+      result['metadata'].fetch('annotations', {}).delete_if { |key, _value| key.start_with?('helm.sh/hook') }
       result['metadata']['ownerReferences'] = [release_owner_reference(resource)]
       result
     end

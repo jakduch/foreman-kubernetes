@@ -64,6 +64,7 @@ spec:
           - katello-event-daemon
           - foreman-cron
           - foreman-migrate
+          - dependency-preflight
           - pulp-registration
           {{- if .Values.smartProxy.executionRegistration.enabled }}
           - execution-proxy-registration
@@ -183,6 +184,7 @@ spec:
           - pulp-content
           - pulp-worker
           - pulp-migrate
+          - dependency-preflight
   policyTypes:
     - Egress
   egress:
@@ -243,6 +245,7 @@ spec:
         values:
           - candlepin
           - candlepin-migrate
+          - dependency-preflight
   policyTypes:
     - Egress
   egress:

@@ -21,8 +21,20 @@
     {
       "from": "AcquiringLock",
       "event": "LeaseAcquired",
+      "action": "StartDependencyPreflight",
+      "to": "CheckingDependencies"
+    },
+    {
+      "from": "CheckingDependencies",
+      "event": "DependencyPreflightSucceeded",
       "action": "StartMigrationJobs",
       "to": "Migrating"
+    },
+    {
+      "from": "CheckingDependencies",
+      "event": "DependencyPreflightFailed",
+      "action": "RecordBlocked",
+      "to": "Blocked"
     },
     {
       "from": "AcquiringLock",
