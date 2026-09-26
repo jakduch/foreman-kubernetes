@@ -61,6 +61,8 @@
   through the global workload node selector. Additional environment-specific
   pool selectors remain mergeable, while mixed amd64/arm64 clusters cannot
   accidentally schedule the current amd64-only stack on an incompatible node.
+  Guarded install, upgrade, recovery, and operator reconciliation also stop
+  before migrations when no matching Ready, uncordoned node is available.
 
 - The Katello content lifecycle now builds deterministic local APT and RPM
   repositories alongside its File and Python fixtures. It synchronizes both

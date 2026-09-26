@@ -79,6 +79,23 @@ check_required_cluster_resources() {
           return 1
         }
         ;;
+      NodeArchitecture)
+        resource_json="$(kubectl get nodes --output=json)" || {
+          echo 'unable to inspect Kubernetes nodes' >&2
+          return 1
+        }
+        jq --exit-status --arg architecture "${resource_name}" '
+          any(
+            .items[];
+            .metadata.labels["kubernetes.io/arch"] == $architecture and
+            (.spec.unschedulable // false) != true and
+            any(.status.conditions[]?; .type == "Ready" and .status == "True")
+          )
+        ' <<<"${resource_json}" >/dev/null || {
+          echo "rendered workloads require a Ready, uncordoned ${resource_name} node, but none is available" >&2
+          return 1
+        }
+        ;;
       PersistentVolumeClaim | ServiceAccount)
         kubectl --namespace "${namespace}" get "${resource_kind}" "${resource_name}" >/dev/null || {
           echo "required ${resource_kind} ${namespace}/${resource_name} does not exist" >&2

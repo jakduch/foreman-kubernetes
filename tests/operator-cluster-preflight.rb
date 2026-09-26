@@ -7,25 +7,37 @@ root = Pathname.new(File.expand_path('..', __dir__))
 require root.join('operator/lib/foreman_release/cluster_preflight').to_s
 
 class PreflightKubernetesClient
-  attr_accessor :objects
+  attr_accessor :nodes, :objects
 
   def initialize
     @objects = {}
+    @nodes = [
+      {
+        'metadata' => {'labels' => {'kubernetes.io/arch' => 'amd64'}},
+        'spec' => {},
+        'status' => {'conditions' => [{'type' => 'Ready', 'status' => 'True'}]}
+      }
+    ]
   end
 
   def resources(namespace, type, labels: {})
     raise 'cluster-scoped resource list unexpectedly used a namespace' unless namespace.nil?
     raise 'preflight list unexpectedly used labels' unless labels.empty?
-    raise "unexpected list #{type}" unless type == 'storageclasses'
-
-    [
-      {
-        'metadata' => {
-          'name' => 'standard',
-          'annotations' => {'storageclass.kubernetes.io/is-default-class' => 'true'}
+    case type
+    when 'nodes'
+      nodes
+    when 'storageclasses'
+      [
+        {
+          'metadata' => {
+            'name' => 'standard',
+            'annotations' => {'storageclass.kubernetes.io/is-default-class' => 'true'}
+          }
         }
-      }
-    ]
+      ]
+    else
+      raise "unexpected list #{type}"
+    end
   end
 
   def resource(namespace, type, name)
@@ -121,6 +133,7 @@ documents = [
     'spec' => {
       'template' => {
         'spec' => {
+          'nodeSelector' => {'kubernetes.io/arch' => 'amd64'},
           'priorityClassName' => 'foreman-platform-critical',
           'serviceAccountName' => 'external-runtime',
           'containers' => [
@@ -192,6 +205,37 @@ dry_run = runner.calls.fetch(0)
 expected_command = %w[kubectl --namespace platform apply --dry-run=server --filename -]
 raise 'preflight did not use a server-side admission dry-run' unless dry_run.first == expected_command
 raise 'preflight did not submit the complete rendered manifest' unless dry_run.last.include?('kind: Deployment')
+
+client.nodes = [
+  {
+    'metadata' => {'labels' => {'kubernetes.io/arch' => 'arm64'}},
+    'spec' => {},
+    'status' => {'conditions' => [{'type' => 'Ready', 'status' => 'True'}]}
+  },
+  {
+    'metadata' => {'labels' => {'kubernetes.io/arch' => 'amd64'}},
+    'spec' => {'unschedulable' => true},
+    'status' => {'conditions' => [{'type' => 'Ready', 'status' => 'True'}]}
+  },
+  {
+    'metadata' => {'labels' => {'kubernetes.io/arch' => 'amd64'}},
+    'spec' => {},
+    'status' => {'conditions' => [{'type' => 'Ready', 'status' => 'False'}]}
+  }
+]
+begin
+  preflight.validate!(documents, 'platform')
+  raise 'workload architecture without a usable node was accepted'
+rescue ForemanRelease::InvalidRelease => error
+  raise unless error.message.include?('require a Ready, uncordoned amd64 node')
+end
+client.nodes = [
+  {
+    'metadata' => {'labels' => {'kubernetes.io/arch' => 'amd64'}},
+    'spec' => {},
+    'status' => {'conditions' => [{'type' => 'Ready', 'status' => 'True'}]}
+  }
+]
 
 runner.calls.clear
 certificate_validator.calls.clear

@@ -75,6 +75,9 @@ metadata:
   labels:
     {{- include "foreman-release-operator.labels" . | nindent 4 }}
 rules:
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "list"]
   - apiGroups: ["storage.k8s.io"]
     resources: ["storageclasses"]
     verbs: ["get", "list"]
