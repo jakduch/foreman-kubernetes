@@ -157,7 +157,7 @@
         "repository": "https://github.com/theforeman/pulp-oci-images.git",
         "localPath": "pulp-oci-images",
         "branch": "feature/object-storage-runtime",
-        "commit": "592e34b201bf68fb7f6cf9de69119f93ab08f1c7"
+        "commit": "080849047935d5a38083420ac4890ebabed78536"
       },
       "standaloneDefault": "Pulp continues to use filesystem storage unless its normal Django storage settings select S3.",
       "kubernetesConsumers": ["Pulp S3-compatible storage profile"]
