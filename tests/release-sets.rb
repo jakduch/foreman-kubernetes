@@ -84,11 +84,17 @@ sets.each do |set_name, release_set|
   execution_profile_path = profile_path(root, release_set.fetch('executionProxyProfile'))
   application_profile = YAML.safe_load(application_profile_path.read)
   execution_profile = YAML.safe_load(execution_profile_path.read)
+  workload_architecture = release_set.fetch('platform').split('/', 2).last
 
   raise "application profile identity mismatch for #{set_name}" unless \
     application_profile.dig('platform', 'compatibilitySet') == set_name
   raise "execution profile identity mismatch for #{set_name}" unless \
     execution_profile.fetch('compatibilitySet') == set_name
+  [application_profile, execution_profile].each do |profile|
+    unless profile.dig('scheduling', 'nodeSelector', 'kubernetes.io/arch') == workload_architecture
+      raise "image architecture is not enforced by both profiles for #{set_name}"
+    end
+  end
 
   %w[foreman candlepin pulp].each do |component|
     digest_pinned!(set_name, component, application_profile.fetch(component).fetch('image'))

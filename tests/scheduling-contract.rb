@@ -29,12 +29,24 @@ ARGV.each do |path|
   end
   abort "#{path}: no pod-producing workload was rendered" if workloads.empty?
 
+  architectures = workloads.each_with_object([]) do |(_, _, spec), found|
+    architecture = spec.dig('nodeSelector', 'kubernetes.io/arch')
+    found << architecture if architecture
+  end.uniq
+  abort "#{path}: workloads disagree on image architecture" if architectures.length > 1
+  expected_node_selector = EXPECTED_NODE_SELECTOR.dup
+  unless architectures.empty?
+    architecture = architectures.first
+    abort "#{path}: unsupported image architecture #{architecture}" unless %w[amd64 arm64].include?(architecture)
+    expected_node_selector['kubernetes.io/arch'] = architecture
+  end
+
   workloads.each do |kind, name, spec|
     identity = "#{kind}/#{name}"
     unless spec['priorityClassName'] == 'foreman-platform-critical'
       abort "#{path}: #{identity} is missing the configured PriorityClass"
     end
-    unless spec['nodeSelector'] == EXPECTED_NODE_SELECTOR
+    unless spec['nodeSelector'] == expected_node_selector
       abort "#{path}: #{identity} is missing the configured node selector"
     end
     unless Array(spec['tolerations']).include?(EXPECTED_TOLERATION)

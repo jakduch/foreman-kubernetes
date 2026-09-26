@@ -2,6 +2,10 @@
 platform:
   compatibilitySet: nightly-candidate-2026-09-24
 
+scheduling:
+  nodeSelector:
+    kubernetes.io/arch: amd64
+
 foreman:
   image:
     repository: quay.io/foreman/foreman

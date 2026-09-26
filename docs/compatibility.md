@@ -42,6 +42,13 @@ node distribution. The current candidate is `linux/amd64`; its application
 dependencies live in the pinned images and do not require Foreman, Katello,
 Candlepin, or Pulp packages on the Kubernetes node.
 
+Both authoritative image profiles also add
+`kubernetes.io/arch: amd64` to the global workload node selector. Helm merges
+that architecture constraint with deployment-specific pool labels and
+tolerations, so mixed-architecture clusters cannot schedule a single-platform
+image onto an incompatible node. This selector is derived from the release
+set, not a runtime-mode choice exposed to the user.
+
 Static tests reject host namespaces, `hostPath`, `hostPort`, privileged
 containers, runtime sockets, kubelet paths, node package managers, systemd
 commands, and node distribution detection in all three charts. A future

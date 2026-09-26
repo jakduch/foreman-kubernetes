@@ -1,6 +1,11 @@
 # Digest-pinned Smart Proxy candidate used by the disposable execution-plane
-# integration drill. Keep the environment-specific values in a later file.
+# integration drill. Apply environment-specific values first and this profile
+# last so its compatibility identity, image, and architecture remain authoritative.
 compatibilitySet: nightly-candidate-2026-09-24
+
+scheduling:
+  nodeSelector:
+    kubernetes.io/arch: amd64
 
 image:
   repository: quay.io/foreman/foreman-proxy

@@ -152,6 +152,13 @@ integration. The current candidate images are Linux/amd64 only. Smart Proxies
 that own DHCP, DNS, TFTP, or another host-integrated edge service remain
 outside this node-portability boundary.
 
+Digest-pinned release profiles carry the corresponding
+`kubernetes.io/arch` selector into every application, migration, verification,
+recurring, recovery, and execution-proxy workload. Environment-specific node
+pool selectors are merged with it. A mixed-architecture cluster therefore
+keeps the current amd64-only images on compatible nodes without requiring the
+operator to duplicate that constraint in deployment values.
+
 The application images already declare non-root users. The chart makes those
 contracts explicit: Foreman and Dynflow run as UID/GID 994, Pulp runs as
 UID/GID 700, and Candlepin retains the image's `tomcat` identity while requiring

@@ -574,6 +574,8 @@ ruby "${repo_root}/tests/kubernetes-invariants.rb" "${rendered_execution_egress}
 ruby "${repo_root}/tests/kubernetes-invariants.rb" "${rendered_execution_kind}"
 ruby "${repo_root}/tests/kubernetes-invariants.rb" "${rendered_execution_operation}"
 ruby "${repo_root}/tests/kubernetes-invariants.rb" "${rendered_execution_secret_rotation}"
+ruby "${repo_root}/tests/image-platform-scheduling-contract.rb" \
+  "${rendered_kind}" "${rendered_execution_kind}"
 ruby "${repo_root}/tests/candlepin-security-contract.rb" "${rendered}"
 ruby "${repo_root}/tests/pulp-tmp-contract.rb" "${rendered}"
 ruby "${repo_root}/tests/pulp-storage-layout-contract.rb" "${rendered}" "${rendered_s3}"

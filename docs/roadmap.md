@@ -57,6 +57,11 @@
   supported environment. The target remains `implemented-unrun` until a full
   retained run succeeds.
 
+- Release profiles now enforce the architecture of their digest-pinned images
+  through the global workload node selector. Additional environment-specific
+  pool selectors remain mergeable, while mixed amd64/arm64 clusters cannot
+  accidentally schedule the current amd64-only stack on an incompatible node.
+
 - The Katello content lifecycle now builds deterministic local APT and RPM
   repositories alongside its File and Python fixtures. It synchronizes both
   packages, publishes them in the same Content View, and verifies library and
