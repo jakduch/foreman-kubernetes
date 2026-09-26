@@ -75,11 +75,14 @@
         "pulp-image-object-storage-runtime"
       ],
       "pythonRequirements": [
-        "django-storages==1.14.6 --hash=sha256:11b7b6200e1cb5ffcd9962bd3673a39c7d6a6109e8096f0e03d46fab3d3aabd9"
+        "boto3==1.43.93 --hash=sha256:3c948fe231490d446bf90bf3322d1452632107329d3683b37d88b7399bf481a0",
+        "botocore==1.43.93 --hash=sha256:3ca57bb5d26d88b554a74de708a5c991f45306436c91aacca931252d1d4d54ff",
+        "django-storages==1.14.6 --hash=sha256:11b7b6200e1cb5ffcd9962bd3673a39c7d6a6109e8096f0e03d46fab3d3aabd9",
+        "jmespath==1.1.0 --hash=sha256:a5663118de4908c91729bea0acadca56526eb2698e83de10cd116ae0f4e97c64",
+        "s3transfer==0.19.2 --hash=sha256:d8168eccca828cbb2cd573675333f3bddd254313a9c42494b84c76b539e8ba25"
       ],
       "rpmRequirements": [
-        "python3-pip",
-        "python3.12-boto3-1.43.98-1.el10"
+        "python3-pip"
       ]
     }
   }

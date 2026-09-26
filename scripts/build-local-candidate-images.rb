@@ -160,10 +160,11 @@ class LocalCandidateImages
 
   def containerfile_for(name, definition, contract_ids)
     contracts_label = contract_ids.join(',')
+    base_reference = definition.fetch('baseReference')
     case name
     when 'foreman'
       <<~CONTAINERFILE
-        ARG BASE_IMAGE
+        ARG BASE_IMAGE=#{base_reference}
         FROM ${BASE_IMAGE}
         USER 0
         COPY --chown=994:994 foreman/ /usr/share/foreman/
@@ -180,7 +181,7 @@ class LocalCandidateImages
       CONTAINERFILE
     when 'candlepin'
       <<~CONTAINERFILE
-        ARG BASE_IMAGE
+        ARG BASE_IMAGE=#{base_reference}
         FROM ${BASE_IMAGE}
         USER 0
         COPY --chmod=0755 candlepin/images/candlepin/assets/candlepin-db-migrate /usr/local/bin/candlepin-db-migrate
@@ -193,8 +194,12 @@ class LocalCandidateImages
       requirements = definition.fetch('pythonRequirements')
       (context_root / name / 'requirements.txt').write("#{requirements.join("\n")}\n")
       rpm_packages = definition.fetch('rpmRequirements').join(' ')
+      expected_versions = requirements.to_h do |requirement|
+        package, remainder = requirement.split('==', 2)
+        [package, remainder.split.first]
+      end
       <<~CONTAINERFILE
-        ARG BASE_IMAGE
+        ARG BASE_IMAGE=#{base_reference}
         FROM ${BASE_IMAGE}
         USER 0
         COPY requirements.txt /tmp/foreman-kubernetes-requirements.txt
@@ -206,7 +211,7 @@ class LocalCandidateImages
               --no-deps \
               --require-hashes \
               --requirement /tmp/foreman-kubernetes-requirements.txt \
-            && python3 -c 'from storages.backends.s3 import S3Storage; import boto3; assert S3Storage and boto3' \
+            && python3 -c 'import importlib.metadata as m; expected=#{JSON.generate(expected_versions)}; assert all(m.version(package) == version for package, version in expected.items()); from storages.backends.s3 import S3Storage; import boto3; assert S3Storage and boto3' \
             && rm -f /tmp/foreman-kubernetes-requirements.txt \
             && dnf clean all \
             && rm -rf /root/.cache /var/cache/dnf

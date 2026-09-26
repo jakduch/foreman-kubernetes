@@ -52,6 +52,14 @@ required = contracts.values.select { |contract| !(contract.fetch('profiles') & %
 missing = required - seen_contracts
 abort "local candidate pipeline omits required contracts: #{missing.join(', ')}" unless missing.empty?
 
+pulp_requirements = registry.dig('images', 'pulp', 'pythonRequirements')
+expected_python_packages = %w[boto3 botocore django-storages jmespath s3transfer]
+actual_python_packages = pulp_requirements.map { |requirement| requirement.split('==', 2).first }.sort
+abort 'Pulp candidate does not pin the complete S3 client chain' unless actual_python_packages == expected_python_packages
+unless pulp_requirements.all? { |requirement| requirement.match?(/ --hash=sha256:[0-9a-f]{64}\z/) }
+  abort 'Pulp candidate contains an unhashed Python requirement'
+end
+
 node_selector = profile.dig('scheduling', 'nodeSelector')
 abort 'local candidate profile does not require amd64 nodes' unless node_selector == {'kubernetes.io/arch' => 'amd64'}
 builder = (root / 'scripts/build-local-candidate-images.rb').read
