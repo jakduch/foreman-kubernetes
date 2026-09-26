@@ -525,6 +525,9 @@ ruby "${repo_root}/tests/certificate-secret-inventory.rb" \
   "${rendered}" "${rendered_execution}"
 ruby "${repo_root}/tests/backend-readiness-contract.rb" "${rendered}"
 ruby "${repo_root}/tests/application-ownership-contract.rb" "${rendered}" "${rendered_execution}"
+ruby "${repo_root}/tests/node-portability-contract.rb" \
+  "${rendered}" "${rendered_execution}" "${rendered_operator}" \
+  "${chart}" "${execution_chart}" "${operator_chart}"
 ruby "${repo_root}/tests/candlepin-migration-barrier.rb" "${rendered}" true
 ruby "${repo_root}/tests/candlepin-migration-barrier.rb" "${rendered_no_migrations}" false
 ruby "${repo_root}/tests/recurring-tasks-migration-barrier.rb" "${rendered}" true

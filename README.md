@@ -12,6 +12,10 @@ This repository composes separately released Foreman, Katello, Candlepin, and Pu
 - Smart Proxies remain independent edge or execution-plane services. The
   application chart never embeds DHCP, DNS, TFTP, or another generic proxy in
   the Foreman web pods.
+- Kubernetes nodes require no Foreman or Katello packages, host services,
+  runtime sockets, or application filesystem mounts. The current image set is
+  Linux/amd64, but the node distribution is an integration-test dimension
+  rather than an application packaging dependency.
 
 The separate [`charts/foreman-execution-proxy`](charts/foreman-execution-proxy)
 chart now models a central singleton executor for Remote Execution SSH and

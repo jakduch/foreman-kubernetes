@@ -35,6 +35,22 @@ Set states have deliberately narrow meanings:
 No set is promoted automatically from a successful render. Runtime evidence is
 still required.
 
+## Kubernetes node platform boundary
+
+The release-set `platform` identifies the OCI image platform, not a required
+node distribution. The current candidate is `linux/amd64`; its application
+dependencies live in the pinned images and do not require Foreman, Katello,
+Candlepin, or Pulp packages on the Kubernetes node.
+
+Static tests reject host namespaces, `hostPath`, `hostPort`, privileged
+containers, runtime sockets, kubelet paths, node package managers, systemd
+commands, and node distribution detection in all three charts. A future
+supported matrix must additionally retain real-cluster evidence for each
+claimed Kubernetes version, architecture, container runtime, ingress class,
+storage implementation, and host security configuration. Distribution
+independence therefore means no application packaging dependency on the node;
+it does not turn an untested cluster combination into a supported target.
+
 > **No supported image set exists yet.** The current nightly candidate predates
 > the upstream runtime contracts listed in
 > `compatibility/upstream-contracts.json`. It is retained for manifest and

@@ -130,6 +130,28 @@ Ingress NetworkPolicies make that header trust boundary enforceable. Pulp API ac
 
 ### Workload security
 
+#### Kubernetes node operating-system boundary
+
+The operating system inside an application image is distinct from the
+operating system of the Kubernetes node. Foreman, Katello, Candlepin, Pulp,
+and Smart Proxy package dependencies remain inside their separately released
+images. The chart does not install node packages, call the node's init system,
+inspect distribution release files, mount container-runtime sockets, or use
+application data from the node filesystem.
+
+Normal, migration, registration, recovery, and controller workloads use no
+host namespace, `hostPath`, `hostPort`, privileged container, kubelet path, or
+container-runtime socket. This makes the deployment independent of whether a
+supported Linux node distribution provides RPM or Debian packages for the
+applications themselves.
+
+This is not a claim that every cluster is supported automatically. The release
+matrix still has to qualify Kubernetes versions, node architectures, container
+runtimes, ingress controllers, storage implementations, and host security
+integration. The current candidate images are Linux/amd64 only. Smart Proxies
+that own DHCP, DNS, TFTP, or another host-integrated edge service remain
+outside this node-portability boundary.
+
 The application images already declare non-root users. The chart makes those
 contracts explicit: Foreman and Dynflow run as UID/GID 994, Pulp runs as
 UID/GID 700, and Candlepin retains the image's `tomcat` identity while requiring
