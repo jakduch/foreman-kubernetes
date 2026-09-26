@@ -80,6 +80,7 @@ ruby "${repo_root}/tests/operator-lease-manager.rb"
 ruby "${repo_root}/tests/certificate-validator.rb"
 ruby "${repo_root}/tests/operator-cluster-preflight.rb"
 ruby "${repo_root}/tests/operator-runtime-adapter.rb"
+ruby "${repo_root}/tests/render-migration-stage.rb"
 ruby "${repo_root}/tests/values-schema-coverage.rb"
 ruby "${repo_root}/tests/recovery-image-contract.rb"
 ruby "${repo_root}/tests/operator-image-contract.rb"
@@ -499,6 +500,7 @@ ruby "${repo_root}/tests/foreman-ingress-contract.rb" "${rendered_ingress_overri
 ruby "${repo_root}/tests/pulp-process-contract.rb" "${rendered}"
 ruby "${repo_root}/tests/pulp-config-rollout-contract.rb" "${rendered}"
 ruby "${repo_root}/tests/web-process-contract.rb" "${rendered}"
+ruby "${repo_root}/tests/foreman-puma-runtime-contract.rb" "${rendered}"
 ruby "${repo_root}/tests/foreman-secret-contract.rb" \
   "${rendered_foreman_secret_contract}" \
   foreman-runtime \
@@ -511,6 +513,9 @@ ruby "${repo_root}/tests/image-pull-secrets-contract.rb" \
   "${rendered_image_pull_secrets}" registry-auth
 ruby "${repo_root}/tests/katello-event-daemon-contract.rb" "${rendered_egress}"
 ruby "${repo_root}/tests/foreman-readiness-contract.rb" "${rendered}"
+ruby "${repo_root}/tests/foreman-smoke-contract.rb" "${rendered}"
+ruby "${repo_root}/tests/pulp-registration-contract.rb" "${rendered}"
+ruby "${repo_root}/tests/kind-secret-rollout-contract.rb"
 ruby "${repo_root}/tests/dynflow-lifecycle-contract.rb" "${rendered}"
 ruby "${repo_root}/tests/dynflow-autoscaling-contract.rb" \
   "${rendered_dynflow_autoscaling}" \
@@ -519,6 +524,7 @@ ruby "${repo_root}/tests/capacity-notes-contract.rb" "${rendered_capacity_notes}
 ruby "${repo_root}/tests/certificate-secret-inventory.rb" \
   "${rendered}" "${rendered_execution}"
 ruby "${repo_root}/tests/backend-readiness-contract.rb" "${rendered}"
+ruby "${repo_root}/tests/application-ownership-contract.rb" "${rendered}" "${rendered_execution}"
 ruby "${repo_root}/tests/candlepin-migration-barrier.rb" "${rendered}" true
 ruby "${repo_root}/tests/candlepin-migration-barrier.rb" "${rendered_no_migrations}" false
 ruby "${repo_root}/tests/recurring-tasks-migration-barrier.rb" "${rendered}" true
@@ -565,6 +571,9 @@ ruby "${repo_root}/tests/kubernetes-invariants.rb" "${rendered_execution_egress}
 ruby "${repo_root}/tests/kubernetes-invariants.rb" "${rendered_execution_kind}"
 ruby "${repo_root}/tests/kubernetes-invariants.rb" "${rendered_execution_operation}"
 ruby "${repo_root}/tests/kubernetes-invariants.rb" "${rendered_execution_secret_rotation}"
+ruby "${repo_root}/tests/candlepin-security-contract.rb" "${rendered}"
+ruby "${repo_root}/tests/pulp-tmp-contract.rb" "${rendered}"
+ruby "${repo_root}/tests/pulp-storage-layout-contract.rb" "${rendered}" "${rendered_s3}"
 ruby "${repo_root}/tests/execution-release-operation-contract.rb" \
   "${rendered_execution_operation}" \
   uid-123-generation-7 \
@@ -637,6 +646,10 @@ grep -q 'mountPath: /etc/ansible' "${rendered_execution}"
 grep -q 'mountPath: /var/lib/foreman-proxy' "${rendered_execution}"
 grep -q 'mountPath: /var/run/foreman-proxy/ssh' "${rendered_execution}"
 grep -q 'install -m 0600 /ssh-source/private' "${rendered_execution}"
+if grep -Fq 'install -d -m 0700 /var/run/foreman-proxy/ssh' "${rendered_execution}"; then
+  echo 'execution proxy init must not chmod the Kubernetes-owned volume root' >&2
+  exit 1
+fi
 grep -q ':ssh_ca_known_hosts_file: /etc/foreman-proxy/ssh-host-keys/known_hosts' "${rendered_execution}"
 grep -q 'ANSIBLE_HOST_KEY_CHECKING="True"' "${rendered_execution}"
 grep -q 'type: ClusterIP' "${rendered_execution}"
@@ -700,6 +713,7 @@ fi
 "${repo_root}/tests/recovery-database-archive.sh"
 
 ruby "${repo_root}/tests/plugin-compatibility.rb"
+ruby "${repo_root}/tests/upstream-contracts.rb"
 ruby "${repo_root}/tests/release-sets.rb"
 ruby -c "${repo_root}/scripts/write-integration-evidence.rb"
 ruby -c "${repo_root}/scripts/promote-release-set.rb"
@@ -711,7 +725,6 @@ ruby -c "${repo_root}/tests/integration-evidence.rb"
 ruby -c "${repo_root}/tests/operator-contract.rb"
 ruby -c "${chart}/files/foreman-readiness.rb"
 ruby "${repo_root}/tests/foreman-readiness-behavior.rb"
-ruby "${repo_root}/tests/dynflow-lifecycle-behavior.rb"
 python3 "${repo_root}/tests/pulp-readiness-behavior.py"
 python3 -c 'import pathlib; source = pathlib.Path(__import__("sys").argv[1]).read_text(); compile(source, __import__("sys").argv[1], "exec")' \
   "${chart}/files/pulp-app-readiness.py"
@@ -839,11 +852,7 @@ grep -q 'name: test-foreman-stack-pulp-control' "${rendered}"
 grep -q 'PULP_PROXY_URL' "${rendered}"
 grep -q 'PULP_SMART_PROXY_RHSM_URL' "${rendered}"
 grep -q 'https://foreman.example.test/rhsm' "${rendered}"
-grep -q 'https://test-foreman-stack-pulp-control' "${rendered}"
-if grep -q 'https://test-foreman-stack-pulp-control:8443' "${rendered}"; then
-  echo 'Katello ignores non-standard ports in the advertised Pulp URL' >&2
-  exit 1
-fi
+grep -q 'https://test-foreman-stack-pulp-control:8443' "${rendered}"
 grep -q 'nginx.ingress.kubernetes.io/auth-tls-verify-client: optional' "${rendered_ingress}"
 grep -Fq "X-CLIENT-CERT: \$ssl_client_escaped_cert" "${rendered_ingress}"
 grep -q 'path: /pulp/content' "${rendered_ingress}"
@@ -1180,10 +1189,10 @@ if helm template test "${chart}" --set pulp.controlProxy.replicas=1 >/dev/null 2
   exit 1
 fi
 
-if helm template test "${chart}" --set pulp.controlProxy.service.port=8443 >/dev/null 2>&1; then
-  echo 'expected a non-standard Pulp control Service port to be rejected by the schema' >&2
-  exit 1
-fi
+rendered_pulp_control_port="$(mktemp)"
+temp_files+=("${rendered_pulp_control_port}")
+helm template test "${chart}" --set pulp.controlProxy.service.port=9443 > "${rendered_pulp_control_port}"
+grep -q 'https://test-foreman-stack-pulp-control:9443' "${rendered_pulp_control_port}"
 
 if helm template test "${chart}" --set foreman.autoscaling.maxReplicas=1 >/dev/null 2>&1; then
   echo 'expected an invalid autoscaling maximum to be rejected by the schema' >&2

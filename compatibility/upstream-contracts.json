@@ -1,0 +1,196 @@
+{
+  "schemaVersion": 1,
+  "profiles": {
+    "default": {
+      "description": "Runtime contracts required by the default Foreman, Katello, Candlepin, and Pulp deployment."
+    },
+    "object-storage": {
+      "description": "Additional contracts required when Pulp uses the S3-compatible storage profile."
+    },
+    "kubevirt": {
+      "description": "Additional contracts required when the Foreman KubeVirt compute provider is enabled."
+    }
+  },
+  "contracts": [
+    {
+      "id": "foreman-configurable-puma-run-dir",
+      "component": "foreman",
+      "profiles": ["default"],
+      "state": "local-upstream-commit",
+      "availableInReleaseSets": [],
+      "upstream": {
+        "repository": "https://github.com/theforeman/foreman.git",
+        "localPath": "foreman",
+        "branch": "feature/configurable-puma-run-dir",
+        "commit": "aca9dcbb8d4f82e7ac753b39ca27751d9a6bbb28"
+      },
+      "standaloneDefault": "FOREMAN_RUN_DIR remains unset and Puma keeps using Rails.root/tmp.",
+      "kubernetesConsumers": ["foreman web Deployment"]
+    },
+    {
+      "id": "foreman-dynflow-readiness-file",
+      "component": "foreman",
+      "profiles": ["default"],
+      "state": "local-upstream-commit",
+      "availableInReleaseSets": [],
+      "upstream": {
+        "repository": "https://github.com/theforeman/foreman.git",
+        "localPath": "foreman",
+        "branch": "feature/dynflow-readiness",
+        "commit": "e5e37698dd880bc664fd2e09500d3c25c28938e5"
+      },
+      "standaloneDefault": "No readiness file is written unless DYNFLOW_READINESS_FILE is set.",
+      "kubernetesConsumers": ["Dynflow orchestrator Deployment", "Dynflow worker Deployments"]
+    },
+    {
+      "id": "foreman-escaped-client-certificate",
+      "component": "foreman",
+      "profiles": ["default"],
+      "state": "local-upstream-commit",
+      "availableInReleaseSets": [],
+      "upstream": {
+        "repository": "https://github.com/theforeman/foreman.git",
+        "localPath": "foreman",
+        "branch": "fix/escaped-client-certificate",
+        "commit": "d5019fb1be0759ff930fe9956ba73b3a4a742c98"
+      },
+      "standaloneDefault": "Existing PEM and DER certificate inputs keep their previous parsing path.",
+      "kubernetesConsumers": ["Foreman ingress client-certificate authentication"]
+    },
+    {
+      "id": "foreman-dynflow-redis-tls-ca",
+      "component": "foreman",
+      "profiles": ["default"],
+      "state": "local-upstream-commit",
+      "availableInReleaseSets": [],
+      "upstream": {
+        "repository": "https://github.com/theforeman/foreman.git",
+        "localPath": "foreman",
+        "branch": "feature/dynflow-redis-tls-ca",
+        "commit": "3c3444364aa51c3e6a316949ed35ec8f887e8bf4"
+      },
+      "standaloneDefault": "Dynflow Redis configuration is unchanged unless DYNFLOW_REDIS_SSL_CA_FILE is set.",
+      "kubernetesConsumers": ["Dynflow orchestrator Deployment", "Dynflow worker Deployments"]
+    },
+    {
+      "id": "katello-pulp-non-default-port",
+      "component": "foreman",
+      "profiles": ["default"],
+      "state": "local-upstream-commit",
+      "availableInReleaseSets": [],
+      "upstream": {
+        "repository": "https://github.com/Katello/katello.git",
+        "localPath": "katello",
+        "branch": "fix/pulp-non-default-port",
+        "commit": "d083c9894246daf539d8aa21e1e030e8055a6b54"
+      },
+      "standaloneDefault": "Default HTTP and HTTPS ports keep producing host-only Pulp client configuration.",
+      "kubernetesConsumers": ["Katello Pulp control client"]
+    },
+    {
+      "id": "katello-event-daemon-foreground",
+      "component": "foreman",
+      "profiles": ["default"],
+      "state": "local-upstream-commit",
+      "availableInReleaseSets": [],
+      "upstream": {
+        "repository": "https://github.com/Katello/katello.git",
+        "localPath": "katello",
+        "branch": "feature/event-daemon-foreground",
+        "commit": "e9955f140497b9226595f87d1ce56f7ed4abc705"
+      },
+      "standaloneDefault": "The existing daemon entry point and Rails tmp directory remain unchanged.",
+      "kubernetesConsumers": ["Katello event daemon Deployment"]
+    },
+    {
+      "id": "candlepin-container-runtime",
+      "component": "candlepin",
+      "profiles": ["default"],
+      "state": "local-upstream-commit",
+      "availableInReleaseSets": [],
+      "upstream": {
+        "repository": "https://github.com/theforeman/candlepin-oci-images.git",
+        "localPath": "candlepin-oci-images",
+        "branch": "feature/container-runtime-contracts",
+        "commit": "9a5348224f8484e1b3dc897b01f5696c5f24cfb2"
+      },
+      "standaloneDefault": "The image still starts Candlepin through the packaged Tomcat server command.",
+      "kubernetesConsumers": ["Candlepin Deployment", "Candlepin migration Job"]
+    },
+    {
+      "id": "pulpcore-el10-botocore-dateutil-epoch",
+      "component": "pulp",
+      "profiles": ["object-storage"],
+      "state": "local-upstream-commit",
+      "availableInReleaseSets": [],
+      "upstream": {
+        "repository": "https://github.com/theforeman/pulpcore-packaging.git",
+        "localPath": "pulp-oci-images/images/pulp-source/pulpcore-packaging",
+        "branch": "fix/el10-botocore-dateutil-epoch",
+        "commit": "7d30b547d99b2cc04b884a1ea2ed68cc2828c65e"
+      },
+      "standaloneDefault": "Only EL9 and newer dependency resolution changes; other package targets keep their existing requirements.",
+      "kubernetesConsumers": ["Pulp object-storage image build"]
+    },
+    {
+      "id": "pulpcore-package-django-storages",
+      "component": "pulp",
+      "profiles": ["object-storage"],
+      "state": "local-upstream-commit",
+      "availableInReleaseSets": [],
+      "upstream": {
+        "repository": "https://github.com/theforeman/pulpcore-packaging.git",
+        "localPath": "pulp-oci-images/images/pulp-source/pulpcore-packaging",
+        "branch": "feature/package-django-storages",
+        "commit": "25807bc3bff541cea6b39fe10a172ef2751edeff"
+      },
+      "standaloneDefault": "The package is available to consumers but does not change Pulpcore storage selection.",
+      "kubernetesConsumers": ["Pulp object-storage image build"]
+    },
+    {
+      "id": "pulp-image-object-storage-runtime",
+      "component": "pulp",
+      "profiles": ["object-storage"],
+      "state": "local-upstream-commit",
+      "availableInReleaseSets": [],
+      "upstream": {
+        "repository": "https://github.com/theforeman/pulp-oci-images.git",
+        "localPath": "pulp-oci-images",
+        "branch": "feature/object-storage-runtime",
+        "commit": "592e34b201bf68fb7f6cf9de69119f93ab08f1c7"
+      },
+      "standaloneDefault": "Pulp continues to use filesystem storage unless its normal Django storage settings select S3.",
+      "kubernetesConsumers": ["Pulp S3-compatible storage profile"]
+    },
+    {
+      "id": "foreman-kubevirt-provider-correctness",
+      "component": "foreman",
+      "profiles": ["kubevirt"],
+      "state": "local-upstream-commit",
+      "availableInReleaseSets": [],
+      "upstream": {
+        "repository": "https://github.com/theforeman/foreman_kubevirt.git",
+        "localPath": "foreman_kubevirt",
+        "branch": "fix/discover-kubevirt-api-version",
+        "commit": "b5a1d3bee546394d62fa77514e36dcfc77893c0c"
+      },
+      "standaloneDefault": "The provider keeps using its configured Kubernetes endpoint and namespace with safer discovery and lifecycle behavior.",
+      "kubernetesConsumers": ["Optional Foreman KubeVirt compute provider"]
+    },
+    {
+      "id": "fog-kubevirt-namespaced-resources",
+      "component": "foreman",
+      "profiles": ["kubevirt"],
+      "state": "local-upstream-commit",
+      "availableInReleaseSets": [],
+      "upstream": {
+        "repository": "https://github.com/fog/fog-kubevirt.git",
+        "localPath": "fog-kubevirt",
+        "branch": "fix/scope-network-attachments",
+        "commit": "baa222aaec7ada452989eed40c96c355eb6c5c81"
+      },
+      "standaloneDefault": "KubeVirt requests remain provider-scoped while using the configured namespace and grouped API version.",
+      "kubernetesConsumers": ["Optional Foreman KubeVirt compute provider"]
+    }
+  ]
+}

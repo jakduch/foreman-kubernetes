@@ -2,6 +2,7 @@
 # frozen_string_literal: true
 
 require 'fileutils'
+require 'digest'
 require 'json'
 require 'open3'
 require 'pathname'
@@ -44,6 +45,10 @@ Dir.mktmpdir('foreman-kubernetes-evidence') do |directory|
   abort 'local evidence must not be promotable' unless evidence.fetch('eligibleForPromotion') == false
   abort 'evidence did not record the exact compatibility set' unless evidence.fetch('compatibilitySet') == set_name
   abort 'evidence omitted required integration checks' unless (required_checks - evidence.fetch('checks')).empty?
+  expected_contracts_digest = Digest::SHA256.file(root / 'compatibility/upstream-contracts.json').hexdigest
+  unless evidence.dig('inputs', 'upstreamContractsSha256') == expected_contracts_digest
+    abort 'evidence omitted the upstream contract registry digest'
+  end
 
   partial_generated_evidence = work / 'generated-partial.json'
   _stdout, stderr, status = run_command(
@@ -126,6 +131,32 @@ Dir.mktmpdir('foreman-kubernetes-evidence') do |directory|
     'runUrl' => 'https://github.com/example/foreman-kubernetes/actions/runs/123456789'
   }
   promotable_evidence = work / 'promotable.json'
+  promotable_evidence.write("#{JSON.pretty_generate(evidence)}\n")
+
+  _stdout, stderr, status = run_command(
+    RbConfig.ruby,
+    promoter.to_s,
+    set_name,
+    promotable_evidence.to_s,
+    env: {'FOREMAN_KUBERNETES_ROOT' => temporary_root.to_s, 'GITHUB_SHA' => git_commit}
+  )
+  abort 'promotion accepted a release set with unpublished upstream contracts' if status.success?
+  unless stderr.include?('missing published upstream contracts')
+    abort 'unpublished upstream contract failure was not explicit'
+  end
+
+  temporary_contracts_path = temporary_root / 'compatibility/upstream-contracts.json'
+  temporary_contracts = JSON.parse(temporary_contracts_path.read)
+  required_profiles = release_set.fetch('contractProfiles')
+  temporary_contracts.fetch('contracts').each do |contract|
+    next if (contract.fetch('profiles') & required_profiles).empty?
+
+    contract['state'] = 'published'
+    contract['availableInReleaseSets'] = [set_name]
+  end
+  temporary_contracts_path.write("#{JSON.pretty_generate(temporary_contracts)}\n")
+
+  evidence.fetch('inputs')['upstreamContractsSha256'] = Digest::SHA256.file(temporary_contracts_path).hexdigest
   promotable_evidence.write("#{JSON.pretty_generate(evidence)}\n")
 
   stale_evidence = JSON.parse(promotable_evidence.read)

@@ -21,6 +21,7 @@ abort "unsupported integration result: #{result}" unless %w[passed partial].incl
 
 release_sets_path = root / 'compatibility/release-sets.json'
 checks_path = root / 'compatibility/required-integration-checks.json'
+upstream_contracts_path = root / 'compatibility/upstream-contracts.json'
 release_sets = JSON.parse(release_sets_path.read)
 release_set = release_sets.fetch('sets').fetch(set_name)
 declared_application_profile = root / release_set.fetch('applicationProfile')
@@ -95,7 +96,8 @@ evidence = {
     'releaseSetsSha256' => Digest::SHA256.file(release_sets_path).hexdigest,
     'applicationProfileSha256' => Digest::SHA256.file(application_profile).hexdigest,
     'executionProfileSha256' => Digest::SHA256.file(execution_profile).hexdigest,
-    'checksSha256' => Digest::SHA256.file(checks_path).hexdigest
+    'checksSha256' => Digest::SHA256.file(checks_path).hexdigest,
+    'upstreamContractsSha256' => Digest::SHA256.file(upstream_contracts_path).hexdigest
   },
   'checks' => checks
 }

@@ -4,6 +4,13 @@
 
 Application ownership does not move into this repository. Each upstream keeps its own source, tests, release cadence, and image. The orchestration layer pins compatible image versions and translates their public runtime contracts into Kubernetes resources.
 
+The chart may provide Kubernetes probes, recovery tooling, migration ordering,
+and one-shot registration orchestration. It must not mount Rails initializers,
+Ruby/Python library replacements, JVM agents, or preload hooks into application
+code paths. A generally useful runtime capability is implemented in the owning
+upstream with its standalone default preserved, then consumed here only after
+the compatible official image is pinned.
+
 When NetworkPolicy is enabled, both application and execution releases first
 select every one of their pods with a default-deny ingress policy. Additive
 component policies then admit only the ingress controller, control-plane peers,
@@ -117,7 +124,7 @@ The release preflight verifies that the selected IngressClass advertises the
 - the Foreman hostname sends every path to Foreman and passes verified optional client-certificate headers required by Katello registration;
 - the content hostname publishes Pulp content, container, Ansible Galaxy, static asset, and registry paths, but not the administrative `/pulp/api/v3` path.
 
-Pulp certificate guards require the URL-escaped client PEM in `X-CLIENT-CERT`. A dedicated ingress header ConfigMap derives it from NGINX's verified `$ssl_client_escaped_cert` value. Foreman and Katello instead parse PEM or base64 DER, so their ingress overwrites the expected `SSL-CLIENT-*` headers from NGINX's verified TLS variables and a narrowly scoped Rack middleware decodes only the escaped PEM representation before authentication. The matching Foreman settings use the Rack `HTTP_SSL_CLIENT_*` keys. Required certificate annotations win over user-supplied annotations so an ordinary values override cannot disable this trust boundary. The content ingress exposes the Katello-generated file/RPM and ISO paths (`/pulp/content` and the `/pulp/isos` rewrite); container, Debian, and Ansible Galaxy paths are emitted only when their corresponding Pulp plugin is enabled. Standard OCI clients reach the registry at `/v2/`. Katello's compatibility route `/pulpcore_registry/v2/` requires a CA-verified client whose common name is the Foreman host or an explicitly trusted content proxy, maps that identity to Pulp's passwordless remote `admin`, and strips the private prefix before forwarding the request. This matches the established Apache trust boundary without making the administrative `/pulp/api/v3` path public.
+Pulp certificate guards require the URL-escaped client PEM in `X-CLIENT-CERT`. A dedicated ingress header ConfigMap derives it from NGINX's verified `$ssl_client_escaped_cert` value. Foreman's client-certificate parser accepts that verified URL-escaped PEM form in addition to its existing PEM and base64 DER inputs, so the chart does not inject or replace application authentication code. The matching Foreman settings use the Rack `HTTP_SSL_CLIENT_*` keys. Required certificate annotations win over user-supplied annotations so an ordinary values override cannot disable this trust boundary. The content ingress exposes the Katello-generated file/RPM and ISO paths (`/pulp/content` and the `/pulp/isos` rewrite); container, Debian, and Ansible Galaxy paths are emitted only when their corresponding Pulp plugin is enabled. Standard OCI clients reach the registry at `/v2/`. Katello's compatibility route `/pulpcore_registry/v2/` requires a CA-verified client whose common name is the Foreman host or an explicitly trusted content proxy, maps that identity to Pulp's passwordless remote `admin`, and strips the private prefix before forwarding the request. This matches the established Apache trust boundary without making the administrative `/pulp/api/v3` path public.
 
 Ingress NetworkPolicies make that header trust boundary enforceable. Pulp API accepts traffic only from the mTLS control proxy and the selected ingress controller; the public API-path ingress explicitly removes `REMOTE-USER` and certificate headers. Pulp content and Foreman accept ingress traffic only from the selected controller. Deployments using a differently labelled controller must override `networkPolicy.ingressController`.
 
@@ -209,11 +216,12 @@ the local process has opened and retained its listener. A database, Valkey, or
 peer-service outage must not make Kubernetes restart every otherwise healthy
 application process and amplify the outage into a restart loop.
 
-Katello's event daemon is a separate singleton Deployment. Upstream starts it
-lazily from Rails middleware and protects it with a PID file on the local
-filesystem, which cannot coordinate multiple web pods. All other
-Foreman-derived workloads therefore default the daemon off; the dedicated pod
-is the only process that enables it and publishes a local health heartbeat.
+Katello's event daemon is a separate singleton Deployment. Katello retains its
+standalone lazy-start behavior, while a compatible build also exposes an
+explicit foreground runner and configurable runtime directory for supervisors.
+All other Foreman-derived workloads therefore default the daemon off; the
+dedicated pod is the only process that enables the foreground runner and
+publishes a local health heartbeat.
 Events remain durable in PostgreSQL while that pod is unavailable.
 
 Recurring Foreman maintenance tasks run as separate CronJobs in an explicit
@@ -229,6 +237,11 @@ steps by filesystem path, so pod-local temporary storage would make those
 workflows nondeterministically fail. This volume is an operational hand-off
 area, not authoritative backup state; maintenance must drain active tasks
 before backup or restore.
+
+Puma's control socket directory and `puma.state` are overlaid from a bounded
+per-Pod `emptyDir`. Those process-local files cannot be shared by overlapping
+web replicas during a rolling update, while all other Katello hand-off paths
+remain on the RWX volume.
 
 LDAP avatar bytes are different: Foreman stores only their hash in PostgreSQL
 and serves the file from `public/images/avatars`. A second RWX claim keeps those

@@ -73,12 +73,13 @@ Katello extends Foreman's ping response. Its checks expect:
 - at least one online Pulp worker and content app;
 - Foreman Tasks executors and the Katello event daemon.
 
-Katello starts its event daemon lazily from Rails middleware and coordinates a
-singleton only through a PID file below the local Rails `tmp` directory. That
-does not provide cross-pod exclusion. The chart disables it by default in every
-Foreman-derived process and runs it in one dedicated `Recreate` Deployment.
-That process publishes a local heartbeat only while Katello reports its event
-poller as running; readiness and liveness use the heartbeat, while event status
+Katello's standalone path starts its event daemon lazily and coordinates a
+singleton through a PID file below the local Rails `tmp` directory. A compatible
+build also exposes an explicit foreground runner and configurable runtime
+directory. The chart disables the lazy path in every other Foreman-derived
+process and selects that runner in one dedicated `Recreate` Deployment. The
+process publishes a local heartbeat only while Katello reports its event poller
+as running; readiness and liveness use the heartbeat, while event status
 continues to be shared with web pods through the configured Redis Rails cache.
 Katello also passes some uploads and manifests to Dynflow by a path below
 `Rails.root/tmp`; the chart mounts one RWX claim there for every Foreman-derived
@@ -142,7 +143,7 @@ pending.
 - S3 mode uses `/var/lib/pulp/tmp` only as per-pod scratch space and can redirect
   downloads to signed object-store URLs.
 - The `pulp_smart_proxy` plugin exposes Foreman-compatible feature discovery below `/pulp/api/v3/smart_proxy` and advertises `PULP_SMART_PROXY_PULP_URL` as Katello's API base URL.
-- Katello currently builds generated Pulp clients from the advertised URL's scheme and hostname, without retaining a non-default port. The internal control Service therefore exposes HTTPS on port 443 while its unprivileged proxy container listens on 8443.
+- The chart advertises the configured Pulp control Service port to Katello. A compatible Katello build must retain a non-default port when constructing generated Pulp clients; the upstream default-port behavior remains unchanged.
 - Pulp remote-user authentication reads `HTTP_REMOTE_USER`; the chart sets it only behind a private mTLS proxy after validating the client certificate common name.
 - Pulp Certguard reads a URL-escaped PEM certificate from `X-CLIENT-CERT` for protected content downloads.
 - The Pulp Smart Proxy advertises the public Foreman `/rhsm` URL separately
@@ -201,9 +202,11 @@ because upstream ignores the latter TLS options whenever `REDIS_URL` is set.
 
 Production defaults construct `rediss` URLs, verify the CA in both Ruby Redis
 clients and Pulpcore, and refuse to render TLS without the CA. Foreman's
-generated initializer also rejects a non-`rediss` runtime URL before Rails or
-Sidekiq starts. The Kind profile explicitly switches to `redis` and clears the
-CA reference.
+upstream Dynflow configuration consumes `DYNFLOW_REDIS_SSL_CA_FILE`, requires a
+`rediss` URL when that variable is present, and applies peer verification to
+both the server and client Sidekiq connections. The chart selects that opt-in
+contract rather than injecting an initializer. The Kind profile explicitly
+switches to `redis` and clears the CA reference.
 
 ### `foreman-certificates`
 
@@ -250,8 +253,8 @@ clear the corresponding `existingDatabaseCaSecret` value.
 - The guarded installer and upgrade helper require those TLS and client-CA
   Secrets to exist before changing releases. The Foreman ingress maps verified
   client identity to `HTTP_SSL_CLIENT_CERT`, `HTTP_SSL_CLIENT_S_DN`, and
-  `HTTP_SSL_CLIENT_VERIFY`; its middleware decodes ingress-nginx's escaped PEM
-  before Foreman or Katello parses it.
+  `HTTP_SSL_CLIENT_VERIFY`; Foreman's certificate parser accepts
+  ingress-nginx's escaped PEM form without chart-injected middleware.
 
 The default trusted common name for the Pulp control plane is `platform.fqdn`; additional names must be listed explicitly in `pulp.controlProxy.trustedClientCommonNames`.
 

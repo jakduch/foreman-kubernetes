@@ -145,6 +145,7 @@ credential, and recovery-drill contracts.
 - [`docs/architecture.md`](docs/architecture.md) describes ownership and topology.
 - [`docs/installation.md`](docs/installation.md) defines prerequisites, guarded first installation, and failure handling.
 - [`docs/runtime-contracts.md`](docs/runtime-contracts.md) records the verified upstream runtime contracts and current scaling limits.
+- [`docs/upstream-runtime-readiness.md`](docs/upstream-runtime-readiness.md) tracks application changes that must ship upstream before a release set can be supported.
 - [`docs/capacity-planning.md`](docs/capacity-planning.md) turns replica,
   process, thread, and database-pool settings into external service sizing
   bounds.
@@ -162,26 +163,25 @@ credential, and recovery-drill contracts.
 
 ## Upstream source snapshots reviewed
 
-The sibling `foreman-kubernetes-upstream/` directory is intentionally not part of this Git repository. It contains independent, read-only working clones used for the initial analysis.
+The sibling `foreman-kubernetes-upstream/` directory is intentionally not part
+of this Git repository. It contains independent upstream working clones. Any
+reusable application or image behavior is implemented and tested there for
+submission to its owning project; this repository consumes only published
+upstream contracts and keeps Kubernetes-specific orchestration here. The
+machine-readable state of prepared and published contracts lives in
+`compatibility/upstream-contracts.json`.
 
 | Project | Branch | Commit |
 | --- | --- | --- |
 | Foreman | `develop` | `a21273a13820103c2f569a4d5446806dfff3dae0` |
-| Katello | `master` | `49d8fcec35751d7e78a85cda5a0667239d17dcc9` |
+| Katello | `master` | `a4a5ed2d72932c967bdf0e9c8c82b3e75bad9b5a` |
 | Candlepin | `main` | `0928757731c4f5537207c860803fca2fbc7044f5` |
 | Foreman Remote Execution | `master` | `be391fd9ef3140df707eed4f320ce2ebd572648d` |
 | Foreman Ansible | `master` | `7ffc9e37344011554347ca9429fffdcf1f81816e` |
 | Foreman Webhooks | `master` | `4ad5882f4b866cb55b0d1bb102010ddb1e448ebd` |
 | Foreman virt-who Configure | `master` | `78b9e78650013b6ef023a4163a7d47518024cd1d` |
 | Foreman KubeVirt (reviewed upstream) | `master` | `4b89174424245289bd4cc7535a94a8c24aa19172` |
-| Foreman KubeVirt (local compatibility patch) | `fix/discover-kubevirt-api-version` | `60d6c1f8ff3497d39c63e3359ea1e8539e2a0a70` |
-| Foreman KubeVirt (local validation patch) | `fix/discover-kubevirt-api-version` | `49d4822c9be3459e02406b36e4ffc6d69e9d9044` |
-| Foreman KubeVirt (local volume-lifecycle patch) | `fix/discover-kubevirt-api-version` | `abab1b52d2ccc5dff1db33f9034138442af48c65` |
-| Foreman KubeVirt (local credential-doc patch) | `fix/discover-kubevirt-api-version` | `2eac240d9722e7881185a940523e8dc816524208` |
-| Foreman KubeVirt (local safe-deletion patch) | `fix/discover-kubevirt-api-version` | `b5a1d3bee546394d62fa77514e36dcfc77893c0c` |
 | Fog KubeVirt (reviewed upstream) | `master` | `d3277fa121609c5a2c949f3518f5f1bb07ef6447` |
-| Fog KubeVirt (local namespace-scope patch) | `fix/scope-network-attachments` | `98c874ad35d74005297b6385ede267ac78e35662` |
-| Fog KubeVirt (local VM apiVersion patch) | `fix/scope-network-attachments` | `baa222aaec7ada452989eed40c96c355eb6c5c81` |
 | foremanctl | `master` | `cb135b25817fba875061a7d4495fe14ad2bd474e` |
 | Smart Proxy | `develop` | `c2af3d35497058fd7dc8146dcbca3adf60334b9e` |
 | Smart Proxy Dynflow | `master` | `a07e3fa37aca20f2038e8f469f88c545c39276ff` |
@@ -189,3 +189,7 @@ The sibling `foreman-kubernetes-upstream/` directory is intentionally not part o
 | Smart Proxy Ansible | `master` | `080753705e26a6a9aaa68a413a6935c9ac48c8ad` |
 
 OCI image repositories for Foreman, Candlepin, and Pulp were reviewed separately as well.
+
+The table records reviewed upstream bases. Local upstream branches are tracked
+separately in `compatibility/upstream-contracts.json`; their commits are not a
+claim that an official image already contains the change.

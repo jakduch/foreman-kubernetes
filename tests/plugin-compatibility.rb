@@ -137,7 +137,6 @@ if Dir.exist?(upstream)
 
   expected_revisions = {
     'foremanOciImagesCommit' => foreman_images,
-    'pulpOciImagesCommit' => pulp_images,
     'foremanctlCommit' => foremanctl,
     'foremanWebhooksCommit' => foreman_webhooks,
     'foremanVirtWhoConfigureCommit' => foreman_virt_who_configure,
@@ -146,6 +145,9 @@ if Dir.exist?(upstream)
   }
   expected_revisions.each do |key, path|
     raise "#{key} snapshot is stale" unless revision(path) == matrix.dig('snapshot', key)
+  end
+  unless revision(pulp_images, 'master') == matrix.dig('snapshot', 'pulpOciImagesCommit')
+    raise 'pulpOciImagesCommit snapshot is stale'
   end
 
   %w[

@@ -18,12 +18,25 @@ abort "invalid compatibility set name: #{set_name}" unless set_name.match?(/\A[a
 
 release_sets_path = root / 'compatibility/release-sets.json'
 checks_path = root / 'compatibility/required-integration-checks.json'
+upstream_contracts_path = root / 'compatibility/upstream-contracts.json'
 release_sets = JSON.parse(release_sets_path.read)
 release_set = release_sets.fetch('sets').fetch(set_name)
+upstream_contracts = JSON.parse(upstream_contracts_path.read)
 evidence = JSON.parse(evidence_path.read)
 required_checks = JSON.parse(checks_path.read).fetch('checks')
 
 abort "#{set_name} is not a candidate" unless release_set.fetch('status') == 'candidate'
+
+required_profiles = release_set.fetch('contractProfiles')
+missing_contracts = upstream_contracts.fetch('contracts').select do |contract|
+  !(contract.fetch('profiles') & required_profiles).empty? &&
+    (contract.fetch('state') != 'published' ||
+     !contract.fetch('availableInReleaseSets').include?(set_name))
+end
+unless missing_contracts.empty?
+  abort "release set is missing published upstream contracts: #{missing_contracts.map { |contract| contract.fetch('id') }.join(', ')}"
+end
+
 abort 'unsupported integration evidence schema' unless evidence.fetch('schemaVersion') == 1
 abort 'integration evidence belongs to another set' unless evidence.fetch('compatibilitySet') == set_name
 abort 'integration evidence is not a complete passing run' unless evidence.fetch('result') == 'passed'
@@ -39,7 +52,8 @@ expected_hashes = {
   'releaseSetsSha256' => release_sets_path,
   'applicationProfileSha256' => root / release_set.fetch('applicationProfile'),
   'executionProfileSha256' => root / release_set.fetch('executionProxyProfile'),
-  'checksSha256' => checks_path
+  'checksSha256' => checks_path,
+  'upstreamContractsSha256' => upstream_contracts_path
 }
 expected_hashes.each do |key, path|
   actual_hash = Digest::SHA256.file(path).hexdigest

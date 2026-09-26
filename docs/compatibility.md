@@ -10,6 +10,13 @@ and rejects one-sided profile overrides, preventing a proxy candidate from
 being qualified accidentally against an unrelated application candidate. Every
 image reference in a declared set must be pinned by OCI digest.
 
+Each set also selects one or more contract profiles from
+`compatibility/upstream-contracts.json`. A set cannot become `supported` merely
+because its runtime drill passes: every upstream contract required by those
+profiles must be recorded as present in that exact image set. This prevents a
+locally prepared Foreman, Katello, Candlepin, Pulp, or plugin fix from being
+mistaken for published image capability.
+
 Each set also declares `upgradeFrom`. Every installed application and
 execution-proxy set must appear in that list before the target can be applied.
 The target itself is always included so a same-set reconcile, credential
@@ -27,6 +34,13 @@ Set states have deliberately narrow meanings:
 
 No set is promoted automatically from a successful render. Runtime evidence is
 still required.
+
+> **No supported image set exists yet.** The current nightly candidate predates
+> the upstream runtime contracts listed in
+> `compatibility/upstream-contracts.json`. It is retained for manifest and
+> integration-harness development, but it is not expected to complete the
+> current default installation until new official images contain those
+> contracts.
 
 ## Runtime evidence and promotion
 
@@ -76,9 +90,9 @@ set by itself.
 
 | Component | Published tag | OCI digest | Platform | Status |
 | --- | --- | --- | --- | --- |
-| Foreman with Katello | `quay.io/foreman/foreman:nightly` | `sha256:9c77128c7acd629c62686a9119816d6f6b7726cd6492d9eaa894d54c345c4941` | `linux/amd64` | Manifest verified; runtime contract implemented but unrun |
-| Candlepin | `quay.io/foreman/candlepin:foreman-nightly` | `sha256:b9fe6c5f161132b39982e1951e8b4a16bf00d2565ecb17e53b13b56196a1f280` | `linux/amd64` | Manifest verified; runtime contract implemented but unrun |
-| Pulp | `quay.io/foreman/pulp:foreman-nightly` | `sha256:c3d32a385d09225c40f70d60128fcf62c94cb669536b10ccbadc0ec8ac4afa6b` | `linux/amd64` | Manifest verified; runtime contract implemented but unrun |
+| Foreman with Katello | `quay.io/foreman/foreman:nightly` | `sha256:9c77128c7acd629c62686a9119816d6f6b7726cd6492d9eaa894d54c345c4941` | `linux/amd64` | Manifest verified; required Foreman and Katello contracts not yet published |
+| Candlepin | `quay.io/foreman/candlepin:foreman-nightly` | `sha256:b9fe6c5f161132b39982e1951e8b4a16bf00d2565ecb17e53b13b56196a1f280` | `linux/amd64` | Manifest verified; required container runtime contract not yet published |
+| Pulp | `quay.io/foreman/pulp:foreman-nightly` | `sha256:c3d32a385d09225c40f70d60128fcf62c94cb669536b10ccbadc0ec8ac4afa6b` | `linux/amd64` | Manifest verified; required object-storage packages not yet published |
 | Execution Smart Proxy | `quay.io/foreman/foreman-proxy:nightly` | `sha256:244c756844a137990779ad153998c426eb0326d8d6f376192ea6e84947affd47` | `linux/amd64` | Manifest verified; runtime and execution drills implemented but unrun |
 
 The manifests were read from the official Quay repositories on 2026-09-24. No layers were downloaded. The current images are single-platform, so an ARM cluster needs explicit emulation and is not a release target until upstream publishes multi-architecture manifests.

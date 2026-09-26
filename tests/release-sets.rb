@@ -13,12 +13,15 @@ manifest = JSON.parse((root / 'compatibility/release-sets.json').read)
 sets = manifest.fetch('sets')
 default_set = manifest.fetch('default')
 checks_path = root / 'compatibility/required-integration-checks.json'
+upstream_contracts_path = root / 'compatibility/upstream-contracts.json'
 checks_contract = JSON.parse(checks_path.read)
+upstream_contracts = JSON.parse(upstream_contracts_path.read)
 required_checks = checks_contract.fetch('checks')
 compatibility_documentation = (root / 'docs/compatibility.md').read
 
 raise 'unsupported release-set schema' unless manifest.fetch('schemaVersion') == 2
 raise 'unsupported integration checks schema' unless checks_contract.fetch('schemaVersion') == 1
+raise 'unsupported upstream contracts schema' unless upstream_contracts.fetch('schemaVersion') == 1
 raise 'integration checks must be unique non-empty strings' unless required_checks == required_checks.uniq && required_checks.all? { |check| check.is_a?(String) && !check.empty? }
 raise "default release set #{default_set} does not exist" unless sets.key?(default_set)
 environment_values_position = compatibility_documentation.index('--values /secure/path/production-values.yaml')
@@ -54,6 +57,14 @@ sets.each do |set_name, release_set|
   end
   raise "same-set reconciliation is not allowed for #{set_name}" unless upgrade_sources.include?(set_name)
 
+  contract_profiles = release_set.fetch('contractProfiles')
+  known_contract_profiles = upstream_contracts.fetch('profiles').keys
+  unless contract_profiles.is_a?(Array) && !contract_profiles.empty? &&
+         contract_profiles == contract_profiles.uniq &&
+         (contract_profiles - known_contract_profiles).empty?
+    raise "invalid upstream contract profiles for #{set_name}"
+  end
+
   application_profile_path = profile_path(root, release_set.fetch('applicationProfile'))
   execution_profile_path = profile_path(root, release_set.fetch('executionProxyProfile'))
   application_profile = YAML.safe_load(application_profile_path.read)
@@ -73,6 +84,15 @@ sets.each do |set_name, release_set|
     raise "candidate #{set_name} must not carry supported evidence"
   end
   next unless status == 'supported'
+
+  missing_contracts = upstream_contracts.fetch('contracts').select do |contract|
+    !(contract.fetch('profiles') & contract_profiles).empty? &&
+      (contract.fetch('state') != 'published' ||
+       !contract.fetch('availableInReleaseSets').include?(set_name))
+  end
+  unless missing_contracts.empty?
+    raise "supported release set #{set_name} is missing upstream contracts: #{missing_contracts.map { |contract| contract.fetch('id') }.join(', ')}"
+  end
 
   evidence_reference = release_set.fetch('evidence')
   evidence_path = profile_path(root, evidence_reference.fetch('file'))
@@ -105,7 +125,8 @@ sets.each do |set_name, release_set|
   expected_inputs = {
     'applicationProfileSha256' => Digest::SHA256.file(application_profile_path).hexdigest,
     'executionProfileSha256' => Digest::SHA256.file(execution_profile_path).hexdigest,
-    'checksSha256' => Digest::SHA256.file(checks_path).hexdigest
+    'checksSha256' => Digest::SHA256.file(checks_path).hexdigest,
+    'upstreamContractsSha256' => Digest::SHA256.file(upstream_contracts_path).hexdigest
   }
   expected_inputs.each do |key, expected_digest|
     raise "stored evidence input mismatch for #{set_name}: #{key}" unless evidence_inputs.fetch(key) == expected_digest

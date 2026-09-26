@@ -13,6 +13,20 @@ contract rather than treating `replicas` as a sufficient HA switch.
 3. Optional broker client material is supplied by a Secret mounted read-only at
    `/etc/candlepin/artemis`. Paths in the broker URL may refer to files there.
 
+The external broker must provision the durable addresses and queues from
+Candlepin's embedded broker contract before Candlepin starts:
+
+| Address | Routing type | Queue |
+| --- | --- | --- |
+| `event.default` | multicast | `event.org.candlepin.audit.LoggingListener` |
+| `event.default` | multicast | `event.org.candlepin.audit.ActivationListener` |
+| `job` | anycast | `jobs` |
+
+The disposable Kind harness creates these queues explicitly after its Artemis
+Deployment becomes ready. Production broker automation must provide the same
+topology; enabling address or queue auto-creation alone is insufficient because
+Candlepin opens named consumers during application initialization.
+
 The current Candlepin client creates sessions without separate username and
 password parameters and logs the broker URL while initializing. Prefer a
 broker that authenticates a TLS client certificate. Do not place a reusable
