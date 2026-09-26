@@ -158,6 +158,7 @@ credential, and recovery-drill contracts.
 - [`docs/installation.md`](docs/installation.md) defines prerequisites, guarded first installation, and failure handling.
 - [`docs/runtime-contracts.md`](docs/runtime-contracts.md) records the verified upstream runtime contracts and current scaling limits.
 - [`docs/upstream-runtime-readiness.md`](docs/upstream-runtime-readiness.md) tracks application changes that must ship upstream before a release set can be supported.
+- [`docs/local-candidate-images.md`](docs/local-candidate-images.md) builds those exact unpublished commits into non-publishable amd64 images for integration testing without maintaining application forks.
 - [`docs/capacity-planning.md`](docs/capacity-planning.md) turns replica,
   process, thread, and database-pool settings into external service sizing
   bounds.

@@ -1,0 +1,86 @@
+{
+  "schemaVersion": 1,
+  "platform": "linux/amd64",
+  "images": {
+    "foreman": {
+      "baseReference": "quay.io/foreman/foreman:nightly@sha256:9c77128c7acd629c62686a9119816d6f6b7726cd6492d9eaa894d54c345c4941",
+      "localReference": "foreman-kubernetes/foreman:candidate",
+      "overlays": [
+        {
+          "contract": "foreman-configurable-puma-run-dir",
+          "target": "foreman",
+          "paths": [
+            "config/puma/production.rb",
+            "script/foreman-puma-status"
+          ]
+        },
+        {
+          "contract": "foreman-dynflow-readiness-file",
+          "target": "foreman",
+          "paths": [
+            "extras/dynflow-sidekiq.rb",
+            "lib/foreman/dynflow_readiness.rb"
+          ]
+        },
+        {
+          "contract": "foreman-escaped-client-certificate",
+          "target": "foreman",
+          "paths": [
+            "app/services/foreman/client_certificate.rb"
+          ]
+        },
+        {
+          "contract": "foreman-dynflow-redis-tls-ca",
+          "target": "foreman",
+          "paths": [
+            "config/initializers/sidekiq.rb",
+            "lib/foreman/dynflow_redis_configuration.rb"
+          ]
+        },
+        {
+          "contract": "katello-pulp-non-default-port",
+          "target": "katello",
+          "paths": [
+            "app/models/katello/concerns/smart_proxy_extensions.rb"
+          ]
+        },
+        {
+          "contract": "katello-event-daemon-foreground",
+          "target": "katello",
+          "paths": [
+            "app/lib/katello/event_daemon/runner.rb"
+          ]
+        }
+      ]
+    },
+    "candlepin": {
+      "baseReference": "quay.io/foreman/candlepin:foreman-nightly@sha256:b9fe6c5f161132b39982e1951e8b4a16bf00d2565ecb17e53b13b56196a1f280",
+      "localReference": "foreman-kubernetes/candlepin:candidate",
+      "overlays": [
+        {
+          "contract": "candlepin-container-runtime",
+          "target": "candlepin",
+          "paths": [
+            "images/candlepin/assets/candlepin-db-migrate"
+          ]
+        }
+      ]
+    },
+    "pulp": {
+      "baseReference": "quay.io/foreman/pulp:foreman-nightly@sha256:c3d32a385d09225c40f70d60128fcf62c94cb669536b10ccbadc0ec8ac4afa6b",
+      "localReference": "foreman-kubernetes/pulp:candidate",
+      "contracts": [
+        "pulpcore-el10-botocore-dateutil-epoch",
+        "pulpcore-package-django-storages",
+        "pulp-image-object-storage-runtime"
+      ],
+      "pythonRequirements": [
+        "django-storages==1.14.6 --hash=sha256:11b7b6200e1cb5ffcd9962bd3673a39c7d6a6109e8096f0e03d46fab3d3aabd9"
+      ],
+      "rpmRequirements": [
+        "python3-pip",
+        "python3.12-boto3-1.43.98-1.el10"
+      ]
+    }
+  }
+}
