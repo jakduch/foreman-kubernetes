@@ -113,15 +113,29 @@ check_required_cluster_resources() {
         }
         ;;
       PersistentVolumeClaim)
+        local claim_phase claim_storage_class
         resource_json="$(kubectl --namespace "${namespace}" get persistentvolumeclaim \
           "${resource_name}" --output=json)" || {
           echo "required PersistentVolumeClaim ${namespace}/${resource_name} does not exist" >&2
           return 1
         }
-        jq --exit-status '.status.phase == "Bound"' <<<"${resource_json}" >/dev/null || {
-          echo "required PersistentVolumeClaim ${namespace}/${resource_name} is not Bound" >&2
-          return 1
-        }
+        claim_phase="$(jq --raw-output '.status.phase // ""' <<<"${resource_json}")"
+        if [[ "${claim_phase}" != 'Bound' ]]; then
+          claim_storage_class="$(jq --raw-output '.spec.storageClassName // ""' <<<"${resource_json}")"
+          if [[ "${claim_phase}" != 'Pending' || -z "${claim_storage_class}" ]]; then
+            echo "required PersistentVolumeClaim ${namespace}/${resource_name} is not Bound" >&2
+            return 1
+          fi
+          resource_json="$(kubectl get storageclass "${claim_storage_class}" --output=json)" || {
+            echo "StorageClass ${claim_storage_class} for Pending PersistentVolumeClaim ${namespace}/${resource_name} does not exist" >&2
+            return 1
+          }
+          jq --exit-status '.volumeBindingMode == "WaitForFirstConsumer"' \
+            <<<"${resource_json}" >/dev/null || {
+            echo "required PersistentVolumeClaim ${namespace}/${resource_name} is Pending without delayed binding" >&2
+            return 1
+          }
+        fi
         ;;
       ServiceAccount)
         kubectl --namespace "${namespace}" get "${resource_kind}" "${resource_name}" >/dev/null || {

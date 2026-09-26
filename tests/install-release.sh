@@ -162,8 +162,12 @@ if [[ "$*" == 'get nodes --output=json' ]]; then
     "${FAKE_NODE_ARCH:-amd64}" "${FAKE_NODE_WORKLOAD:-foreman}" "${FAKE_NODE_TAINT_VALUE:-foreman}"
 fi
 if [[ "$*" == '--namespace foreman get persistentvolumeclaim imported-content --output=json' ]]; then
-  printf '{"metadata":{"name":"imported-content"},"status":{"phase":"%s"}}\n' \
-    "${FAKE_PVC_PHASE:-Bound}"
+  printf '{"metadata":{"name":"imported-content"},"spec":{"storageClassName":"%s"},"status":{"phase":"%s"}}\n' \
+    "${FAKE_PVC_STORAGE_CLASS:-}" "${FAKE_PVC_PHASE:-Bound}"
+fi
+if [[ "$*" == 'get storageclass zonal-delayed --output=json' ]]; then
+  printf '{"metadata":{"name":"zonal-delayed"},"volumeBindingMode":"%s"}\n' \
+    "${FAKE_VOLUME_BINDING_MODE:-WaitForFirstConsumer}"
 fi
 if [[ "$*" == 'get IngressClass nginx --output=json' ]]; then
   printf '{"spec":{"controller":"%s"}}\n' "${FAKE_INGRESS_CONTROLLER:-k8s.io/ingress-nginx}"
@@ -394,6 +398,16 @@ if grep -Fq 'helm upgrade --install ' "${tool_log}"; then
   echo 'installation started after external PersistentVolumeClaim preflight failed' >&2
   exit 1
 fi
+
+: > "${tool_log}"
+PATH="${fake_bin}:${PATH}" \
+  FAKE_TOOL_LOG="${tool_log}" \
+  FAKE_RENDER_EXTERNAL_PVC=1 \
+  FAKE_PVC_PHASE=Pending \
+  FAKE_PVC_STORAGE_CLASS=zonal-delayed \
+  ALLOW_CANDIDATE=1 \
+  "${repo_root}/scripts/install-release.sh" \
+    "${application_values}" "${execution_values}" >/dev/null
 
 : > "${tool_log}"
 if PATH="${fake_bin}:${PATH}" \

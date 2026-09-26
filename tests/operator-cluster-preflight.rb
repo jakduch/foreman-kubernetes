@@ -280,7 +280,16 @@ begin
 rescue ForemanRelease::InvalidRelease => error
   raise unless error.message.include?('persistentvolumeclaim platform/imported-content is not Bound')
 end
+client.objects[['platform', 'persistentvolumeclaim', 'imported-content']]['spec'] = {
+  'storageClassName' => 'zonal-delayed'
+}
+client.objects[[nil, 'storageclass', 'zonal-delayed']] = {
+  'metadata' => {'name' => 'zonal-delayed'}, 'volumeBindingMode' => 'WaitForFirstConsumer'
+}
+preflight.validate!(documents, 'platform')
 client.objects[['platform', 'persistentvolumeclaim', 'imported-content']]['status']['phase'] = 'Bound'
+client.objects[['platform', 'persistentvolumeclaim', 'imported-content']].delete('spec')
+client.objects.delete([nil, 'storageclass', 'zonal-delayed'])
 
 runner.calls.clear
 certificate_validator.calls.clear

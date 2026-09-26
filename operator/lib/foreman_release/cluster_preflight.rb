@@ -133,7 +133,15 @@ module ForemanRelease
         end
       when 'PersistentVolumeClaim'
         claim = required_resource(namespace, 'persistentvolumeclaim', name)
-        unless claim.dig('status', 'phase') == 'Bound'
+        phase = claim.dig('status', 'phase')
+        storage_class_name = claim.dig('spec', 'storageClassName').to_s
+        delayed_binding = if phase == 'Pending' && !storage_class_name.empty?
+                            storage_class = required_resource(nil, 'storageclass', storage_class_name)
+                            storage_class['volumeBindingMode'] == 'WaitForFirstConsumer'
+                          else
+                            false
+                          end
+        unless phase == 'Bound' || delayed_binding
           raise InvalidRelease, "required persistentvolumeclaim #{namespace}/#{name} is not Bound"
         end
       when 'ServiceAccount'

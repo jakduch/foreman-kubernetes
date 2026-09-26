@@ -176,10 +176,12 @@ affinity, storage topology, and live capacity remain normal Kubernetes
 scheduler policy.
 
 An existing PersistentVolumeClaim referenced by a rendered workload but not
-owned by either chart must already be `Bound`. Guarded preflight rejects a
-missing, `Pending`, or `Lost` external claim before migrations start. Claims
-rendered by the charts are created later in the staged release and are not
-subject to this pre-existence check.
+owned by either chart must already be `Bound`, except for a `Pending` claim
+whose StorageClass explicitly uses `WaitForFirstConsumer`. That delayed claim
+is allowed to bind when its workload is scheduled. Guarded preflight rejects a
+missing or `Lost` external claim and a `Pending` claim backed by immediate
+binding before migrations start. Claims rendered by the charts are created
+later in the staged release and are not subject to this pre-existence check.
 
 The release controller is a privileged in-namespace client of the Kubernetes
 API. Set `networkPolicy.egress.enabled=true` only after listing the in-cluster
