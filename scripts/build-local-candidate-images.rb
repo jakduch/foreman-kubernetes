@@ -240,6 +240,7 @@ class LocalCandidateImages
         engine,
         'build',
         '--platform', registry.fetch('platform'),
+        '--file', (directory / 'Containerfile').to_s,
         '--build-arg', "BASE_IMAGE=#{image.fetch('baseReference')}",
         '--tag', image.fetch('localReference'),
         directory.to_s

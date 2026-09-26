@@ -54,5 +54,9 @@ abort "local candidate pipeline omits required contracts: #{missing.join(', ')}"
 
 node_selector = profile.dig('scheduling', 'nodeSelector')
 abort 'local candidate profile does not require amd64 nodes' unless node_selector == {'kubernetes.io/arch' => 'amd64'}
+builder = (root / 'scripts/build-local-candidate-images.rb').read
+unless builder.include?("'--file', (directory / 'Containerfile').to_s")
+  abort 'candidate builder does not explicitly select the generated Containerfile'
+end
 
 puts "Local candidate images cover #{seen_contracts.length} unpublished runtime contracts."
