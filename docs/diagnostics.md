@@ -12,6 +12,8 @@ permissions and contains:
 
 - the selected `ForemanRelease`, including durable operation and drift status;
 - Kubernetes and Helm client versions plus relevant cluster capability state;
+- a reduced Node scheduling inventory with architecture, selected topology
+  labels, cordon and taint state, readiness, and runtime versions;
 - namespaced workloads, Services, Jobs, CronJobs, claims, policies, disruption
   budgets, ConfigMaps, ServiceAccounts, Leases, and Events;
 - Helm release status and revision history for the application and execution
@@ -25,6 +27,9 @@ archive retains only their name, namespace, type, labels, creation time,
 annotation key names, and data key names. Annotation values are
 also discarded because a last-applied annotation can contain a serialized
 Secret. Every value under `data` is discarded before the archive is written.
+Node objects are reduced before they are written. Provider IDs, annotations,
+arbitrary labels, machine IDs, addresses, capacity, and condition messages are
+excluded; only fields needed to diagnose platform scheduling are retained.
 
 This boundary prevents direct Secret disclosure; it does not make the whole
 bundle public. Resource specifications, Events, hostnames, image references,

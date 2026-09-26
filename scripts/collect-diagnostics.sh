@@ -70,6 +70,38 @@ capture cluster/storageclasses.json "${kubectl_bin}" get storageclasses --output
 capture cluster/ingressclasses.json "${kubectl_bin}" get ingressclasses --output=json
 capture cluster/metrics-api.json "${kubectl_bin}" get apiservice v1beta1.metrics.k8s.io --output=json
 
+node_file="${bundle}/cluster/nodes.json"
+if node_json="$("${kubectl_bin}" get nodes --output=json 2>"${node_file}.stderr")" &&
+  jq '{apiVersion, kind, items: [.items[] | {
+        metadata: {
+          name: .metadata.name,
+          labels: ((.metadata.labels // {}) | with_entries(select(
+            .key == "kubernetes.io/arch" or
+            .key == "kubernetes.io/os" or
+            .key == "node.kubernetes.io/instance-type" or
+            (.key | startswith("topology.kubernetes.io/"))
+          )))
+        },
+        spec: {
+          unschedulable: (.spec.unschedulable // false),
+          taints: [(.spec.taints // [])[] | {key, value, effect}]
+        },
+        status: {
+          conditions: [(.status.conditions // [])[] | {type, status, lastTransitionTime}],
+          nodeInfo: ((.status.nodeInfo // {}) | {
+            architecture, operatingSystem, osImage, kernelVersion,
+            containerRuntimeVersion, kubeletVersion
+          })
+        }
+      }]}' <<<"${node_json}" >"${node_file}"; then
+  rm -f -- "${node_file}.stderr"
+  printf 'ok\t%s\n' 'cluster/nodes.json' >>"${results}"
+else
+  unset node_json
+  printf 'failed\t%s\n' 'cluster/nodes.json' >>"${results}"
+fi
+unset node_json
+
 release_file="${bundle}/namespace/foremanrelease.json"
 if "${kubectl_bin}" --namespace "${namespace}" get foremanrelease "${release_name}" \
   --output=json >"${release_file}" 2>"${release_file}.stderr"; then
