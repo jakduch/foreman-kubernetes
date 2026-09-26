@@ -33,6 +33,7 @@ abort 'dependency preflight does not use the Pulp service account for workload i
 abort 'dependency preflight unexpectedly mounts a Kubernetes API token' unless pod_spec['automountServiceAccountToken'] == false
 
 foreman_script = Array(containers.fetch('foreman')['command']).join("\n")
+abort 'Foreman dependency preflight must use the packaged Ruby runtime directly' unless foreman_script.include?("ruby <<'RUBY'") && !foreman_script.include?('bundle exec')
 abort 'Foreman dependency preflight does not execute a read-only database query' unless foreman_script.include?("exec('SELECT 1')")
 abort 'Foreman dependency preflight does not authenticate both Valkey clients' unless foreman_script.include?('FOREMAN_RAILS_CACHE_STORE_URLS') && foreman_script.include?('DYNFLOW_REDIS_URL') && foreman_script.include?('.ping')
 abort 'Foreman dependency preflight contains a schema mutation' if foreman_script.match?(/db:migrate|db:seed|\bINSERT\b|\bUPDATE\b|\bDELETE\b/)

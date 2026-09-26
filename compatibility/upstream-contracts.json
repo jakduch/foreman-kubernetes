@@ -112,7 +112,7 @@
         "repository": "https://github.com/theforeman/candlepin-oci-images.git",
         "localPath": "candlepin-oci-images",
         "branch": "feature/container-runtime-contracts",
-        "commit": "9a5348224f8484e1b3dc897b01f5696c5f24cfb2"
+        "commit": "f11365cad697bd515d6292ca66e72c1c69460d1b"
       },
       "standaloneDefault": "The image still starts Candlepin through the packaged Tomcat server command.",
       "kubernetesConsumers": ["Candlepin Deployment", "Candlepin migration Job"]

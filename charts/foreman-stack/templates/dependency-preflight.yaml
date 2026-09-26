@@ -33,7 +33,7 @@ spec:
             - /bin/bash
             - -ec
             - |
-              bundle exec ruby <<'RUBY'
+              ruby <<'RUBY'
               require 'pg'
               require 'redis'
 
