@@ -23,9 +23,9 @@ container = Array(pod['containers']).find { |candidate| candidate['name'] == 'fo
 abort 'Foreman web container is missing' unless container
 mounts = Array(container['volumeMounts']).to_h { |mount| [mount['mountPath'], mount] }
 run_dir = Array(container['env']).find { |entry| entry['name'] == 'FOREMAN_RUN_DIR' }
-abort 'Foreman does not select the upstream-supported runtime directory' unless run_dir&.fetch('value', nil) == '/run/foreman'
+abort 'Foreman does not select the isolated Puma runtime directory' unless run_dir&.fetch('value', nil) == '/run/foreman-puma'
 
-runtime_mount = mounts['/run/foreman']
+runtime_mount = mounts['/run/foreman-puma']
 unless runtime_mount&.fetch('name', nil) == 'foreman-puma-runtime' && !runtime_mount.key?('subPath')
   abort 'Foreman Puma runtime directory is not isolated per Pod'
 end
@@ -34,5 +34,6 @@ shared_tmp = mounts['/usr/share/foreman/tmp']
 unless shared_tmp && volumes.dig(shared_tmp['name'], 'persistentVolumeClaim', 'claimName')
   abort 'Foreman web no longer retains the shared Katello hand-off volume'
 end
+abort 'Foreman shared tmp aliases the Puma runtime directory' if shared_tmp['mountPath'] == run_dir.fetch('value')
 
 puts 'Foreman uses its upstream runtime-directory contract while retaining shared Katello tmp.'

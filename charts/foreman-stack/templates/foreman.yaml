@@ -92,14 +92,14 @@ spec:
             {{- include "foreman-stack.foremanEnv" . | nindent 12 }}
             {{- include "foreman-stack.foremanDatabasePoolEnv" .Values.foreman.databasePools.web | nindent 12 }}
             - name: FOREMAN_RUN_DIR
-              value: /run/foreman
+              value: /run/foreman-puma
             - name: FOREMAN_READINESS_HOST
               value: {{ .Values.platform.fqdn | quote }}
           volumeMounts:
             {{- include "foreman-stack.foremanVolumeMounts" . | nindent 12 }}
             {{- include "foreman-stack.foremanAvatarVolumeMount" . | nindent 12 }}
             - name: foreman-puma-runtime
-              mountPath: /run/foreman
+              mountPath: /run/foreman-puma
           startupProbe:
             tcpSocket:
               port: http
