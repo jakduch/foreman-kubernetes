@@ -35,7 +35,7 @@ def expected_digest(reference)
   match = reference.match(/@(sha256:[0-9a-f]{64})\z/)
   abort "image is not digest-pinned: #{reference}" unless match
 
-  match.fetch(1)
+  match[1]
 end
 
 def ready_pod!(namespace, selector)

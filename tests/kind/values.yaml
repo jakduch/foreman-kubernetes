@@ -40,6 +40,15 @@ foreman:
     - foreman_webhooks
     - foreman_virt_who_configure
     - foreman_kubevirt
+  puma:
+    # The integration profile loads every packaged plugin exercised below.
+    # Keep headroom for dependency-aware health requests while one web Pod is
+    # draining; a pool equal to Puma concurrency can be exhausted by plugin
+    # health checks and return HTTP 500 during the availability drill.
+    threadsMin: 5
+    threadsMax: 5
+  databasePools:
+    web: 10
   existingDatabaseCaSecret: ""
   database:
     sslMode: disable
@@ -55,7 +64,7 @@ foreman:
   resources:
     requests:
       cpu: 100m
-      memory: 1Gi
+      memory: 512Mi
     limits:
       memory: 3Gi
 

@@ -13,8 +13,21 @@ selector="app.kubernetes.io/instance=foreman,app.kubernetes.io/component=foreman
 workers=8
 requests_per_worker=80
 probe_directory="${temporary_directory}/foreman-availability"
+original_replicas="$(
+  kubectl --namespace "${namespace}" get deployment/"${deployment}" \
+    --output=jsonpath='{.spec.replicas}'
+)"
 
 mkdir -p "${probe_directory}"
+
+restore_replicas() {
+  kubectl --namespace "${namespace}" scale deployment/"${deployment}" \
+    --replicas="${original_replicas}" >/dev/null
+  kubectl --namespace "${namespace}" rollout status deployment/"${deployment}" \
+    --timeout=10m >/dev/null
+}
+
+trap restore_replicas EXIT
 
 pod_uids() {
   kubectl --namespace "${namespace}" get pods \
@@ -116,8 +129,11 @@ if [[ "${uids_before}" == "${uids_after}" ]]; then
   exit 1
 fi
 
-kubectl --namespace "${namespace}" scale deployment/"${deployment}" --replicas=1
+kubectl --namespace "${namespace}" scale deployment/"${deployment}" \
+  --replicas="${original_replicas}"
 kubectl --namespace "${namespace}" rollout status deployment/"${deployment}" --timeout=10m
-wait_for_ready_count 1 >/dev/null
+wait_for_ready_count "${original_replicas}" >/dev/null
+
+trap - EXIT
 
 echo "$((workers * requests_per_worker)) Foreman requests survived one web Pod replacement."

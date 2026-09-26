@@ -86,8 +86,8 @@ helm_apply() {
   if [[ " $* " == *' maintenance.enabled=true '* ]]; then
     helm upgrade --install "${release}" "${repo_root}/charts/foreman-stack" \
       --namespace "${namespace}" \
-      --values "${repo_root}/tests/kind/values.yaml" \
       --values "${repo_root}/examples/execution-control-plane-values.yaml" \
+      --values "${repo_root}/tests/kind/values.yaml" \
       --values "${image_profile}" \
       --set-string secretRolloutToken="${application_secret_rollout_token}" \
       --set-string candlepin.java.xms="${candlepin_java_xms}" \
@@ -101,8 +101,8 @@ helm_apply() {
   operation_id="kind-$(date -u +%Y%m%d%H%M%S)-$$-${RANDOM}"
   migration_stage="$(helm template "${release}" "${repo_root}/charts/foreman-stack" \
     --namespace "${namespace}" \
-    --values "${repo_root}/tests/kind/values.yaml" \
     --values "${repo_root}/examples/execution-control-plane-values.yaml" \
+    --values "${repo_root}/tests/kind/values.yaml" \
     --values "${image_profile}" \
     --set-string secretRolloutToken="${application_secret_rollout_token}" \
     --set-string candlepin.java.xms="${candlepin_java_xms}" \
@@ -123,8 +123,8 @@ helm_apply() {
 
   helm upgrade --install "${release}" "${repo_root}/charts/foreman-stack" \
     --namespace "${namespace}" \
-    --values "${repo_root}/tests/kind/values.yaml" \
     --values "${repo_root}/examples/execution-control-plane-values.yaml" \
+    --values "${repo_root}/tests/kind/values.yaml" \
     --values "${image_profile}" \
     --set-string secretRolloutToken="${application_secret_rollout_token}" \
     --set-string candlepin.java.xms="${candlepin_java_xms}" \
@@ -277,10 +277,21 @@ assert_pulp_registration() {
 }
 
 assert_application_smoke_test() {
-  helm test "${release}" \
+  local output
+
+  if output="$(helm test "${release}" \
     --namespace "${namespace}" \
-    --logs \
-    --timeout 10m
+    --timeout 10m 2>&1)"; then
+    printf '%s\n' "${output}"
+    return
+  fi
+
+  printf '%s\n' "${output}" >&2
+  kubectl --namespace "${namespace}" logs \
+    --selector="app.kubernetes.io/instance=${release},app.kubernetes.io/component=smoke-test" \
+    --all-containers=true \
+    --tail=-1 >&2 || true
+  return 1
 }
 
 write_integration_evidence() {
@@ -553,6 +564,50 @@ assert_database_probes_absent() {
   done
 }
 
+ensure_artemis_queue() {
+  local queue="$1"
+  local address="$2"
+  local routing_type="$3"
+  local output
+
+  if output="$(
+    kubectl --namespace "${namespace}" exec deployment/artemis -- \
+      /var/lib/artemis-instance/bin/artemis queue create \
+        --silent \
+        --url tcp://127.0.0.1:61616 \
+        --user artemis \
+        --password artemis \
+        --name "${queue}" \
+        --address "${address}" \
+        --"${routing_type}" \
+        --durable \
+        --auto-create-address 2>&1
+  )"; then
+    printf 'Created Artemis queue %s on %s (%s).\n' "${queue}" "${address}" "${routing_type}"
+  elif grep --fixed-strings --quiet "Queue ${queue} already exists" <<<"${output}"; then
+    printf 'Artemis queue %s already exists.\n' "${queue}"
+  else
+    printf '%s\n' "${output}" >&2
+    return 1
+  fi
+}
+
+configure_artemis_queues() {
+  ensure_artemis_queue event.org.candlepin.audit.LoggingListener event.default multicast
+  ensure_artemis_queue event.org.candlepin.audit.ActivationListener event.default multicast
+  ensure_artemis_queue jobs job anycast
+}
+
+secret_rollout_digest() {
+  local secret
+
+  for secret in "$@"; do
+    kubectl --namespace "${namespace}" get secret "${secret}" --output=json |
+      jq --compact-output --sort-keys \
+        '{name: .metadata.name, data: .data}'
+  done | sha256sum | awk '{print $1}'
+}
+
 install_dependencies() {
   local ansible_revision="${1:-v1}"
 
@@ -561,8 +616,26 @@ install_dependencies() {
   kubectl --namespace "${namespace}" rollout status deployment/postgresql --timeout=5m
   kubectl --namespace "${namespace}" rollout status deployment/valkey --timeout=5m
   kubectl --namespace "${namespace}" rollout status deployment/artemis --timeout=5m
+  configure_artemis_queues
   kubectl --namespace "${namespace}" rollout status deployment/content-source --timeout=5m
   "${repo_root}/tests/kind/apply-secrets.sh" "${temporary_directory}"
+  application_secret_rollout_token="$(secret_rollout_digest \
+    foreman-runtime \
+    foreman-shared \
+    foreman-valkey \
+    foreman-certificates \
+    candlepin-runtime \
+    candlepin-certificates \
+    pulp-runtime \
+    pulp-config \
+    ingress-client-ca \
+    foreman-ingress-tls \
+    pulp-content-ingress-tls \
+    pulp-control-proxy-certificates)"
+  execution_secret_rollout_token="$(secret_rollout_digest \
+    foreman-execution-proxy-tls \
+    foreman-execution-proxy-foreman-client \
+    foreman-execution-proxy-ssh)"
   kubectl apply --filename="${repo_root}/tests/kind/execution-target.yaml"
   "${repo_root}/tests/kind/publish-ansible-content.sh" "${ansible_revision}"
   kubectl --namespace "${namespace}" rollout status deployment/execution-target --timeout=5m
@@ -574,6 +647,19 @@ install_dependencies() {
     pod-security.kubernetes.io/warn=restricted \
     pod-security.kubernetes.io/warn-version=v1.34 \
     --overwrite >/dev/null
+}
+
+prepare_kind_storage() {
+  local kind_node="${cluster_name}-control-plane"
+
+  docker exec "${kind_node}" \
+    install -d -m 2770 -o 700 -g 700 \
+    /var/local/foreman-kind-pulp \
+    /var/local/foreman-kind-recovery
+  docker exec "${kind_node}" \
+    install -d -m 2770 -o 994 -g 994 \
+    /var/local/foreman-kind-tmp \
+    /var/local/foreman-kind-avatars
 }
 
 configure_cluster_dns() {
@@ -996,6 +1082,8 @@ else
     --image "${kind_node_image}"
   created_cluster=true
 fi
+
+prepare_kind_storage
 
 if [[ "${skip_recovery_test}" != 1 ]]; then
   docker build \

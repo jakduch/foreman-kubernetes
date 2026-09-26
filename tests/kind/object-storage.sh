@@ -28,10 +28,38 @@ start_probe() {
   kubectl --namespace "${namespace}" apply --filename="${manifest}" >/dev/null
 }
 
+wait_for_probe_terminal() {
+  local timeout_seconds="$1"
+  local deadline=$((SECONDS + timeout_seconds))
+  local job
+
+  while ((SECONDS < deadline)); do
+    job="$(kubectl --namespace "${namespace}" get job "${job_name}" --output=json)"
+    if jq --exit-status \
+      'any(.status.conditions[]?; .type == "Complete" and .status == "True")' \
+      <<<"${job}" >/dev/null; then
+      echo complete
+      return 0
+    fi
+    if jq --exit-status \
+      'any(.status.conditions[]?; .type == "Failed" and .status == "True")' \
+      <<<"${job}" >/dev/null; then
+      echo failed
+      return 0
+    fi
+    sleep 2
+  done
+
+  echo timeout
+}
+
 run_successful_probe() {
+  local outcome
+
   start_probe
-  if ! kubectl --namespace "${namespace}" wait \
-    --for=condition=complete "job/${job_name}" --timeout=10m >/dev/null; then
+  outcome="$(wait_for_probe_terminal 600)"
+  if [[ "${outcome}" != complete ]]; then
+    echo "Object-storage probe ended with ${outcome}, expected complete" >&2
     kubectl --namespace "${namespace}" logs "job/${job_name}" >&2 || true
     kubectl --namespace "${namespace}" describe "job/${job_name}" >&2 || true
     return 1
@@ -55,14 +83,18 @@ run_successful_probe() {
 }
 
 require_old_credentials_rejected() {
+  local outcome
+
   start_probe
-  if kubectl --namespace "${namespace}" wait \
-    --for=condition=complete "job/${job_name}" --timeout=45s >/dev/null 2>&1; then
+  outcome="$(wait_for_probe_terminal 180)"
+  if [[ "${outcome}" == complete ]]; then
     echo 'The retired object-storage credentials still completed a write' >&2
     return 1
   fi
-  kubectl --namespace "${namespace}" wait \
-    --for=condition=failed "job/${job_name}" --timeout=3m >/dev/null
+  if [[ "${outcome}" != failed ]]; then
+    echo "Old-credential probe ended with ${outcome}, expected failed" >&2
+    return 1
+  fi
   old_credential_logs="$(kubectl --namespace "${namespace}" logs "job/${job_name}")"
   if ! grep -Eiq 'InvalidAccessKeyId|SignatureDoesNotMatch|AccessDenied' \
     <<<"${old_credential_logs}"; then
@@ -85,8 +117,8 @@ manifest="$(mktemp)"
 trap 'rm -f "${manifest}"' EXIT
 helm template foreman "${repo_root}/charts/foreman-stack" \
   --namespace "${namespace}" \
-  --values "${repo_root}/tests/kind/values.yaml" \
   --values "${repo_root}/examples/execution-control-plane-values.yaml" \
+  --values "${repo_root}/tests/kind/values.yaml" \
   --values "${image_profile}" \
   --set pulp.storage.backend=s3 \
   --set-string pulp.storage.existingClaim= \

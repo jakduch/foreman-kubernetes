@@ -64,12 +64,33 @@ labels.each do |label|
   abort "Kind harness omits namespace label #{label}" unless harness.include?(label)
 end
 
+{
+  'event.org.candlepin.audit.LoggingListener' => ['event.default', 'multicast'],
+  'event.org.candlepin.audit.ActivationListener' => ['event.default', 'multicast'],
+  'jobs' => ['job', 'anycast']
+}.each do |queue, (address, routing_type)|
+  declaration = "ensure_artemis_queue #{queue} #{address} #{routing_type}"
+  abort "Kind harness does not provision Candlepin queue #{queue}" unless harness.include?(declaration)
+end
+abort 'Kind harness does not tolerate already-provisioned Artemis queues' unless
+  harness.include?('already exists')
+
 abort 'Pod Security is not enabled before Helm creates application workloads' unless
   harness.include?("\ninstall_dependencies\n\nhelm_apply\n")
 abort 'execution target is not recreated under restricted Pod Security' unless
   harness.include?("rollout restart \\\n    deployment/execution-target")
 abort 'object-storage host data is not prepared for its non-root process' unless
   object_storage_drill.include?('install -d -m 0770 -o 1000 -g 1000 /var/local/foreman-kind-object-storage')
+{
+  700 => %w[/var/local/foreman-kind-pulp /var/local/foreman-kind-recovery],
+  994 => %w[/var/local/foreman-kind-tmp /var/local/foreman-kind-avatars]
+}.each do |identity, paths|
+  paths.each do |path|
+    contract = "-m 2770 -o #{identity} -g #{identity}"
+    abort "Kind harness does not prepare #{path} for UID/GID #{identity}" unless
+      harness.include?(contract) && harness.include?(path)
+  end
+end
 abort 'promotion evidence does not require restricted Pod Security admission' unless
   checks.include?('restricted-pod-security-admission')
 

@@ -19,7 +19,15 @@ end
   abort "runtime image evidence omits #{field}" unless checker.include?("'#{field}'")
 end
 abort 'runtime image contract does not compare the kubelet image ID with the pinned digest' unless checker.include?('actual_image_id.include?("@#{digest}")')
+abort 'runtime image contract uses unsupported MatchData#fetch' if checker.include?('match.fetch(1)')
+abort 'runtime image contract does not extract the captured digest' unless checker.include?('match[1]')
 abort 'runtime image contract does not reject root containers' unless checker.include?("actual_uid == '0'")
+kind_value_precedence = harness.scan(
+  /--values "\$\{repo_root\}\/examples\/execution-control-plane-values\.yaml" \\\n+\s+--values "\$\{repo_root\}\/tests\/kind\/values\.yaml"/
+)
+unless kind_value_precedence.length == 3
+  abort 'Kind values must override the narrower execution control-plane plugin list'
+end
 abort 'Kind harness does not execute the runtime image contract' unless harness.include?('tests/kind/image-runtime-contract.rb')
 abort 'promotion evidence does not require the runtime image contract' unless checks.include?('pinned-image-runtime-contract')
 abort 'CI does not retain the runtime image report' unless workflow.include?('artifacts/image-runtime-contract.json')
