@@ -311,10 +311,18 @@ sync_ansible_role() {
   local sync_response
   local task_id
 
+  role_id="$(
+    foreman_api GET '/ansible/api/v2/ansible_roles?per_page=all' | \
+      exact_result_id "${role_name}" || true
+  )"
   available_roles="$(foreman_api GET "/ansible/api/v2/ansible_roles/fetch?proxy_id=${proxy_id}")"
   if ! jq --exit-status --arg role_name "${role_name}" \
     '.results.ansible_roles[] | select(.name == $role_name)' \
     <<<"${available_roles}" >/dev/null; then
+    if [[ -n "${role_id}" ]]; then
+      printf '%s\n' "${role_id}"
+      return
+    fi
     echo "Ansible role ${role_name} is not visible through Smart Proxy ${proxy_id}" >&2
     exit 1
   fi
