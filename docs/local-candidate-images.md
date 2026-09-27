@@ -58,8 +58,13 @@ LOCAL_CANDIDATE_EVIDENCE_FILE=artifacts/local-candidate-images.json \
 tests/kind/run.sh
 ```
 
-The platform and live runtime reports bind every mutable local reference to the
-exact image ID recorded in the candidate evidence. The platform report marks
-this run `qualificationEligible: false`: it can find runtime defects before
-publication, but it cannot promote a compatibility set. Promotion still
-requires published, digest-pinned upstream images.
+The evidence retains the Docker image ID, the ordered rootfs diff IDs, and the
+Kind/containerd identity observed immediately after import. The live runtime
+report re-reads the node metadata, requires the same rootfs identity, and
+requires the Pod's kubelet image ID to be one of the evidenced containerd
+manifest digests. This remains valid even though Kind rewrites the OCI manifest
+during import.
+
+The platform report marks this run `qualificationEligible: false`: it can find
+runtime defects before publication, but it cannot promote a compatibility set.
+Promotion still requires published, digest-pinned upstream images.

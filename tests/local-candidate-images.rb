@@ -66,5 +66,8 @@ builder = (root / 'scripts/build-local-candidate-images.rb').read
 unless builder.include?("'--file', (directory / 'Containerfile').to_s")
   abort 'candidate builder does not explicitly select the generated Containerfile'
 end
+unless builder.include?("image['rootfsDiffIds']") && builder.include?("image['kindRuntime']")
+  abort 'candidate builder does not retain portable and Kind runtime image identities'
+end
 
 puts "Local candidate images cover #{seen_contracts.length} unpublished runtime contracts."

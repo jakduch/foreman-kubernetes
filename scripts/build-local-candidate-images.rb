@@ -258,13 +258,45 @@ class LocalCandidateImages
 
       image['imageId'] = inspection.fetch('Id')
       image['repoDigests'] = Array(inspection['RepoDigests']).sort
+      image['rootfsDiffIds'] = inspection.dig('RootFS', 'Layers')
+      unless image.fetch('rootfsDiffIds').all? { |digest| digest.match?(/\Asha256:[0-9a-f]{64}\z/) }
+        raise "#{image.fetch('component')} has invalid rootfs layer identities"
+      end
       image['builtPlatform'] = actual_platform
-      load_into_kind(image.fetch('localReference')) if kind_cluster
+      if kind_cluster
+        load_into_kind(image.fetch('localReference'))
+        image['kindRuntime'] = inspect_kind_runtime(image)
+      end
     end
   end
 
   def load_into_kind(reference)
     run!('kind', 'load', 'docker-image', '--name', kind_cluster, reference)
+  end
+
+  def inspect_kind_runtime(image)
+    node = capture!('kind', 'get', 'nodes', '--name', kind_cluster).lines.map(&:strip)
+      .find { |name| name.end_with?('-control-plane') }
+    raise "Kind cluster #{kind_cluster} has no control-plane node" unless node
+
+    inspection = JSON.parse(capture!(engine, 'exec', node, 'crictl', 'inspecti', image.fetch('localReference')))
+    status = inspection.fetch('status')
+    image_spec = inspection.dig('info', 'imageSpec') || {}
+    rootfs_diff_ids = image_spec.dig('rootfs', 'diff_ids')
+    unless rootfs_diff_ids == image.fetch('rootfsDiffIds')
+      raise "Kind changed the rootfs identity for #{image.fetch('component')}"
+    end
+    labels = image_spec.dig('config', 'Labels') || {}
+    unless labels['org.theforeman.kubernetes.unpublished'] == 'true'
+      raise "Kind imported #{image.fetch('component')} without its candidate identity"
+    end
+
+    {
+      'imageId' => status.fetch('id'),
+      'repoDigests' => status.fetch('repoDigests').sort,
+      'rootfsDiffIds' => rootfs_diff_ids,
+      'chainId' => inspection.dig('info', 'chainID')
+    }
   end
 
   def run!(*command)

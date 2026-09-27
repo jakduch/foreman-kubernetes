@@ -35,9 +35,9 @@ def image_reference(image)
   "#{image.fetch('repository')}:#{image.fetch('tag')}"
 end
 
-def expected_digest(reference, component:, local_candidate:)
+def expected_identity(reference, component:, local_candidate:)
   match = reference.match(/@(sha256:[0-9a-f]{64})\z/)
-  return match[1] if match
+  return {'source' => 'registry-manifest', 'digest' => match[1]} if match
 
   abort "image is not digest-pinned: #{reference}" unless local_candidate
   abort 'local candidate evidence must describe built images' unless local_candidate.fetch('mode') == 'built'
@@ -49,8 +49,37 @@ def expected_digest(reference, component:, local_candidate:)
 
   image_id = candidate.fetch('imageId')
   abort "local candidate evidence has an invalid image ID for #{component}" unless image_id.match?(/\Asha256:[0-9a-f]{64}\z/)
+  expected_rootfs = candidate.fetch('rootfsDiffIds')
+  unless expected_rootfs.all? { |digest| digest.match?(/\Asha256:[0-9a-f]{64}\z/) }
+    abort "local candidate evidence has invalid rootfs identities for #{component}"
+  end
 
-  image_id
+  cluster = ENV.fetch('KIND_CLUSTER_NAME', 'foreman-stack-e2e')
+  engine = ENV.fetch('CONTAINER_ENGINE', 'docker')
+  node = capture!('kind', 'get', 'nodes', '--name', cluster).lines.map(&:strip)
+    .find { |name| name.end_with?('-control-plane') }
+  abort "Kind cluster #{cluster} has no control-plane node" unless node
+
+  inspection = JSON.parse(capture!(engine, 'exec', node, 'crictl', 'inspecti', reference))
+  status = inspection.fetch('status')
+  actual_rootfs = inspection.dig('info', 'imageSpec', 'rootfs', 'diff_ids')
+  abort "Kind runtime rootfs differs from candidate evidence for #{component}" unless actual_rootfs == expected_rootfs
+  labels = inspection.dig('info', 'imageSpec', 'config', 'Labels') || {}
+  unless labels['org.theforeman.kubernetes.unpublished'] == 'true'
+    abort "Kind runtime image is missing the unpublished-candidate label for #{component}"
+  end
+  recorded_runtime = candidate.fetch('kindRuntime')
+  unless status.fetch('id') == recorded_runtime.fetch('imageId') &&
+         actual_rootfs == recorded_runtime.fetch('rootfsDiffIds')
+    abort "Kind runtime identity differs from candidate evidence for #{component}"
+  end
+
+  {
+    'source' => 'local-candidate',
+    'candidateImageId' => image_id,
+    'kindImageId' => status.fetch('id'),
+    'repoDigests' => status.fetch('repoDigests').sort
+  }
 end
 
 def ready_pod!(namespace, selector)
@@ -93,11 +122,16 @@ def validate_component!(namespace:, selector:, container:, component:, reference
   pod_name = pod.dig('metadata', 'name')
   specification = container_spec!(pod, container)
   status = container_status!(pod, container)
-  digest = expected_digest(reference, component: component, local_candidate: local_candidate)
+  identity = expected_identity(reference, component: component, local_candidate: local_candidate)
 
   abort "#{container} Pod does not use #{reference}" unless specification.fetch('image') == reference
   actual_image_id = status.fetch('imageID')
-  abort "#{container} image ID #{actual_image_id} does not contain #{digest}" unless actual_image_id.include?("@#{digest}")
+  if identity['digest']
+    digest = identity.fetch('digest')
+    abort "#{container} image ID #{actual_image_id} does not contain #{digest}" unless actual_image_id.include?("@#{digest}")
+  elsif !identity.fetch('repoDigests').include?(actual_image_id)
+    abort "#{container} image ID #{actual_image_id} is not the evidenced Kind candidate"
+  end
 
   actual_user = exec!(namespace, pod_name, container, 'id', '-un')
   actual_uid = exec!(namespace, pod_name, container, 'id', '-u')
@@ -112,6 +146,7 @@ def validate_component!(namespace:, selector:, container:, component:, reference
     'container' => container,
     'expectedImage' => reference,
     'runtimeImageId' => actual_image_id,
+    'imageIdentity' => identity,
     'user' => {'name' => actual_user, 'uid' => actual_uid.to_i, 'gid' => actual_gid.to_i}
   }
 end
