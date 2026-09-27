@@ -104,15 +104,16 @@ wait_for_task() {
           valid = case expected
                   when "success" then task.result == "success"
                   when "error" then task.result == "error"
+                  when "warning" then task.result == "warning"
                   when "not-success" then task.result != "success"
                   when "terminal" then true
                   else false
                   end
-          abort "Task #{task.id} (#{task.label}) ended with #{task.result}, expected #{expected}" unless valid
-          puts "Task #{task.id} (#{task.label}) ended with expected result #{task.result}"
+          abort "Task #{task.id} ended with #{task.result}, expected #{expected}" unless valid
+          puts "Task #{task.id} ended with expected result #{task.result}"
           break
         end
-        abort "Timed out waiting for task #{task.id} (#{task.label})" if Process.clock_gettime(Process::CLOCK_MONOTONIC) >= deadline
+        abort "Timed out waiting for task #{task.id}" if Process.clock_gettime(Process::CLOCK_MONOTONIC) >= deadline
         sleep 2
       end
     '
@@ -422,7 +423,7 @@ assert_failed_job() {
   invocation="$(create_script_job 'printf "expected failure\\n"; exit 23')"
   invocation_id="$(jq --exit-status --raw-output '.id' <<<"${invocation}")"
   task_id="$(jq --exit-status --raw-output '.dynflow_task.id' <<<"${invocation}")"
-  wait_for_task "${task_id}" error
+  wait_for_task "${task_id}" warning
 
   foreman_api GET "/api/job_invocations/${invocation_id}?include_hosts=false" | \
     jq --exit-status '.failed == 1 and .succeeded == 0' >/dev/null
