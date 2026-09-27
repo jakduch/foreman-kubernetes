@@ -420,14 +420,14 @@ assert_failed_job() {
   local invocation_id
   local task_id
 
-  invocation="$(create_script_job 'printf "expected failure\\n"; exit 23')"
+  invocation="$(create_script_job 'sleep 5; printf "expected failure\\n"; exit 23')"
   invocation_id="$(jq --exit-status --raw-output '.id' <<<"${invocation}")"
   task_id="$(jq --exit-status --raw-output '.dynflow_task.id' <<<"${invocation}")"
+  wait_for_job_proxy "${invocation_id}" "${proxy_id}"
   wait_for_task "${task_id}" warning
 
   foreman_api GET "/api/job_invocations/${invocation_id}?include_hosts=false" | \
     jq --exit-status '.failed == 1 and .succeeded == 0' >/dev/null
-  assert_job_proxy "${invocation_id}" 'Expected-failure Script' "${proxy_id}"
 }
 
 assert_cancelled_job() {
