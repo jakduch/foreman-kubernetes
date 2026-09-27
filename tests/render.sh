@@ -660,6 +660,7 @@ grep -q ':database: /var/lib/foreman-proxy/dynflow/dynflow.sqlite' "${rendered_e
 grep -q ':cockpit_integration: false' "${rendered_execution}"
 grep -q 'readOnlyRootFilesystem: true' "${rendered_execution}"
 grep -q 'runAsUser: 991' "${rendered_execution}"
+grep -A2 'name: ndots' "${rendered_execution}" | grep -q 'value: "1"'
 grep -q 'mountPath: /etc/ansible' "${rendered_execution}"
 grep -q 'mountPath: /var/lib/foreman-proxy' "${rendered_execution}"
 grep -q 'mountPath: /var/run/foreman-proxy/ssh' "${rendered_execution}"

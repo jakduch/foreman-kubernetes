@@ -27,6 +27,12 @@ spec:
       {{- include "foreman-execution-proxy.scheduling" . | nindent 6 }}
       serviceAccountName: {{ include "foreman-execution-proxy.serviceAccountName" . }}
       automountServiceAccountToken: false
+      # Resolve dotted external names before appending node search domains.
+      # Otherwise a wildcard in a node domain can shadow the Foreman URL.
+      dnsConfig:
+        options:
+          - name: ndots
+            value: "1"
       terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
       securityContext:
         fsGroup: 991

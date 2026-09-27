@@ -172,6 +172,19 @@ wait_for_job_proxy() {
 
 assert_egress_boundary() {
   local proxy_deployment="deployment/execution-foreman-execution-proxy"
+  local ingress_address
+
+  ingress_address="$(
+    kubectl --namespace ingress-nginx get service ingress-nginx-controller \
+      --output=jsonpath='{.spec.clusterIP}'
+  )"
+
+  kubectl --namespace "${namespace}" exec "${proxy_deployment}" -- \
+    ruby -rsocket -e '
+      expected = ARGV.fetch(0)
+      addresses = Addrinfo.getaddrinfo("foreman.test", 443).map(&:ip_address).uniq
+      abort("foreman.test resolved to #{addresses.join(", ")}, expected #{expected}") unless addresses.include?(expected)
+    ' "${ingress_address}"
 
   kubectl --namespace "${namespace}" exec "${proxy_deployment}" -- \
     ruby -rsocket -e 'Socket.tcp("foreman.test", 443, connect_timeout: 5).close'
