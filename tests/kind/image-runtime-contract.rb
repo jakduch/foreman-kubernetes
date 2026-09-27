@@ -19,6 +19,10 @@ application_profile = YAML.safe_load(application_profile_path.read)
 execution_profile = YAML.safe_load(execution_profile_path.read)
 kind_values = YAML.safe_load((root / 'tests/kind/values.yaml').read)
 plugin_matrix = JSON.parse((root / 'compatibility/plugin-matrix.json').read)
+local_candidate_file = ENV['LOCAL_CANDIDATE_EVIDENCE_FILE']
+local_candidate = if local_candidate_file && !local_candidate_file.empty?
+                    JSON.parse(Pathname.new(File.expand_path(local_candidate_file)).read)
+                  end
 
 def capture!(*command)
   stdout, stderr, status = Open3.capture3(*command)
@@ -31,11 +35,22 @@ def image_reference(image)
   "#{image.fetch('repository')}:#{image.fetch('tag')}"
 end
 
-def expected_digest(reference)
+def expected_digest(reference, component:, local_candidate:)
   match = reference.match(/@(sha256:[0-9a-f]{64})\z/)
-  abort "image is not digest-pinned: #{reference}" unless match
+  return match[1] if match
 
-  match[1]
+  abort "image is not digest-pinned: #{reference}" unless local_candidate
+  abort 'local candidate evidence must describe built images' unless local_candidate.fetch('mode') == 'built'
+
+  candidate = local_candidate.fetch('images').find do |entry|
+    entry.fetch('component') == component && entry.fetch('localReference') == reference
+  end
+  abort "local candidate evidence does not cover #{component} image #{reference}" unless candidate
+
+  image_id = candidate.fetch('imageId')
+  abort "local candidate evidence has an invalid image ID for #{component}" unless image_id.match?(/\Asha256:[0-9a-f]{64}\z/)
+
+  image_id
 end
 
 def ready_pod!(namespace, selector)
@@ -73,12 +88,12 @@ def exec!(namespace, pod_name, container_name, *command)
   )
 end
 
-def validate_component!(namespace:, selector:, container:, reference:, expected_user:, expected_uid:, expected_gid:)
+def validate_component!(namespace:, selector:, container:, component:, reference:, local_candidate:, expected_user:, expected_uid:, expected_gid:)
   pod = ready_pod!(namespace, selector)
   pod_name = pod.dig('metadata', 'name')
   specification = container_spec!(pod, container)
   status = container_status!(pod, container)
-  digest = expected_digest(reference)
+  digest = expected_digest(reference, component: component, local_candidate: local_candidate)
 
   abort "#{container} Pod does not use #{reference}" unless specification.fetch('image') == reference
   actual_image_id = status.fetch('imageID')
@@ -114,7 +129,9 @@ foreman = validate_component!(
   namespace: namespace,
   selector: 'app.kubernetes.io/component=foreman',
   container: 'foreman',
+  component: 'foreman',
   reference: foreman_reference,
+  local_candidate: local_candidate,
   expected_user: 'foreman',
   expected_uid: 994,
   expected_gid: 994
@@ -139,7 +156,9 @@ pulp = validate_component!(
   namespace: namespace,
   selector: 'app.kubernetes.io/component=pulp-api',
   container: 'pulp-api',
+  component: 'pulp',
   reference: pulp_reference,
+  local_candidate: local_candidate,
   expected_user: 'pulp',
   expected_uid: 700,
   expected_gid: 700
@@ -176,7 +195,9 @@ candlepin = validate_component!(
   namespace: namespace,
   selector: 'app.kubernetes.io/component=candlepin',
   container: 'candlepin',
+  component: 'candlepin',
   reference: candlepin_reference,
+  local_candidate: local_candidate,
   expected_user: 'tomcat',
   expected_uid: nil,
   expected_gid: nil
@@ -196,7 +217,9 @@ proxy = validate_component!(
   namespace: namespace,
   selector: 'app.kubernetes.io/instance=execution,app.kubernetes.io/component=execution-proxy',
   container: 'foreman-proxy',
+  component: 'execution-proxy',
   reference: proxy_reference,
+  local_candidate: local_candidate,
   expected_user: 'foreman-proxy',
   expected_uid: 991,
   expected_gid: 991

@@ -58,6 +58,8 @@ LOCAL_CANDIDATE_EVIDENCE_FILE=artifacts/local-candidate-images.json \
 tests/kind/run.sh
 ```
 
-The platform report marks this run `qualificationEligible: false`. It can find
-runtime defects before publication, but it cannot promote a compatibility set.
-Promotion still requires published, digest-pinned upstream images.
+The platform and live runtime reports bind every mutable local reference to the
+exact image ID recorded in the candidate evidence. The platform report marks
+this run `qualificationEligible: false`: it can find runtime defects before
+publication, but it cannot promote a compatibility set. Promotion still
+requires published, digest-pinned upstream images.

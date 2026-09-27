@@ -21,6 +21,8 @@ end
 abort 'runtime image contract does not compare the kubelet image ID with the pinned digest' unless checker.include?('actual_image_id.include?("@#{digest}")')
 abort 'runtime image contract uses unsupported MatchData#fetch' if checker.include?('match.fetch(1)')
 abort 'runtime image contract does not extract the captured digest' unless checker.include?('match[1]')
+abort 'runtime image contract does not accept authenticated local candidate evidence' unless checker.include?("ENV['LOCAL_CANDIDATE_EVIDENCE_FILE']")
+abort 'runtime image contract does not bind local candidates to their recorded image ID' unless checker.include?("candidate.fetch('imageId')")
 abort 'runtime image contract does not reject root containers' unless checker.include?("actual_uid == '0'")
 kind_value_precedence = harness.scan(
   /--values "\$\{repo_root\}\/examples\/execution-control-plane-values\.yaml" \\\n+\s+--values "\$\{repo_root\}\/tests\/kind\/values\.yaml"/
