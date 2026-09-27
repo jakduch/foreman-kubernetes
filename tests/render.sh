@@ -700,6 +700,7 @@ grep -q 'kubernetes.io/metadata.name: ingress-nginx' "${rendered_execution_kind}
 grep -q 'app.kubernetes.io/instance: ingress-nginx' "${rendered_execution_kind}"
 grep -q 'app: execution-target' "${rendered_execution_kind}"
 grep -q 'port: 8443' "${rendered_execution_kind}"
+grep -q 'port: 2222' "${rendered_execution_kind}"
 if grep -q 'cidr: 0.0.0.0/0' "${rendered_execution_kind}"; then
   echo 'kind execution proxy must not receive unrestricted egress' >&2
   exit 1

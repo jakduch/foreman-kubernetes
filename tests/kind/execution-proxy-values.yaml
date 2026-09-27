@@ -36,7 +36,9 @@ networkPolicy:
             matchLabels:
               app: execution-target
       ports:
-        - 22
+        # NetworkPolicy is evaluated against the Pod target port after the
+        # Service translates its public SSH port 22.
+        - 2222
 
 resources:
   requests:
