@@ -27,6 +27,23 @@ issue_server_certificate() {
     -out "${workdir}/${name}.crt" >/dev/null 2>&1
 }
 
+issue_client_certificate() {
+  local name="$1"
+  local common_name="$2"
+
+  openssl req -new -newkey rsa:2048 -nodes \
+    -subj "/CN=${common_name}" \
+    -keyout "${workdir}/${name}.key" \
+    -out "${workdir}/${name}.csr" >/dev/null 2>&1
+  openssl x509 -req -sha256 -days 7 \
+    -in "${workdir}/${name}.csr" \
+    -CA "${workdir}/ca.crt" \
+    -CAkey "${workdir}/ca.key" \
+    -CAcreateserial \
+    -extfile <(printf 'extendedKeyUsage=clientAuth\n') \
+    -out "${workdir}/${name}.crt" >/dev/null 2>&1
+}
+
 if [[ ! -s "${workdir}/ca.crt" ]]; then
   # Keep one identity set for the entire destructive restore drill. The
   # restored Secrets must still match the CA and client files used by curl and
@@ -38,17 +55,8 @@ if [[ ! -s "${workdir}/ca.crt" ]]; then
     -keyout "${workdir}/ca.key" \
     -out "${workdir}/ca.crt" >/dev/null 2>&1
 
-  openssl req -new -newkey rsa:2048 -nodes \
-    -subj "/CN=foreman.test" \
-    -keyout "${workdir}/foreman-client.key" \
-    -out "${workdir}/foreman-client.csr" >/dev/null 2>&1
-  openssl x509 -req -sha256 -days 7 \
-    -in "${workdir}/foreman-client.csr" \
-    -CA "${workdir}/ca.crt" \
-    -CAkey "${workdir}/ca.key" \
-    -CAcreateserial \
-    -extfile <(printf 'extendedKeyUsage=clientAuth\n') \
-    -out "${workdir}/foreman-client.crt" >/dev/null 2>&1
+  issue_client_certificate foreman-client foreman.test
+  issue_client_certificate execution-proxy-client execution-foreman-execution-proxy
 
   issue_server_certificate foreman-ingress foreman.test "DNS:foreman.test"
   issue_server_certificate content-ingress content.test "DNS:content.test"
@@ -142,8 +150,8 @@ kubectl --namespace "${namespace}" create secret generic foreman-execution-proxy
 
 kubectl --namespace "${namespace}" create secret generic foreman-execution-proxy-foreman-client \
   --from-file=ca.crt="${workdir}/ca.crt" \
-  --from-file=tls.crt="${workdir}/foreman-client.crt" \
-  --from-file=tls.key="${workdir}/foreman-client.key" \
+  --from-file=tls.crt="${workdir}/execution-proxy-client.crt" \
+  --from-file=tls.key="${workdir}/execution-proxy-client.key" \
   --dry-run=client -o yaml | kubectl apply -f -
 
 kubectl --namespace "${namespace}" create secret generic foreman-execution-proxy-ssh \

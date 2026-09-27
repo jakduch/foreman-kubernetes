@@ -946,7 +946,7 @@ rotate_execution_identity() {
     -out "${rotated_prefix}-server.crt" >/dev/null 2>&1
 
   openssl req -new -newkey rsa:2048 -nodes \
-    -subj '/CN=foreman.test' \
+    -subj '/CN=execution-foreman-execution-proxy' \
     -keyout "${rotated_prefix}-client.key" \
     -out "${rotated_prefix}-client.csr" >/dev/null 2>&1
   openssl x509 -req -sha256 -days 7 \

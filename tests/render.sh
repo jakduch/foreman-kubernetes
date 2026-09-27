@@ -695,6 +695,12 @@ grep -q ':ssh_ca_known_hosts_file: /etc/foreman-proxy/ssh-host-keys/known_hosts'
 grep -q 'ANSIBLE_HOST_KEY_CHECKING="True"' "${rendered_execution_egress}"
 grep -Fq 'quay.io/foreman/foreman-proxy:nightly@sha256:244c756844a137990779ad153998c426eb0326d8d6f376192ea6e84947affd47' "${rendered_execution_kind}"
 grep -Fq ':foreman_url: "https://foreman.test"' "${rendered_execution_kind}"
+grep -Fq 'issue_client_certificate execution-proxy-client execution-foreman-execution-proxy' \
+  "${repo_root}/tests/kind/apply-secrets.sh"
+grep -Fq -- "--from-file=tls.crt=\"\${workdir}/execution-proxy-client.crt\"" \
+  "${repo_root}/tests/kind/apply-secrets.sh"
+grep -Fq -- "-subj '/CN=execution-foreman-execution-proxy'" \
+  "${repo_root}/tests/kind/run.sh"
 grep -Fq 'claimName: execution-ansible-content' "${rendered_execution_kind}"
 grep -q '^    - Egress$' "${rendered_execution_kind}"
 grep -q 'kubernetes.io/metadata.name: ingress-nginx' "${rendered_execution_kind}"
