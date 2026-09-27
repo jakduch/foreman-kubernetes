@@ -52,7 +52,7 @@ assert_restricted(execution_target)
 abort 'execution target does not listen on an unprivileged container port' unless
   execution_target.dig('spec', 'template', 'spec', 'containers', 0, 'ports', 0, 'containerPort') == 2222
 
-%w[USER\ 1000:1000 passwd\ -d\ foreman Port\ 2222 AuthorizedKeysFile\ /keys/authorized_key EXPOSE\ 2222].each do |contract|
+%w[USER\ 1000:1000 passwd\ -d\ foreman Port\ 2222 AuthorizedKeysFile\ /keys/authorized_key StrictModes\ no EXPOSE\ 2222].each do |contract|
   abort "SSH target image omits #{contract}" unless ssh_target_image.include?(contract)
 end
 abort 'SSH target settings are appended after distribution defaults' if

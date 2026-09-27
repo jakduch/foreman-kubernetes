@@ -9,6 +9,7 @@ RUN apk add --no-cache openssh-server openssh-sftp-server python3 \
       'Port 2222' \
       'ListenAddress 0.0.0.0' \
       'AuthorizedKeysFile /keys/authorized_key' \
+      'StrictModes no' \
       'PasswordAuthentication no' \
       'KbdInteractiveAuthentication no' \
       'PermitRootLogin no' \
