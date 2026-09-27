@@ -299,22 +299,15 @@ ensure_target_host() {
     )"
   fi
 
-  # The disposable target deliberately has no privilege-escalation tool. Keep
-  # the effective user equal to the SSH login so REx exercises its no-op path.
-  foreman_api PUT "/api/hosts/${host_id}" '{
-    "host": {
-      "host_parameters_attributes": [{
-        "name": "remote_execution_effective_user",
-        "value": "foreman"
-      }]
-    }
-  }' >/dev/null
-
   printf '%s\n' "${host_id}"
 }
 
 configure_execution_defaults() {
+  # The disposable target deliberately has no privilege-escalation tool. Keep
+  # the effective user equal to the SSH login so REx exercises its no-op path.
   foreman_api PUT /api/settings/remote_execution_ssh_user \
+    '{"setting":{"value":"foreman"}}' >/dev/null
+  foreman_api PUT /api/settings/remote_execution_effective_user \
     '{"setting":{"value":"foreman"}}' >/dev/null
 }
 
@@ -415,15 +408,13 @@ run_job() {
 }
 
 assert_failed_job() {
-  local proxy_id="$1"
   local invocation
   local invocation_id
   local task_id
 
-  invocation="$(create_script_job 'sleep 5; printf "expected failure\\n"; exit 23')"
+  invocation="$(create_script_job 'printf "expected failure\\n"; exit 23')"
   invocation_id="$(jq --exit-status --raw-output '.id' <<<"${invocation}")"
   task_id="$(jq --exit-status --raw-output '.dynflow_task.id' <<<"${invocation}")"
-  wait_for_job_proxy "${invocation_id}" "${proxy_id}"
   wait_for_task "${task_id}" warning
 
   foreman_api GET "/api/job_invocations/${invocation_id}?include_hosts=false" | \
@@ -628,7 +619,7 @@ case "${execution_scenario}" in
     ansible_template_id="$(foreman_api GET '/api/job_templates?per_page=all' | \
       exact_result_id 'Run Command - Ansible Default')"
 
-    assert_failed_job "${proxy_id}"
+    assert_failed_job
     assert_cancelled_job "${proxy_id}"
     run_job foreman-kubernetes-rex-ok Script "${proxy_id}"
     run_job foreman-kubernetes-ansible-ok Ansible "${proxy_id}" "${ansible_template_id}"
