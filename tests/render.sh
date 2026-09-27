@@ -665,6 +665,7 @@ grep -q 'mountPath: /etc/ansible' "${rendered_execution}"
 grep -q 'mountPath: /var/lib/foreman-proxy' "${rendered_execution}"
 grep -q 'mountPath: /var/run/foreman-proxy/ssh' "${rendered_execution}"
 grep -q 'install -m 0600 /ssh-source/private' "${rendered_execution}"
+grep -q 'install -d -m 0700 /var/lib/foreman-proxy/ssh' "${rendered_execution}"
 if grep -Fq 'install -d -m 0700 /var/run/foreman-proxy/ssh' "${rendered_execution}"; then
   echo 'execution proxy init must not chmod the Kubernetes-owned volume root' >&2
   exit 1

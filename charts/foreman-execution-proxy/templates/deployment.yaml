@@ -66,6 +66,7 @@ spec:
                 /var/lib/foreman-proxy/rex \
                 /var/lib/foreman-proxy/sockets \
                 /var/lib/foreman-proxy/ansible-runner
+              install -d -m 0700 /var/lib/foreman-proxy/ssh
           securityContext:
             {{- include "foreman-execution-proxy.containerSecurityContext" . | nindent 12 }}
           resources:
