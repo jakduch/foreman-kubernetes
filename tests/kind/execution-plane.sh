@@ -189,7 +189,8 @@ assert_egress_boundary() {
   kubectl --namespace "${namespace}" exec "${proxy_deployment}" -- \
     ruby -rsocket -e 'Socket.tcp("foreman.test", 443, connect_timeout: 5).close'
   kubectl --namespace "${namespace}" exec "${proxy_deployment}" -- \
-    ruby -rsocket -e 'Socket.tcp("execution-target", 22, connect_timeout: 5).close'
+    ruby -rsocket -e 'Socket.tcp(ARGV.fetch(0), 22, connect_timeout: 5).close' \
+    "${target_name}"
 
   if kubectl --namespace "${namespace}" exec "${proxy_deployment}" -- \
     ruby -rsocket -e 'Socket.tcp("content-source", 80, connect_timeout: 3).close' \
