@@ -103,6 +103,21 @@
       "kubernetesConsumers": ["Katello event daemon Deployment"]
     },
     {
+      "id": "katello-container-registry-api-url",
+      "component": "foreman",
+      "profiles": ["default"],
+      "state": "local-upstream-commit",
+      "availableInReleaseSets": [],
+      "upstream": {
+        "repository": "https://github.com/Katello/katello.git",
+        "localPath": "katello",
+        "branch": "feature/container-registry-api-url",
+        "commit": "c903c88b889d0f12f3084e4fb7bcd7c47c4c529a"
+      },
+      "standaloneDefault": "Katello keeps deriving /pulpcore_registry/ from content_app_url when the dedicated setting is absent.",
+      "kubernetesConsumers": ["Katello container registry control client"]
+    },
+    {
       "id": "candlepin-container-runtime",
       "component": "candlepin",
       "profiles": ["default"],
@@ -161,6 +176,21 @@
       },
       "standaloneDefault": "Pulp continues to use filesystem storage unless its normal Django storage settings select S3.",
       "kubernetesConsumers": ["Pulp S3-compatible storage profile"]
+    },
+    {
+      "id": "pulp-smart-proxy-container-registry-api-url",
+      "component": "pulp",
+      "profiles": ["default"],
+      "state": "local-upstream-commit",
+      "availableInReleaseSets": [],
+      "upstream": {
+        "repository": "https://github.com/theforeman/pulp_smart_proxy.git",
+        "localPath": "pulp_smart_proxy",
+        "branch": "feature/container-registry-api-url",
+        "commit": "9818376b13500c360902e9ba7bf2ceaeb8f978fe"
+      },
+      "standaloneDefault": "The advertised registry API URL defaults to the traditional /pulpcore_registry/ path on CONTENT_ORIGIN.",
+      "kubernetesConsumers": ["Katello container registry control client"]
     },
     {
       "id": "foreman-kubevirt-provider-correctness",

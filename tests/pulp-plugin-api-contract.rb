@@ -77,6 +77,10 @@ manifests.each do |manifest|
     proxy_config.include?('location = /pulp/api/v3/status/')
   abort "#{manifest}: Pulp administrative routes do not require a verified client certificate" unless
     proxy_config.include?('if ($ssl_client_verify != SUCCESS) { return 403; }')
+  abort "#{manifest}: Katello registry route is not private to the Pulp control proxy" unless
+    proxy_config.include?('location ^~ /pulpcore_registry/') &&
+    proxy_config.include?('rewrite ^/pulpcore_registry/(.*)$ /$1 break;') &&
+    proxy_config.include?('proxy_set_header REMOTE-USER $pulp_remote_user;')
 
   control_port = control_service.dig('spec', 'ports', 0, 'port')
   control_authority = control_service.dig('metadata', 'name').dup
@@ -90,6 +94,10 @@ manifests.each do |manifest|
   unless smoke_environment['PULP_EXPECTED_API_URL'] == pulp_environment['PULP_SMART_PROXY_PULP_URL']
     abort "#{manifest}: smoke test API expectation does not match the Pulp Smart Proxy setting"
   end
+  unless smoke_environment['PULP_EXPECTED_CONTAINER_REGISTRY_API_URL'] ==
+         pulp_environment['PULP_SMART_PROXY_CONTAINER_REGISTRY_API_URL']
+    abort "#{manifest}: smoke test registry expectation does not match the Pulp Smart Proxy setting"
+  end
   unless smoke_environment['PULP_EXPECTED_RHSM_URL'] == pulp_environment['PULP_SMART_PROXY_RHSM_URL']
     abort "#{manifest}: smoke test RHSM expectation does not match the Pulp Smart Proxy setting"
   end
@@ -102,7 +110,7 @@ manifests.each do |manifest|
   unless smoke_script.include?("authentication.include?('client_certificate')")
     abort "#{manifest}: smoke test does not require Pulp client-certificate authentication"
   end
-  %w[mirror pulp_url rhsm_url].each do |setting|
+  %w[container_registry_api_url mirror pulp_url rhsm_url].each do |setting|
     abort "#{manifest}: smoke test does not validate Pulp #{setting}" unless smoke_script.include?("settings['#{setting}']")
   end
 

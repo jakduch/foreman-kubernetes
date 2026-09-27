@@ -102,6 +102,9 @@ spec:
               unless settings['pulp_url'] == ENV.fetch('PULP_EXPECTED_API_URL')
                 abort "Pulp Smart Proxy advertises the wrong API URL: #{settings['pulp_url'].inspect}"
               end
+              unless settings['container_registry_api_url'] == ENV.fetch('PULP_EXPECTED_CONTAINER_REGISTRY_API_URL')
+                abort "Pulp Smart Proxy advertises the wrong container registry API URL: #{settings['container_registry_api_url'].inspect}"
+              end
               unless settings['rhsm_url'] == ENV.fetch('PULP_EXPECTED_RHSM_URL')
                 abort "Pulp Smart Proxy advertises the wrong RHSM URL: #{settings['rhsm_url'].inspect}"
               end
@@ -123,6 +126,8 @@ spec:
               value: {{ include "foreman-stack.pulpExpectedCapabilities" . | quote }}
             - name: PULP_EXPECTED_API_URL
               value: {{ include "foreman-stack.pulpControlProxyUrl" . | quote }}
+            - name: PULP_EXPECTED_CONTAINER_REGISTRY_API_URL
+              value: {{ printf "%s/pulpcore_registry/" (include "foreman-stack.pulpControlProxyUrl" .) | quote }}
             - name: PULP_EXPECTED_RHSM_URL
               value: {{ printf "%s/rhsm" (trimSuffix "/" .Values.platform.externalUrl) | quote }}
           securityContext:

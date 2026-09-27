@@ -142,8 +142,9 @@ pending.
   and cache must be connected and at least one worker and content app online.
 - S3 mode uses `/var/lib/pulp/tmp` only as per-pod scratch space and can redirect
   downloads to signed object-store URLs.
-- The `pulp_smart_proxy` plugin exposes Foreman-compatible feature discovery below `/pulp/api/v3/smart_proxy` and advertises `PULP_SMART_PROXY_PULP_URL` as Katello's API base URL.
+- The `pulp_smart_proxy` plugin exposes Foreman-compatible feature discovery below `/pulp/api/v3/smart_proxy`, advertises `PULP_SMART_PROXY_PULP_URL` as Katello's API base URL, and advertises the dedicated `PULP_SMART_PROXY_CONTAINER_REGISTRY_API_URL` for OCI control operations.
 - The chart advertises the configured Pulp control Service port to Katello. A compatible Katello build must retain a non-default port when constructing generated Pulp clients; the upstream default-port behavior remains unchanged.
+- Katello prefers the dedicated container registry API URL and falls back to the traditional `/pulpcore_registry/` path on `content_app_url` with older Pulp Smart Proxy releases. The chart points the dedicated URL at the private mTLS control Service, never at the public content Ingress.
 - Pulp remote-user authentication reads `HTTP_REMOTE_USER`; the chart sets it only behind a private mTLS proxy after validating the client certificate common name.
 - Pulp Certguard reads a URL-escaped PEM certificate from `X-CLIENT-CERT` for protected content downloads.
 - The Pulp Smart Proxy advertises the public Foreman `/rhsm` URL separately

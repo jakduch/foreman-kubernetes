@@ -141,7 +141,7 @@ public PyPI package, publishes it in a Content View, and verifies the same state
 after clean-namespace
 recovery. The same lifecycle now creates an unsigned deterministic OCI image
 fixture, synchronizes its tag and manifest through Katello, verifies the
-published registry manifest over the mTLS compatibility route, and checks the
+published registry manifest over the internal mTLS compatibility route, and checks the
 same state after clean recovery. It also creates an unsigned deterministic APT
 repository, synchronizes its Debian package through Katello, includes it in the
 published Content View, and verifies both the library and published package

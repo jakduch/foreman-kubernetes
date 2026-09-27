@@ -202,8 +202,14 @@ class LocalCandidateImages
         ARG BASE_IMAGE=#{base_reference}
         FROM ${BASE_IMAGE}
         USER 0
+        COPY pulp_smart_proxy/pulp_smart_proxy/ /tmp/pulp-smart-proxy-candidate-overlay/
         COPY requirements.txt /tmp/foreman-kubernetes-requirements.txt
-        RUN dnf install --assumeyes --setopt=install_weak_deps=False #{rpm_packages} \
+        RUN set -eu; \
+            pulp_smart_proxy_root="$(python3 -c 'import inspect, os, pulp_smart_proxy; print(os.path.dirname(inspect.getfile(pulp_smart_proxy)))')"; \
+            cp -a /tmp/pulp-smart-proxy-candidate-overlay/. "${pulp_smart_proxy_root}/"; \
+            chown -R 700:700 "${pulp_smart_proxy_root}"; \
+            rm -rf /tmp/pulp-smart-proxy-candidate-overlay; \
+            dnf install --assumeyes --setopt=install_weak_deps=False #{rpm_packages} \
             && python3 -m pip install \
               --break-system-packages \
               --disable-pip-version-check \

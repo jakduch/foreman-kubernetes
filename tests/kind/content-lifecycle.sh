@@ -155,23 +155,38 @@ assert_public_python_content() {
 assert_registry_manifest() {
   local repository_name="$1"
   local description="$2"
-  local headers="${temporary_directory}/container-manifest-headers"
   local manifest="${temporary_directory}/container-manifest.json"
+  local registry_port
+  local registry_response
+  local registry_service
   local response_digest
   local manifest_digest
 
-  curl --fail --silent --show-error \
-    --cacert "${temporary_directory}/ca.crt" \
-    --cert "${temporary_directory}/foreman-client.crt" \
-    --key "${temporary_directory}/foreman-client.key" \
-    --resolve content.test:8443:127.0.0.1 \
-    --header 'Accept: application/vnd.oci.image.manifest.v1+json' \
-    --dump-header "${headers}" \
-    --output "${manifest}" \
-    "https://content.test:8443/pulpcore_registry/v2/${repository_name}/manifests/${container_tag}"
+  registry_service="$(kubectl --namespace "${namespace}" get service \
+    --selector=app.kubernetes.io/component=pulp-control-proxy \
+    --output=jsonpath='{.items[0].metadata.name}')"
+  registry_port="$(kubectl --namespace "${namespace}" get service "${registry_service}" \
+    --output=jsonpath='{.spec.ports[0].port}')"
+  registry_response="$(kubectl --namespace "${namespace}" exec --container foreman \
+    "$(foreman_pod)" -- env \
+    "REGISTRY_URL=https://${registry_service}:${registry_port}/pulpcore_registry/v2/${repository_name}/manifests/${container_tag}" \
+    ruby -rbase64 -rjson -rnet/http -ropenssl -ruri -e '
+      uri = URI(ENV.fetch("REGISTRY_URL"))
+      client = Net::HTTP.new(uri.host, uri.port)
+      client.use_ssl = true
+      client.verify_mode = OpenSSL::SSL::VERIFY_PEER
+      client.ca_file = "/etc/foreman/katello-default-ca.crt"
+      client.cert = OpenSSL::X509::Certificate.new(File.read("/etc/foreman/client_cert.pem"))
+      client.key = OpenSSL::PKey.read(File.read("/etc/foreman/client_key.pem"))
+      request = Net::HTTP::Get.new(uri)
+      request["Accept"] = "application/vnd.oci.image.manifest.v1+json"
+      response = client.request(request)
+      abort "Registry returned HTTP #{response.code}: #{response.body}" unless response.is_a?(Net::HTTPSuccess)
+      puts JSON.generate(body: Base64.strict_encode64(response.body), digest: response["Docker-Content-Digest"])
+    ')"
 
-  response_digest="$(tr -d '\r' < "${headers}" | \
-    awk -F': ' 'tolower($1) == "docker-content-digest" { print $2 }' | tail -n 1)"
+  response_digest="$(jq --exit-status --raw-output '.digest' <<<"${registry_response}")"
+  jq --exit-status --raw-output '.body' <<<"${registry_response}" | base64 --decode >"${manifest}"
   assert_equal "${response_digest}" "${container_manifest_digest}" \
     "${description} registry response digest"
   manifest_digest="sha256:$(openssl dgst -sha256 -r "${manifest}" | awk '{print $1}')"

@@ -50,6 +50,13 @@
           "paths": [
             "app/lib/katello/event_daemon/runner.rb"
           ]
+        },
+        {
+          "contract": "katello-container-registry-api-url",
+          "target": "katello",
+          "paths": [
+            "app/lib/katello/resources/registry.rb"
+          ]
         }
       ]
     },
@@ -69,6 +76,16 @@
     "pulp": {
       "baseReference": "quay.io/foreman/pulp:foreman-nightly@sha256:c3d32a385d09225c40f70d60128fcf62c94cb669536b10ccbadc0ec8ac4afa6b",
       "localReference": "foreman-kubernetes/pulp:candidate",
+      "overlays": [
+        {
+          "contract": "pulp-smart-proxy-container-registry-api-url",
+          "target": "pulp_smart_proxy",
+          "paths": [
+            "pulp_smart_proxy/app/settings.py",
+            "pulp_smart_proxy/app/views.py"
+          ]
+        }
+      ],
       "contracts": [
         "pulpcore-el10-botocore-dateutil-epoch",
         "pulpcore-package-django-storages",

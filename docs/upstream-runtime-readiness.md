@@ -29,7 +29,9 @@ therefore deliberately still a candidate.
 | `foreman-dynflow-redis-tls-ca` | Adds opt-in CA verification through `DYNFLOW_REDIS_SSL_CA_FILE`. | Verifies the external Dynflow Redis/Valkey endpoint without replacing the initializer. |
 | `katello-pulp-non-default-port` | Preserves an explicit non-default port in generated Pulp clients. | Reaches the private Pulp control proxy on its declared Service port. |
 | `katello-event-daemon-foreground` | Adds a foreground runner, configurable tmp directory, and heartbeat while retaining the existing daemon entry point. | Runs one supervised event-daemon process as container PID 1. |
+| `katello-container-registry-api-url` | Uses an advertised dedicated registry API URL when present and retains the existing `content_app_url` fallback. | Reaches the private registry compatibility route without publishing it on the content ingress. |
 | `candlepin-container-runtime` | Keeps the packaged Tomcat server as the default command and adds a numeric image user plus a migration entry point. | Runs Candlepin as non-root and invokes Liquibase in a bounded migration Job. |
+| `pulp-smart-proxy-container-registry-api-url` | Advertises the traditional content-origin route by default and permits a separate registry control URL. | Directs Katello to the internal mTLS Pulp control service. |
 
 ## Optional Pulp object storage
 

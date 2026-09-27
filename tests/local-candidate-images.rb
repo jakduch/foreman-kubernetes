@@ -37,7 +37,7 @@ registry.fetch('images').each do |component, image|
     seen_contracts << id
   end
   overlays.each do |overlay|
-    abort 'unsupported overlay target' unless %w[foreman katello candlepin].include?(overlay.fetch('target'))
+    abort 'unsupported overlay target' unless %w[foreman katello candlepin pulp_smart_proxy].include?(overlay.fetch('target'))
     overlay.fetch('paths').each do |source_path|
       path = Pathname.new(source_path)
       abort "unsafe overlay path: #{source_path}" if path.absolute? || path.each_filename.include?('..')

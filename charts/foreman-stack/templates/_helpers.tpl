@@ -240,22 +240,6 @@ runAsGroup: {{ . }}
 {{- printf "%s-pulp-public-api-headers" (include "foreman-stack.fullname" .) }}
 {{- end }}
 
-{{- define "foreman-stack.pulpRegistryHeadersName" -}}
-{{- printf "%s-pulp-registry-headers" (include "foreman-stack.fullname" .) }}
-{{- end }}
-
-{{- define "foreman-stack.pulpRegistryClientCommonNameRegex" -}}
-{{- $commonNames := list .Values.platform.fqdn -}}
-{{- range .Values.pulp.controlProxy.trustedClientCommonNames -}}
-{{- $commonNames = append $commonNames . -}}
-{{- end -}}
-{{- $escapedCommonNames := list -}}
-{{- range uniq $commonNames -}}
-{{- $escapedCommonNames = append $escapedCommonNames (regexQuoteMeta .) -}}
-{{- end -}}
-{{- printf "CN=(%s)" (join "|" $escapedCommonNames) -}}
-{{- end }}
-
 {{- define "foreman-stack.pulpControlProxyConfig" -}}
 map $ssl_client_s_dn $pulp_remote_user {
   default "";
@@ -291,6 +275,26 @@ server {
     proxy_set_header Host $http_host;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto https;
+    proxy_set_header X-CLIENT-CERT "";
+    proxy_pass http://pulp_api;
+  }
+
+  # Katello uses this compatibility prefix for OCI Registry API operations.
+  # Keep it on the private mTLS control plane and strip the prefix before the
+  # request reaches Pulp.
+  location ^~ /pulpcore_registry/ {
+    if ($ssl_client_verify != SUCCESS) { return 403; }
+    if ($pulp_remote_user = "") { return 403; }
+
+    rewrite ^/pulpcore_registry/(.*)$ /$1 break;
+    proxy_http_version 1.1;
+    proxy_request_buffering off;
+    proxy_read_timeout 600s;
+    proxy_set_header Connection "";
+    proxy_set_header Host $http_host;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_set_header REMOTE-USER $pulp_remote_user;
     proxy_set_header X-CLIENT-CERT "";
     proxy_pass http://pulp_api;
   }
@@ -581,6 +585,8 @@ server {
   value: {{ printf "%s/pulp/content" (trimSuffix "/" .Values.pulp.contentOrigin) | quote }}
 - name: PULP_SMART_PROXY_PULP_URL
   value: {{ include "foreman-stack.pulpControlProxyUrl" . | quote }}
+- name: PULP_SMART_PROXY_CONTAINER_REGISTRY_API_URL
+  value: {{ printf "%s/pulpcore_registry/" (include "foreman-stack.pulpControlProxyUrl" .) | quote }}
 - name: PULP_SMART_PROXY_RHSM_URL
   value: {{ printf "%s/rhsm" (trimSuffix "/" .Values.platform.externalUrl) | quote }}
 - name: PULP_SMART_PROXY_MIRROR
