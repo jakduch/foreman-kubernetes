@@ -100,7 +100,7 @@ wait_for_task() {
       deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 600
       loop do
         task.reload
-        if task.stopped?
+        if task.state == "stopped"
           valid = case expected
                   when "success" then task.result == "success"
                   when "error" then task.result == "error"
