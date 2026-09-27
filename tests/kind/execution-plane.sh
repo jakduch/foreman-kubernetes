@@ -279,25 +279,37 @@ ensure_target_host() {
 
   hosts="$(foreman_api GET '/api/hosts?per_page=all')"
   host_id="$(exact_result_id "${target_name}" <<<"${hosts}" || true)"
-  if [[ -n "${host_id}" ]]; then
-    printf '%s\n' "${host_id}"
-    return
+  if [[ -z "${host_id}" ]]; then
+    host_id="$(
+      foreman_api POST /api/hosts "$(
+        jq --compact-output --null-input \
+          --arg name "${target_name}" \
+          --argjson organization_id "${organization_id}" \
+          --argjson location_id "${location_id}" '{
+            host: {
+              name: $name,
+              managed: false,
+              build: false,
+              organization_id: $organization_id,
+              location_id: $location_id
+            }
+          }'
+      )" | jq --exit-status --raw-output '.id'
+    )"
   fi
 
-  foreman_api POST /api/hosts "$(
-    jq --compact-output --null-input \
-      --arg name "${target_name}" \
-      --argjson organization_id "${organization_id}" \
-      --argjson location_id "${location_id}" '{
-        host: {
-          name: $name,
-          managed: false,
-          build: false,
-          organization_id: $organization_id,
-          location_id: $location_id
-        }
-      }'
-  )" | jq --exit-status --raw-output '.id'
+  # The disposable target deliberately has no privilege-escalation tool. Keep
+  # the effective user equal to the SSH login so REx exercises its no-op path.
+  foreman_api PUT "/api/hosts/${host_id}" '{
+    "host": {
+      "host_parameters_attributes": [{
+        "name": "remote_execution_effective_user",
+        "value": "foreman"
+      }]
+    }
+  }' >/dev/null
+
+  printf '%s\n' "${host_id}"
 }
 
 configure_execution_defaults() {
