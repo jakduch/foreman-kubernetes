@@ -73,15 +73,13 @@ Katello extends Foreman's ping response. Its checks expect:
 - at least one online Pulp worker and content app;
 - Foreman Tasks executors and the Katello event daemon.
 
-Katello's standalone path starts its event daemon lazily and coordinates a
-singleton through a PID file below the local Rails `tmp` directory. A compatible
-build also exposes an explicit foreground runner and configurable runtime
-directory. The chart disables the lazy path in every other Foreman-derived
-process and selects that runner in one dedicated `Recreate` Deployment. The
-process publishes a local heartbeat only while Katello reports its event poller
-as running; readiness and liveness use the heartbeat, while event status
-continues to be shared with web pods through the configured Redis Rails cache.
-Katello also passes some uploads and manifests to Dynflow by a path below
+The event-daemon check above is an upstream Katello health contract. This chart
+does not split that internal behavior into another Deployment, replace its Ruby
+implementation, or change how upstream elects and observes it. A future
+independently supervised process would first need an upstream-supported
+entrypoint and an official image containing it.
+
+Katello passes some uploads and manifests to Dynflow by a path below
 `Rails.root/tmp`; the chart mounts one RWX claim there for every Foreman-derived
 process so an asynchronous step can run on a different pod.
 
@@ -95,7 +93,8 @@ process so an asynchronous step can run on a different pod.
   `NORMAL`; suspend mode is not allowed into the Candlepin Service.
 - Runs database management during application startup by default.
 - Uses a JDBC Quartz job store, but the current deployed configuration does not enable `org.quartz.jobStore.isClustered`.
-- Uses an embedded Artemis broker by default (`vm://0`). Multiple replicas would not share that queue.
+- Uses an embedded messaging broker by default. Multiple replicas would not
+  share that queue.
 - The Foreman RPM image contains Liquibase, the expanded Candlepin webapp, and
   `/usr/share/candlepin/liquibase.sh`; the chart migration wrapper uses that
   image-specific layout.
@@ -103,15 +102,11 @@ process so an asynchronous step can run on a different pod.
   Candlepin Pod also runs the same idempotent Liquibase update as an init
   barrier; Liquibase's database lock serializes it with the Job and prevents
   Tomcat from racing an incomplete schema without parsing localized CLI output.
-- The external broker client reads
-  `candlepin.audit.hornetq.broker_url`. Its session factory does not expose
-  separate username/password settings and logs the configured URL.
 
-The chart permits multiple replicas only through the explicit HA contract. It
-disables the embedded broker, uses the external URL from a Secret, clusters
-Quartz with an automatically unique instance ID, and transfers schema
-ownership to a revision Job. Full image-level integration proof is still
-pending.
+The chart therefore fixes Candlepin at one replica and does not expose an
+external-broker or clustered-Quartz mode. The revision Liquibase Job remains
+the observable schema owner, but it does not turn the current application
+runtime into an HA service.
 
 ## Pulp image
 
@@ -219,15 +214,18 @@ The chart generates `settings.yaml`, `katello.yaml`, and all three Dynflow queue
 
 ### `candlepin-runtime` and `candlepin-certificates`
 
-- `candlepin-runtime`: `database-password`; in HA mode it also contains the
-  configured `artemis-broker-url` key.
+- `candlepin-runtime`: `database-password`.
 - `candlepin-certificates`:
   - `candlepin-ca.crt`
   - `candlepin-ca.key`
   - `tomcat.crt`
   - `tomcat.key`
 
-The chart generates `candlepin.conf`, `server.xml`, `tomcat.conf`, `logging.properties`, and `logback.xml`. SmallRye environment overrides supply the database and OAuth secrets with a higher priority than the generated properties file. `candlepin-database-ca` supplies `db-ca.crt`; the default JDBC mode is `verify-full`, including Liquibase and recovery. HA deployments may additionally mount a broker TLS Secret at `/etc/candlepin/artemis`; its filenames are referenced from the secret broker URL rather than copied into generated configuration.
+The chart generates `candlepin.conf`, `server.xml`, `tomcat.conf`,
+`logging.properties`, and `logback.xml`. SmallRye environment overrides supply
+the database and OAuth secrets with a higher priority than the generated
+properties file. `candlepin-database-ca` supplies `db-ca.crt`; the default JDBC
+mode is `verify-full`, including Liquibase and recovery.
 
 ### `pulp-runtime` and `pulp-config`
 
@@ -266,7 +264,7 @@ are also mounted through `subPath`, which means Kubernetes does not replace the
 file inside an already running container. After applying any referenced
 credential, certificate, CA, image-pull, or encryption Secret, change
 `secretRolloutToken` in the same reviewed Helm revision. Every long-running
-Foreman, Dynflow, Katello event, Candlepin, Pulp, control-proxy, and recurring
+Foreman, Dynflow, Candlepin, Pulp, control-proxy, and recurring
 task template includes the token hash and is therefore recreated.
 
 The token does not make a CA replacement atomic. For CA rotation, first deploy

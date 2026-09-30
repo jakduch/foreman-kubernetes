@@ -53,7 +53,7 @@ credentials, stay in the Secret and never enter a ConfigMap or rendered value.
 Set `NO_PROXY`/`no-proxy` to include at least `localhost`, `127.0.0.1`, `.svc`,
 and `.cluster.local`, plus every direct PostgreSQL, Valkey, Kubernetes API,
 object-storage, workload-identity metadata, or other internal endpoint used by
-the deployment. Candlepin, Artemis, PostgreSQL, Valkey, SMTP, SSH, and Smart
+the deployment. Candlepin, PostgreSQL, Valkey, SMTP, SSH, and Smart
 Proxy protocols are not HTTP proxy clients and keep their existing direct
 network paths.
 

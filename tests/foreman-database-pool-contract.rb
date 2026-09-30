@@ -28,7 +28,6 @@ expected = {
   'dynflow-orchestrator' => 5,
   'dynflow-worker' => 10,
   'dynflow-worker-hosts-queue' => 5,
-  'katello-event-daemon' => 5,
   'foreman-cron' => 5,
   'foreman-migrate' => 5,
   'pulp-registration' => 5,

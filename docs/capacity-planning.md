@@ -15,7 +15,7 @@ the following pools rather than inheriting Foreman's fixed upstream default:
 | one Puma worker | `foreman.databasePools.web` | `foreman.puma.threadsMax` |
 | one general Dynflow worker | `foreman.databasePools.dynflowWorker` | `foreman.dynflow.workerConcurrency` |
 | one hosts-queue worker | `foreman.databasePools.dynflowHostsQueue` | `foreman.dynflow.hostsQueueConcurrency` |
-| orchestrator, event daemon, or one-shot Job | `foreman.databasePools.utility` | 1 |
+| orchestrator or one-shot Job | `foreman.databasePools.utility` | 1 |
 
 For the hard ceiling, use the HPA maximum when autoscaling is enabled:
 
@@ -23,7 +23,7 @@ For the hard ceiling, use the HPA maximum when autoscaling is enabled:
 web = web_max_replicas * puma_workers * web_pool
 background = dynflow_workers * dynflow_worker_pool
            + hosts_queue_workers * hosts_queue_pool
-           + 2 * utility_pool
+           + utility_pool
 steady_state_foreman = web + background
 ```
 
@@ -33,8 +33,8 @@ Deployments can each add one surge Pod. Reserve an additional
 for the worst case in which those rollouts overlap. The Helm notes report both
 steady-state and rolling-update ceilings.
 
-The two fixed utility processes are the Dynflow orchestrator and Katello event
-daemon. Add one utility pool for every migration, Pulp-registration, or
+The fixed utility process is the Dynflow orchestrator. Add one utility pool for
+every migration, Pulp-registration, or
 recurring-task Job that may overlap. Pools are lazy ceilings, not a promise
 that every connection is open continuously, but PostgreSQL and any PgBouncer
 layer must be able to absorb the declared concurrency without starvation.
@@ -45,9 +45,10 @@ it can starve application threads while they wait for database connections.
 
 ## Other databases
 
-Candlepin's upstream Hibernate configuration permits 20 connections per
-replica. Its clustered Quartz data source adds up to 5 more connections per
-replica. Reserve migration connections on top of that during upgrades.
+Candlepin's upstream Hibernate configuration permits 20 connections for its
+single application pod. Reserve migration connections on top of that during
+upgrades. Do not size for multiple replicas until upstream supplies and the
+project qualifies a shared messaging and scheduler ownership contract.
 
 Pulp API and content replicas contain the configured number of Gunicorn worker
 processes, while each Pulp worker is a database-backed task executor. Exact

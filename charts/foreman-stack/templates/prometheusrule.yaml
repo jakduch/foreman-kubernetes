@@ -1,6 +1,6 @@
 {{- if and .Values.monitoring.prometheusRule.enabled (not .Values.maintenance.enabled) }}
 {{- $fullname := include "foreman-stack.fullname" . -}}
-{{- $deploymentPattern := printf "%s-(foreman|candlepin|katello-event-daemon|dynflow-(orchestrator|worker|worker-hosts-queue)|pulp-(api|content|worker|control))" $fullname -}}
+{{- $deploymentPattern := printf "%s-(foreman|candlepin|dynflow-(orchestrator|worker|worker-hosts-queue)|pulp-(api|content|worker|control))" $fullname -}}
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:

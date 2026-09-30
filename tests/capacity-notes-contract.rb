@@ -4,9 +4,9 @@
 notes = File.read(ARGV.fetch(0))
 
 expected = [
-  'Foreman PostgreSQL steady-state connection ceiling for this profile: 260',
-  'web: 100; Dynflow workers: 120; hosts queue: 30; orchestrator and event daemon: 10',
-  'simultaneous rolling-update ceiling: 285'
+  'Foreman PostgreSQL steady-state connection ceiling for this profile: 255',
+  'web: 100; Dynflow workers: 120; hosts queue: 30; orchestrator and one-shot utilities: 5',
+  'simultaneous rolling-update ceiling: 280'
 ]
 
 missing = expected.reject { |line| notes.include?(line) }

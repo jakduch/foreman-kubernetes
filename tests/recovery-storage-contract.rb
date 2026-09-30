@@ -124,7 +124,6 @@ abort 'database restore does not validate custom archives with pg_restore' unles
 abort 'database restore can leave a partially applied database' unless
   common.include?('--single-transaction')
 abort 'recovery helper accepts unlisted files in the integrity manifest' unless common.include?('does not describe the exact recovery set')
-abort 'recovery quiescence omits the Katello event daemon' unless common.include?('$component == "katello-event-daemon"')
 %w[candlepin-migrate execution-proxy-registration pulp-object-storage-test].each do |component|
   abort "recovery quiescence omits #{component}" unless common.include?(%($component == "#{component}"))
 end

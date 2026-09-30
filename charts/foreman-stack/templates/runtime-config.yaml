@@ -83,9 +83,6 @@ data:
     ---
     :katello:
       :rest_client_timeout: 3600
-      :event_daemon:
-        :enabled: <%= ENV.fetch('KATELLO_EVENT_DAEMON_ENABLED', 'false') == 'true' %>
-        :tmp_dir: <%= ENV.fetch('KATELLO_EVENT_DAEMON_TMP_DIR', '/run/katello-event-daemon') %>
       :candlepin:
         :url: {{ printf "https://%s:%v/candlepin" (include "foreman-stack.candlepinServiceName" .) .Values.candlepin.service.port | quote }}
         :oauth_key: katello
@@ -140,14 +137,6 @@ data:
     candlepin.ca_cert=/etc/candlepin/certs/candlepin-ca.crt
     candlepin.async.thread.shutdown.timeout={{ .Values.candlepin.shutdown.asyncJobsTimeoutSeconds }}
     candlepin.async.jobs.ExpiredPoolsCleanupJob.schedule=0 0 0 * * ?
-    {{- if .Values.candlepin.highAvailability.enabled }}
-    candlepin.audit.hornetq.embedded=false
-    candlepin.messaging.activemq.embedded.enabled=false
-    org.quartz.scheduler.instanceName={{ .Values.candlepin.highAvailability.quartz.instanceName }}
-    org.quartz.scheduler.instanceId=AUTO
-    org.quartz.jobStore.isClustered=true
-    org.quartz.jobStore.clusterCheckinInterval={{ .Values.candlepin.highAvailability.quartz.clusterCheckinInterval }}
-    {{- end }}
     jpa.config.hibernate.dialect=org.hibernate.dialect.PostgreSQLDialect
     jpa.config.hibernate.hbm2ddl.auto=validate
     jpa.config.hibernate.connection.username={{ .Values.candlepin.database.user }}

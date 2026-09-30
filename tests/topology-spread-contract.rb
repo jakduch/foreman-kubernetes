@@ -12,7 +12,6 @@ expected_components = %w[
   dynflow-orchestrator
   dynflow-worker
   dynflow-worker-hosts-queue
-  katello-event-daemon
   pulp-api
   pulp-content
   pulp-control-proxy

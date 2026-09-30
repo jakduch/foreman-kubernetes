@@ -147,12 +147,6 @@ committed together; CI never promotes a set by itself.
 
 The manifests were read from the official Quay repositories on 2026-09-24. No layers were downloaded. The current images are single-platform, so an ARM cluster needs explicit emulation and is not a release target until upstream publishes multi-architecture manifests.
 
-The disposable HA integration test additionally pins
-`apache/artemis:2.57.0-alpine` to its verified `linux/amd64` manifest digest
-`sha256:ca99ce1b72c5765a15dd507db4215591c43da623cd9f42db1bcd4319e5f4b579`.
-It is a test dependency rather than part of the supported application image
-set, and the full integration run is still pending.
-
 The execution contract was reviewed against Foreman Remote Execution commit
 `be391fd9ef3140df707eed4f320ce2ebd572648d` and Foreman Ansible commit
 `7ffc9e37344011554347ca9429fffdcf1f81816e`. These are source snapshots for

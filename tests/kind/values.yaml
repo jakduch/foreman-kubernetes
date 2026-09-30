@@ -69,15 +69,8 @@ foreman:
       memory: 3Gi
 
 candlepin:
-  replicas: 2
+  replicas: 1
   existingDatabaseCaSecret: ""
-  highAvailability:
-    enabled: true
-    brokerUrlSecretKey: artemis-broker-url
-    existingBrokerTlsSecret: ""
-    quartz:
-      instanceName: ForemanCandlepinKind
-      clusterCheckinInterval: 5000
   database:
     host: postgresql
     port: 5432

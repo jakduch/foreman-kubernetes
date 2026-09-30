@@ -16,7 +16,6 @@ jobs:
       INTEGRATION_EVIDENCE_FILE: artifacts/integration-result.json
       IMAGE_PLATFORM_CONTRACT_FILE: artifacts/image-platform-contract.json
       IMAGE_RUNTIME_CONTRACT_FILE: artifacts/image-runtime-contract.json
-      CANDLEPIN_JOB_DELIVERY_FILE: artifacts/candlepin-job-delivery.json
       OPERATOR_RELEASE_EVIDENCE_FILE: artifacts/operator-release.json
       PULP_OBJECT_STORAGE_EVIDENCE_FILE: artifacts/pulp-object-storage.json
     steps:
@@ -42,7 +41,6 @@ jobs:
             artifacts/integration-result.json
             artifacts/image-platform-contract.json
             artifacts/image-runtime-contract.json
-            artifacts/candlepin-job-delivery.json
             artifacts/operator-release.json
             artifacts/pulp-object-storage.json
           if-no-files-found: error
@@ -54,7 +52,6 @@ jobs:
           kubectl get nodes,namespaces,persistentvolumes -o wide > artifacts/cluster.txt 2>&1 || true
           kubectl --namespace foreman get all,persistentvolumeclaims -o wide > artifacts/foreman.txt 2>&1 || true
           kubectl --namespace foreman describe pods,jobs > artifacts/foreman-describe.txt 2>&1 || true
-          kubectl --namespace foreman logs deployment/artemis --all-containers > artifacts/artemis.log 2>&1 || true
           kubectl --namespace foreman logs --selector=app.kubernetes.io/component=foreman --all-containers --prefix > artifacts/foreman-web.log 2>&1 || true
           kubectl --namespace foreman logs --selector=app.kubernetes.io/component=pulp-api --all-containers --prefix > artifacts/pulp-api.log 2>&1 || true
           kubectl --namespace foreman logs --selector=app.kubernetes.io/component=pulp-content --all-containers --prefix > artifacts/pulp-content.log 2>&1 || true

@@ -160,7 +160,7 @@
     "foreman": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["image", "replicas", "autoscaling", "service", "existingEnvSecret", "databaseUrlSecretKey", "encryptionKeySecretKey", "secretKeyBaseSecretKey", "seedAdminUserSecretKey", "seedAdminPasswordSecretKey", "existingCertificateSecret", "existingDatabaseCaSecret", "database", "email", "enabledPlugins", "pluginPolicy", "puma", "databasePools", "dynflow", "katelloEventDaemon", "sharedTmp", "avatarStorage", "resources"],
+      "required": ["image", "replicas", "autoscaling", "service", "existingEnvSecret", "databaseUrlSecretKey", "encryptionKeySecretKey", "secretKeyBaseSecretKey", "seedAdminUserSecretKey", "seedAdminPasswordSecretKey", "existingCertificateSecret", "existingDatabaseCaSecret", "database", "email", "enabledPlugins", "pluginPolicy", "puma", "databasePools", "dynflow", "sharedTmp", "avatarStorage", "resources"],
       "properties": {
         "image": { "$ref": "#/definitions/image" },
         "replicas": { "type": "integer", "minimum": 1 },
@@ -267,15 +267,6 @@
             "utility": { "type": "integer", "minimum": 1 }
           }
         },
-        "katelloEventDaemon": {
-          "type": "object",
-          "required": ["heartbeatIntervalSeconds", "heartbeatStaleSeconds", "resources"],
-          "properties": {
-            "heartbeatIntervalSeconds": { "type": "integer", "minimum": 1 },
-            "heartbeatStaleSeconds": { "type": "integer", "minimum": 2 },
-            "resources": { "$ref": "#/definitions/resources" }
-          }
-        },
         "sharedTmp": {
           "type": "object",
           "required": ["existingClaim", "storageClass", "accessMode", "size"],
@@ -302,35 +293,17 @@
     "candlepin": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["image", "replicas", "existingRuntimeSecret", "databasePasswordSecretKey", "existingCertificateSecret", "existingDatabaseCaSecret", "highAvailability", "database", "java", "shutdown", "service", "resources"],
+      "required": ["image", "replicas", "existingRuntimeSecret", "databasePasswordSecretKey", "existingCertificateSecret", "existingDatabaseCaSecret", "database", "java", "shutdown", "service", "resources"],
       "properties": {
         "image": { "$ref": "#/definitions/image" },
         "replicas": {
-          "type": "integer",
-          "minimum": 1,
-          "description": "Multiple replicas require the explicit high-availability contract."
+          "const": 1,
+          "description": "The initial Candlepin contract is singleton; horizontal scaling is not yet qualified."
         },
         "existingRuntimeSecret": { "type": "string", "minLength": 1 },
         "databasePasswordSecretKey": { "type": "string", "minLength": 1 },
         "existingCertificateSecret": { "type": "string", "minLength": 1 },
         "existingDatabaseCaSecret": { "type": "string" },
-        "highAvailability": {
-          "type": "object",
-          "required": ["enabled", "brokerUrlSecretKey", "existingBrokerTlsSecret", "quartz"],
-          "properties": {
-            "enabled": { "type": "boolean" },
-            "brokerUrlSecretKey": { "type": "string", "minLength": 1 },
-            "existingBrokerTlsSecret": { "type": "string" },
-            "quartz": {
-              "type": "object",
-              "required": ["instanceName", "clusterCheckinInterval"],
-              "properties": {
-                "instanceName": { "type": "string", "minLength": 1 },
-                "clusterCheckinInterval": { "type": "integer", "minimum": 1000 }
-              }
-            }
-          }
-        },
         "database": { "$ref": "#/definitions/database" },
         "java": {
           "type": "object",
@@ -624,11 +597,10 @@
             },
             "external": {
               "type": "object",
-              "required": ["foreman", "pulp", "candlepin", "smtp", "webhooks", "computeProviders"],
+              "required": ["foreman", "pulp", "smtp", "webhooks", "computeProviders"],
               "properties": {
                 "foreman": { "$ref": "#/definitions/networkPolicyDestination" },
                 "pulp": { "$ref": "#/definitions/networkPolicyDestination" },
-                "candlepin": { "$ref": "#/definitions/networkPolicyDestination" },
                 "smtp": { "$ref": "#/definitions/networkPolicyDestination" },
                 "webhooks": { "$ref": "#/definitions/networkPolicyDestination" },
                 "computeProviders": { "$ref": "#/definitions/networkPolicyDestination" }
@@ -803,30 +775,6 @@
               "enabledPlugins": { "contains": { "const": "foreman_remote_execution" } }
             }
           }
-        }
-      }
-    },
-    {
-      "if": {
-        "properties": {
-          "candlepin": {
-            "properties": {
-              "highAvailability": {
-                "properties": { "enabled": { "const": true } }
-              }
-            }
-          }
-        }
-      },
-      "then": {
-        "properties": {
-          "candlepin": { "properties": { "replicas": { "minimum": 2 } } },
-          "migrations": { "properties": { "enabled": { "const": true } } }
-        }
-      },
-      "else": {
-        "properties": {
-          "candlepin": { "properties": { "replicas": { "maximum": 1 } } }
         }
       }
     },

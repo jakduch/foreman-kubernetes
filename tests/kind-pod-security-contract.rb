@@ -45,7 +45,6 @@ def assert_restricted(resource)
   end
 end
 
-assert_restricted(deployment(File.join(root, 'tests/kind/dependencies.yaml'), 'artemis'))
 assert_restricted(deployment(File.join(root, 'tests/kind/object-storage.yaml'), 'object-storage'))
 execution_target = deployment(File.join(root, 'tests/kind/execution-target.yaml'), 'execution-target')
 assert_restricted(execution_target)
@@ -70,17 +69,6 @@ labels.each do |label|
 end
 abort 'Kind harness does not read the declared Pod Security version' unless
   harness.include?(".podSecurity.version") && pod_security_version.match?(/\Av\d+\.\d+\z/)
-
-{
-  'event.org.candlepin.audit.LoggingListener' => ['event.default', 'multicast'],
-  'event.org.candlepin.audit.ActivationListener' => ['event.default', 'multicast'],
-  'jobs' => ['job', 'anycast']
-}.each do |queue, (address, routing_type)|
-  declaration = "ensure_artemis_queue #{queue} #{address} #{routing_type}"
-  abort "Kind harness does not provision Candlepin queue #{queue}" unless harness.include?(declaration)
-end
-abort 'Kind harness does not tolerate already-provisioned Artemis queues' unless
-  harness.include?('already exists')
 
 abort 'Pod Security is not enabled before Helm creates application workloads' unless
   harness.include?("\ninstall_dependencies\n\nhelm_apply\n")

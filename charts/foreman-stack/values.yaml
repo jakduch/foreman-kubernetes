@@ -185,15 +185,6 @@ foreman:
     # Matches the upstream systemd service's five-minute stop allowance. The
     # Pod receives another 30 seconds so Sidekiq can finish its own shutdown.
     shutdownTimeoutSeconds: 300
-  katelloEventDaemon:
-    heartbeatIntervalSeconds: 5
-    heartbeatStaleSeconds: 30
-    resources:
-      requests:
-        cpu: 100m
-        memory: 512Mi
-      limits:
-        memory: 2Gi
   sharedTmp:
     # Katello hands uploaded manifests and repository files from web requests
     # to Dynflow workers by path, so every Foreman-derived pod needs this RWX
@@ -221,26 +212,14 @@ candlepin:
     repository: quay.io/foreman/candlepin
     tag: foreman-nightly
     pullPolicy: IfNotPresent
-  # More than one replica requires highAvailability.enabled and an external
-  # Artemis broker. Upgrades remain Recreate until the operator track owns
-  # migration-before-rollout ordering.
+  # The initial contract is deliberately singleton. The chart does not expose
+  # Candlepin's internal messaging implementation or operate an external
+  # broker. Horizontal scaling needs a separately reviewed upstream contract.
   replicas: 1
   existingRuntimeSecret: candlepin-runtime
   databasePasswordSecretKey: database-password
   existingCertificateSecret: candlepin-certificates
   existingDatabaseCaSecret: candlepin-database-ca
-  highAvailability:
-    enabled: false
-    # The runtime Secret key contains the complete Artemis core client URL.
-    # Prefer certificate authentication: the current Candlepin client does not
-    # expose separate broker credentials and logs the URL during initialization.
-    brokerUrlSecretKey: artemis-broker-url
-    # Mounted read-only at /etc/candlepin/artemis when set. The broker URL may
-    # reference trust/key stores from this Secret.
-    existingBrokerTlsSecret: ""
-    quartz:
-      instanceName: ForemanCandlepinCluster
-      clusterCheckinInterval: 15000
   database:
     host: postgres.example.test
     port: 5432
@@ -252,7 +231,7 @@ candlepin:
     xmx: 4g
   shutdown:
     requestDrainSeconds: 10
-    # Candlepin can wait this long for each of two Artemis client pools.
+    # Candlepin can wait this long for each of its two asynchronous job pools.
     asyncJobsTimeoutSeconds: 600
     terminationGracePeriodSeconds: 1230
   service:
@@ -492,10 +471,6 @@ networkPolicy:
         ports:
           - 80
           - 443
-      candlepin:
-        peers: []
-        ports:
-          - 61616
       smtp:
         peers: []
         ports:

@@ -1,12 +1,24 @@
 # Foreman on Kubernetes
 
-This repository composes separately released Foreman, Katello, Candlepin, and Pulp container images into a scalable Kubernetes deployment. It does not vendor or merge any of the application source trees.
+> **Experimental and unsupported.** This repository is an early community
+> integration project. It is not a production release, does not define an
+> official support matrix, and may make incompatible changes while its upstream
+> runtime contracts and qualification suite are developed.
+
+This repository composes the existing, separately released Foreman, Katello,
+Candlepin, and Pulp container images into one tested Kubernetes stack. The
+applications remain distinct workloads where their runtime architecture allows
+it, but they are versioned, installed, upgraded, and qualified as a compatible
+set. The repository does not publish replacement application images or vendor
+any application source tree.
 
 ## Component boundary
 
 - **Foreman** remains its own source repository and image.
 - **Katello** remains its own source repository and release, but runs as a Rails plugin inside the compatible Foreman image. It is therefore not modelled as a fake standalone Deployment.
-- **Candlepin** remains its own Java service, image, configuration, and Deployment.
+- **Candlepin** remains its own Java service, image, configuration, and
+  singleton Deployment. The initial contract deliberately does not expose its
+  internal messaging implementation or claim horizontal scaling.
 - **Pulp** remains its own service family. API, content, and worker processes scale independently.
 - This repository owns only Kubernetes orchestration, upgrade sequencing, health contracts, and deployment policy.
 - Smart Proxies remain independent edge or execution-plane services. The
@@ -38,7 +50,7 @@ The initial Helm chart is under [`charts/foreman-stack`](charts/foreman-stack). 
 
 - a scalable Foreman web Deployment;
 - one Dynflow orchestrator and independently scalable worker Deployments;
-- a Candlepin Deployment with an opt-in external-Artemis and clustered-Quartz HA mode;
+- a singleton Candlepin Deployment with explicit migration ownership;
 - separate Pulp API, content, and worker Deployments backed by shared RWX or
   S3-compatible object storage;
 - a private, mutually authenticated Pulp control endpoint and automatic registration of Pulp in Foreman;
@@ -67,10 +79,10 @@ This is an implementation scaffold, not yet a production release. It deliberatel
 
 The chart generates the non-secret Foreman, Katello, Dynflow, Candlepin, Tomcat, Pulp, and internal NGINX configuration from typed values. Existing Secrets are limited to credentials, encryption material, and certificates. The Pulp administrative API is not published by the ingress profile; Katello reaches it through a private mTLS endpoint that only maps approved client-certificate common names to Pulp's remote `admin` user.
 
-The default remains one Candlepin replica. More replicas require the explicit
-HA contract: external Artemis, clustered JDBC Quartz, and chart-owned Liquibase
-migrations. The Deployment still uses `Recreate`, so runtime pod failure is
-covered but zero-downtime schema upgrades are not yet claimed.
+The Candlepin replica count is fixed at one until a current upstream
+high-availability contract is reviewed and qualified. The chart does not
+operate an external message broker for Candlepin. The Deployment uses
+`Recreate`, so zero-downtime Candlepin upgrades are not claimed.
 
 ## Render the chart
 
@@ -98,10 +110,6 @@ The execution plane is opt-in on both sides: add
 to the `foreman-stack` release and deploy the separate proxy values alongside
 it. This keeps Remote Execution and Ansible out of the default application
 profile until their real integration drill passes.
-
-The Candlepin HA contract is available as a separate overlay in
-[`examples/candlepin-ha-values.yaml`](examples/candlepin-ha-values.yaml); it
-requires an operator-supplied external Artemis service and Secrets.
 
 Pulp can replace its shared RWX claim with S3-compatible object storage through
 [`examples/pulp-s3-values.yaml`](examples/pulp-s3-values.yaml). The complete
@@ -168,11 +176,25 @@ credential, and recovery-drill contracts.
 - [`docs/execution-proxy.md`](docs/execution-proxy.md) defines the restricted Kubernetes Remote Execution and Ansible proxy profile.
 - [`docs/disaster-recovery.md`](docs/disaster-recovery.md) defines portable recovery sets and the destructive restore gate.
 - [`docs/diagnostics.md`](docs/diagnostics.md) defines the read-only, Secret-redacted support bundle.
-- [`docs/candlepin-ha.md`](docs/candlepin-ha.md) defines the external broker, clustered scheduler, and migration boundary.
 - [`docs/pulp-object-storage.md`](docs/pulp-object-storage.md) defines the optional S3-compatible artifact backend and its recovery boundary.
 - [`docs/kubevirt.md`](docs/kubevirt.md) defines KubeVirt compatibility gates, least-privilege provider RBAC, safe token rotation, egress, and external qualification.
+- [`docs/orchestration-boundary.md`](docs/orchestration-boundary.md) records why
+  the project uses Helm plus a release operator, how it relates to
+  `foremanctl`, and which capabilities belong upstream.
+- [`docs/testing-strategy.md`](docs/testing-strategy.md) separates generic
+  application validation through `smoker` from Kubernetes-specific lifecycle
+  qualification.
+- [`docs/publication-checklist.md`](docs/publication-checklist.md) separates
+  repository-ready work from organization-owner publication actions.
 - [`docs/roadmap.md`](docs/roadmap.md) lists the next implementation slices.
 - [`operator/README.md`](operator/README.md) defines the controller API, phase ownership, and failure/retry contract.
+
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) before opening a change. A pull request
+may carry its own design discussion; a duplicate issue is not required.
+
+## License
+
+This project is licensed under the [GNU General Public License v3.0](LICENSE).
 
 ## Upstream source snapshots reviewed
 

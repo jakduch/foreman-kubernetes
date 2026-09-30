@@ -45,13 +45,6 @@
           ]
         },
         {
-          "contract": "katello-event-daemon-foreground",
-          "target": "katello",
-          "paths": [
-            "app/lib/katello/event_daemon/runner.rb"
-          ]
-        },
-        {
           "contract": "katello-container-registry-api-url",
           "target": "katello",
           "paths": [

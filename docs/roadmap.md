@@ -184,32 +184,18 @@
   replace the intended Pods. The drill has not yet been executed against the
   published image set.
 
-## Candlepin HA track
+## Candlepin singleton boundary
 
-Implemented in the chart, pending amd64 integration proof:
+The chart deliberately runs one Candlepin replica with the upstream embedded
+messaging and non-clustered Quartz behavior. It retains a dedicated Liquibase
+Job and a `Recreate` rollout, but no longer exposes the unqualified external
+broker and multi-replica experiment.
 
-- external Artemis URL and optional TLS material come from Secrets;
-- embedded Artemis is disabled in HA mode;
-- Quartz JDBC clustering uses a common name and automatic unique instance IDs;
-- a dedicated Liquibase Job owns database changes while application pods use
-  `HALT`;
-- replicas greater than one require the full HA and migration contract;
-- topology spread and a disruption budget protect redundant pods.
-
-Still required:
-
-1. Run the prepared one-time Artemis delivery and in-process reconnect drill on
-   amd64. It now executes a real owner-healing job before and after a complete
-   broker restart, rejects redelivery, and rejects hidden Candlepin restarts.
-2. Run the prepared Quartz trigger ownership failover assertion on amd64; the
-   harness now forces the real `ExpiredPoolsCleanupJob` trigger, deletes the
-   scheduler that fired it, requires a distinct replacement while retaining
-   exactly two live cluster rows, and requires one execution after takeover.
-3. Run the prepared failed Foreman and Candlepin migration roll-forward against
-   the pinned image set, including the Candlepin `Recreate` replacement.
-4. Run the prepared operator adoption, blocked retry, and leader-takeover drill
-   against the pinned images. Replace `Recreate` with a rolling strategy only
-   after adjacent-version schema compatibility is proven.
+Before this boundary can change, Candlepin upstream must define and test shared
+message delivery, scheduler ownership and failover, graceful shutdown, and
+adjacent-version schema compatibility as a supported deployment contract. Only
+then should this repository add a multi-replica profile and failure drills for
+that contract.
 
 ## Operator track
 

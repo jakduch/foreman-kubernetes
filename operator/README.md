@@ -231,7 +231,7 @@ second migration Job. Revision Jobs require the ForemanRelease UID and
 operation ID as labels, and reconciliation must adopt an existing matching Job
 before considering creation.
 
-It does not own PostgreSQL, Valkey, Artemis, object storage, PKI, edge Smart
+It does not own PostgreSQL, Valkey, object storage, PKI, edge Smart
 Proxies, DHCP, DNS, or TFTP. It also never restores a database or performs an
 automatic Helm rollback after migrations.
 

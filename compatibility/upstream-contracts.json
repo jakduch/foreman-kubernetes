@@ -88,21 +88,6 @@
       "kubernetesConsumers": ["Katello Pulp control client"]
     },
     {
-      "id": "katello-event-daemon-foreground",
-      "component": "foreman",
-      "profiles": ["default"],
-      "state": "local-upstream-commit",
-      "availableInReleaseSets": [],
-      "upstream": {
-        "repository": "https://github.com/Katello/katello.git",
-        "localPath": "katello",
-        "branch": "feature/event-daemon-foreground",
-        "commit": "e9955f140497b9226595f87d1ce56f7ed4abc705"
-      },
-      "standaloneDefault": "The existing daemon entry point and Rails tmp directory remain unchanged.",
-      "kubernetesConsumers": ["Katello event daemon Deployment"]
-    },
-    {
       "id": "katello-container-registry-api-url",
       "component": "foreman",
       "profiles": ["default"],

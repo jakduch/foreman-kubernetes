@@ -46,7 +46,9 @@ flowchart LR
   PulpContent --> ContentStore
   PulpWorker --> ContentStore
   Candlepin --> DB
-  Candlepin --> Artemis[(External Artemis)]
+
+  Proxy[Smart Proxy\non-cluster or site-local] --> Foreman
+  Foreman --> Proxy
 ```
 
 ## Workload decisions
@@ -74,20 +76,23 @@ This preserves the upstream Redis lock and single-orchestrator contract instead 
 
 ### Candlepin
 
-Candlepin is a separate Deployment and Service. It defaults to one replica. HA
-is accepted only when an external Artemis URL is supplied from a Secret,
-embedded messaging is disabled, Quartz's JDBC store is clustered with unique
-automatic instance IDs, and chart-owned Liquibase migrations are enabled.
+Candlepin is a separate Deployment and Service with exactly one replica. Its
+current upstream runtime uses an embedded messaging broker and does not enable
+clustered Quartz, so this repository does not invent an external broker or an
+unqualified multi-replica contract. Horizontal availability remains an
+upstream capability gap rather than a chart option.
 
-The HA mode protects normal request processing from a pod or node failure. Its
-Deployment still uses `Recreate`: migration-before-rollout ordering needs an
-operator before the project can claim zero-downtime application/schema
-upgrades. The detailed contract is in [`candlepin-ha.md`](candlepin-ha.md).
+The Deployment uses `Recreate`, and the release sequence runs the chart-owned
+Liquibase Job before replacing the application pod. This avoids overlapping
+two JVMs while retaining an observable migration owner. A pod or node failure
+therefore causes a Candlepin outage until the singleton is recreated; that
+limitation is intentional and documented rather than hidden behind replicas
+that do not share all state.
 
 Before Tomcat is terminated, the Candlepin Pod drains its Service endpoint.
-Its termination window explicitly covers the two sequential Artemis client
-pool shutdown waits configured by Candlepin, preventing Kubernetes from
-cutting the built-in graceful shutdown back to its 30-second default.
+Its termination window leaves the upstream JVM enough time to close its
+internal pools rather than cutting graceful shutdown back to Kubernetes'
+30-second default.
 
 ### Pulp
 
@@ -212,9 +217,8 @@ explicitly declared external destinations. An optional Secret-backed HTTP(S)
 proxy is shared only by Foreman/Katello, Pulp, object-storage verification, and
 recovery clients that honor standard proxy environment variables. Its
 NetworkPolicy destination is explicit; internal services and metadata
-endpoints placed in `NO_PROXY` still require direct rules. Candlepin and its
-Artemis connection deliberately remain direct Java/protocol boundaries, and
-Candlepin HA requires an explicit Artemis destination. A backup or restore Job
+endpoints placed in `NO_PROXY` still require direct rules. Candlepin remains a
+direct Java/protocol boundary and is not routed through the HTTP proxy. A backup or restore Job
 receives its own policy: it can reach DNS, PostgreSQL, the explicitly declared
 Kubernetes API endpoint, the optional proxy, and a declared remote Restic
 endpoint. The latter rule is omitted for a repository PVC. This avoids leaving
@@ -228,7 +232,7 @@ under restricted egress unless that direct destination or the shared outbound
 proxy is configured. The rule is omitted when none of the packaged compute
 provider plugins is enabled, even if stale peer values remain in a values file.
 
-Disruption budgets protect redundant Foreman, Candlepin, Pulp, Pulp control,
+Disruption budgets protect redundant Foreman, Pulp, Pulp control,
 and Dynflow worker pools. They are rendered from the minimum replica count,
 including the HPA minimum, and are omitted when a workload is configured as a
 singleton. No budget is created for the Dynflow orchestrator or default
@@ -240,8 +244,8 @@ many replicas never weakens the budget to a single surviving pod.
 Deployment rollout policy is explicit as well. Request-serving Foreman, Pulp,
 and Pulp control-proxy Deployments retain every available replica and add at
 most one surge Pod. Background worker pools may replace one replica at a time
-and likewise add at most one Pod. Singleton processes whose upstream locking
-or event ownership cannot overlap use `Recreate`. This removes Kubernetes'
+and likewise add at most one Pod. Singleton processes whose upstream ownership
+cannot safely overlap use `Recreate`. This removes Kubernetes'
 percentage rounding from the availability contract and bounds temporary node
 and database demand during a release.
 
@@ -257,13 +261,11 @@ the local process has opened and retained its listener. A database, Valkey, or
 peer-service outage must not make Kubernetes restart every otherwise healthy
 application process and amplify the outage into a restart loop.
 
-Katello's event daemon is a separate singleton Deployment. Katello retains its
-standalone lazy-start behavior, while a compatible build also exposes an
-explicit foreground runner and configurable runtime directory for supervisors.
-All other Foreman-derived workloads therefore default the daemon off; the
-dedicated pod is the only process that enables the foreground runner and
-publishes a local health heartbeat.
-Events remain durable in PostgreSQL while that pod is unavailable.
+Katello event processing remains part of the upstream Foreman/Katello runtime.
+The chart does not inject a Ruby implementation, disable the upstream path, or
+create a separate event-daemon Deployment. If Katello later publishes a
+supported independently supervised process contract, it can be consumed after
+the corresponding official image is qualified.
 
 Recurring Foreman maintenance tasks run as separate CronJobs in an explicit
 IANA time zone. Missed starts and total runtime are bounded, and
@@ -271,7 +273,7 @@ IANA time zone. Missed starts and total runtime are bounded, and
 task blocking every later schedule indefinitely; each Job also waits for the
 Foreman schema migration barrier before loading application code.
 
-Foreman web, Dynflow, event, migration, registration, and cron processes share
+Foreman web, Dynflow, migration, registration, and cron processes share
 an RWX volume at `/usr/share/foreman/tmp`. Katello passes uploaded repository
 files and subscription manifests between web requests and asynchronous Dynflow
 steps by filesystem path, so pod-local temporary storage would make those
@@ -298,8 +300,8 @@ content or provisioning workflow.
 
 ## State and upgrades
 
-PostgreSQL, the three role-specific Valkey endpoints, object/shared storage, PKI, Secrets, and the optional
-Candlepin Artemis broker are external contracts. This keeps the application
+PostgreSQL, the three role-specific Valkey endpoints, object/shared storage,
+PKI, and Secrets are external contracts. This keeps the application
 chart usable with existing operators and managed services.
 
 Candlepin, Pulp, and Foreman migrations are release-revision Jobs with bounded

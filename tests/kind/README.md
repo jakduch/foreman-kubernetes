@@ -3,18 +3,8 @@
 `run.sh` creates a dedicated single-node kind cluster, installs ingress-nginx, PostgreSQL, Valkey, generated short-lived PKI, and the complete chart. It then verifies:
 
 - initial Pulp and Foreman migrations;
-- separate Candlepin migration ownership and two replicas using one external
-  Artemis broker plus clustered Quartz;
-- concurrent, CA-verified HTTPS requests sent directly to both Candlepin pod
-  IPs while retaining the Service certificate hostname;
-- one-time Candlepin asynchronous-job delivery, followed by a complete Artemis
-  restart and another successful job through the same two Candlepin JVMs;
-- Candlepin request-service recovery after deleting one replica, including
-  replacement of the terminated Quartz scheduler instance and cleanup of its
-  stale cluster row;
-- forced execution of the real shared `ExpiredPoolsCleanupJob` Quartz trigger,
-  deletion of the scheduler that fired it, and successful one-time execution
-  after another scheduler takes ownership;
+- separate Candlepin migration ownership and readiness of its single
+  application pod;
 - Foreman health both with and without the optional client certificate;
 - the chart-owned Helm smoke test against Foreman/Katello aggregate health,
   Candlepin status, and Pulp status through the default NetworkPolicies;
@@ -76,8 +66,8 @@
   subsequent healthy revision must run migrations and replace the affected
   Pods;
 - the same migration gate with temporary invalid Candlepin credentials, then a
-  healthy roll-forward which replaces both Candlepin replicas through its
-  `Recreate` strategy and restores the two-member Quartz cluster;
+  healthy roll-forward which replaces the singleton through its `Recreate`
+  strategy;
 - a second Helm revision with migration gates and confirmed Foreman and Dynflow
   Pod replacement while a Remote Execution job remains active and completes;
 - a configuration-changing execution-proxy rollout while another active job
@@ -101,9 +91,9 @@
   credential rotation;
 - Kubernetes `restricted` Pod Security admission for every application,
   execution-proxy, migration, test, recovery, and controller Pod created after
-  the disposable dependencies are ready. The broker, object-storage emulator,
-  and SSH target are recreated under the same policy during their lifecycle
-  drills, so the assertion covers admission after installation as well.
+  the disposable dependencies are ready. The object-storage emulator and SSH
+  target are recreated under the same policy during their lifecycle drills, so
+  the assertion covers admission after installation as well.
 
 The test is intentionally opt-in because it downloads the real application images and needs substantially more CPU, memory, and time than chart rendering:
 
@@ -111,12 +101,7 @@ The test is intentionally opt-in because it downloads the real application image
 tests/kind/run.sh
 ```
 
-The test Artemis broker deliberately allows anonymous connections because the
-current Candlepin client does not expose independent broker credentials. It is
-an in-namespace disposable dependency, not a production recommendation. Its
-Apache Artemis 2.57.0 amd64 image is pinned to the verified platform digest in
-`dependencies.yaml`. The
-`Full integration` GitHub Actions workflow exposes the same drill through a
+The `Full integration` GitHub Actions workflow exposes the same drill through a
 manual dispatch on an amd64 runner. Successful complete runs retain a
 promotion-eligible evidence artifact bound to the exact commit, profiles, and
 test contract. Failed runs retain a short-lived diagnostic artifact and always

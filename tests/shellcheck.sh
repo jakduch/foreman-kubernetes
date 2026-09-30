@@ -18,7 +18,6 @@ shellcheck -x \
   "${repo_root}/tests/collect-diagnostics.sh" \
   "${repo_root}/tests/install-release.sh" \
   "${repo_root}/tests/kind/apply-secrets.sh" \
-  "${repo_root}/tests/kind/candlepin-job-delivery.sh" \
   "${repo_root}/tests/kind/content-lifecycle.sh" \
   "${repo_root}/tests/kind/execution-plane.sh" \
   "${repo_root}/tests/kind/publish-ansible-content.sh" \

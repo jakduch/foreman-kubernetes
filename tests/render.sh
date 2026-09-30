@@ -22,7 +22,6 @@ rendered_outbound_proxy_backup="$(mktemp)"
 rendered_webhooks="$(mktemp)"
 rendered_compute_provider="$(mktemp)"
 rendered_singletons="$(mktemp)"
-rendered_ha="$(mktemp)"
 rendered_candlepin_port="$(mktemp)"
 rendered_foreman_service_port="$(mktemp)"
 rendered_foreman_secret_contract="$(mktemp)"
@@ -63,7 +62,7 @@ rendered_scheduled_operator="$(mktemp)"
 rendered_dynflow_autoscaling="$(mktemp)"
 rendered_dynflow_autoscaling_maintenance="$(mktemp)"
 rendered_capacity_notes="$(mktemp)"
-trap 'rm -f "${rendered}" "${rendered_ingress}" "${rendered_execution_registration}" "${rendered_ingress_overrides}" "${rendered_minimal_pulp_ingress}" "${rendered_all_pulp_ingress}" "${rendered_backup}" "${rendered_backup_execution}" "${rendered_restore}" "${rendered_egress}" "${rendered_egress_backup}" "${rendered_egress_backup_local}" "${rendered_outbound_proxy}" "${rendered_outbound_proxy_backup}" "${rendered_webhooks}" "${rendered_compute_provider}" "${rendered_singletons}" "${rendered_ha}" "${rendered_candlepin_port}" "${rendered_foreman_service_port}" "${rendered_foreman_secret_contract}" "${rendered_database_tls_disabled}" "${rendered_image_pull_secrets}" "${rendered_no_migrations}" "${rendered_release_operation}" "${rendered_release_application}" "${rendered_manual_dependency_stage}" "${rendered_manual_migration_stage}" "${rendered_secret_rotation}" "${rendered_monitoring}" "${rendered_monitoring_maintenance}" "${rendered_s3}" "${rendered_s3_operation}" "${rendered_s3_egress}" "${rendered_azure_identity}" "${rendered_s3_backup}" "${rendered_smtp}" "${rendered_smtp_backup}" "${rendered_kind}" "${rendered_kind_backup}" "${rendered_execution}" "${rendered_execution_egress}" "${rendered_execution_kind}" "${rendered_execution_operation}" "${rendered_execution_secret_rotation}" "${rendered_execution_monitoring}" "${rendered_execution_maintenance}" "${rendered_operator}" "${rendered_operator_monitoring}" "${rendered_operator_egress}" "${rendered_scheduled_stack}" "${rendered_scheduled_backup}" "${rendered_scheduled_execution}" "${rendered_execution_scheduled_backup}" "${rendered_scheduled_operator}" "${rendered_dynflow_autoscaling}" "${rendered_dynflow_autoscaling_maintenance}" "${rendered_capacity_notes}"' EXIT
+trap 'rm -f "${rendered}" "${rendered_ingress}" "${rendered_execution_registration}" "${rendered_ingress_overrides}" "${rendered_minimal_pulp_ingress}" "${rendered_all_pulp_ingress}" "${rendered_backup}" "${rendered_backup_execution}" "${rendered_restore}" "${rendered_egress}" "${rendered_egress_backup}" "${rendered_egress_backup_local}" "${rendered_outbound_proxy}" "${rendered_outbound_proxy_backup}" "${rendered_webhooks}" "${rendered_compute_provider}" "${rendered_singletons}" "${rendered_candlepin_port}" "${rendered_foreman_service_port}" "${rendered_foreman_secret_contract}" "${rendered_database_tls_disabled}" "${rendered_image_pull_secrets}" "${rendered_no_migrations}" "${rendered_release_operation}" "${rendered_release_application}" "${rendered_manual_dependency_stage}" "${rendered_manual_migration_stage}" "${rendered_secret_rotation}" "${rendered_monitoring}" "${rendered_monitoring_maintenance}" "${rendered_s3}" "${rendered_s3_operation}" "${rendered_s3_egress}" "${rendered_azure_identity}" "${rendered_s3_backup}" "${rendered_smtp}" "${rendered_smtp_backup}" "${rendered_kind}" "${rendered_kind_backup}" "${rendered_execution}" "${rendered_execution_egress}" "${rendered_execution_kind}" "${rendered_execution_operation}" "${rendered_execution_secret_rotation}" "${rendered_execution_monitoring}" "${rendered_execution_maintenance}" "${rendered_operator}" "${rendered_operator_monitoring}" "${rendered_operator_egress}" "${rendered_scheduled_stack}" "${rendered_scheduled_backup}" "${rendered_scheduled_execution}" "${rendered_execution_scheduled_backup}" "${rendered_scheduled_operator}" "${rendered_dynflow_autoscaling}" "${rendered_dynflow_autoscaling_maintenance}" "${rendered_capacity_notes}"' EXIT
 
 ruby "${repo_root}/tests/yaml-duplicates.rb"
 ruby "${repo_root}/tests/workflow-action-pins.rb" "${repo_root}/.github/workflows"
@@ -89,7 +88,6 @@ ruby "${repo_root}/tests/operator-image-contract.rb"
 ruby "${repo_root}/tests/kind-release-sequencing.rb"
 ruby "${repo_root}/tests/kind-image-runtime-contract.rb"
 ruby "${repo_root}/tests/kind-application-availability-contract.rb"
-ruby "${repo_root}/tests/kind-candlepin-job-contract.rb"
 ruby "${repo_root}/tests/kind-operator-release-contract.rb"
 ruby "${repo_root}/tests/kind-object-storage-contract.rb"
 ruby "${repo_root}/tests/kind-pod-security-contract.rb"
@@ -259,7 +257,6 @@ helm lint "${chart}" \
 helm lint "${chart}" \
   --values "${repo_root}/tests/egress-values.yaml" \
   --values "${repo_root}/tests/compute-provider-values.yaml"
-helm lint "${chart}" --values "${repo_root}/tests/ha-values.yaml"
 helm lint "${chart}" --values "${repo_root}/examples/pulp-s3-values.yaml"
 helm lint "${chart}" --values "${repo_root}/tests/pulp-azure-workload-identity-values.yaml"
 if helm lint "${chart}" \
@@ -275,9 +272,6 @@ fi
 helm lint "${chart}" \
   --values "${repo_root}/tests/egress-values.yaml" \
   --values "${repo_root}/tests/smtp-values.yaml"
-helm lint "${chart}" \
-  --values "${repo_root}/examples/cluster-values.yaml" \
-  --values "${repo_root}/examples/candlepin-ha-values.yaml"
 helm template foreman "${chart}" \
   --values "${repo_root}/tests/kind/values.yaml" \
   --values "${repo_root}/examples/execution-control-plane-values.yaml" \
@@ -377,8 +371,6 @@ helm template test "${chart}" \
   --values "${repo_root}/tests/compute-provider-values.yaml" \
   > "${rendered_compute_provider}"
 helm template test "${chart}" \
-  --values "${repo_root}/tests/ha-values.yaml" > "${rendered_ha}"
-helm template test "${chart}" \
   --set candlepin.service.port=24443 > "${rendered_candlepin_port}"
 helm template test "${chart}" \
   --set foreman.service.port=3100 > "${rendered_foreman_service_port}"
@@ -465,7 +457,6 @@ for manifest in \
   "${rendered_compute_provider}" \
   "${rendered_dynflow_autoscaling}" \
   "${rendered_singletons}" \
-  "${rendered_ha}" \
   "${rendered_candlepin_port}" \
   "${rendered_foreman_service_port}" \
   "${rendered_no_migrations}" \
@@ -524,7 +515,6 @@ ruby "${repo_root}/tests/foreman-secret-contract.rb" \
   custom-seed-password
 ruby "${repo_root}/tests/image-pull-secrets-contract.rb" \
   "${rendered_image_pull_secrets}" registry-auth
-ruby "${repo_root}/tests/katello-event-daemon-contract.rb" "${rendered_egress}"
 ruby "${repo_root}/tests/foreman-readiness-contract.rb" "${rendered}"
 ruby "${repo_root}/tests/foreman-smoke-contract.rb" "${rendered}"
 ruby "${repo_root}/tests/pulp-registration-contract.rb" "${rendered}"
@@ -771,11 +761,6 @@ ruby "${repo_root}/tests/certificate-identities.rb"
 "${repo_root}/tests/recover-release.sh"
 
 grep -Fq \
-  'apache/artemis:2.57.0-alpine@sha256:ca99ce1b72c5765a15dd507db4215591c43da623cd9f42db1bcd4319e5f4b579' \
-  "${repo_root}/tests/kind/dependencies.yaml"
-grep -Fq -- "--from-literal=artemis-broker-url='tcp://artemis:61616'" \
-  "${repo_root}/tests/kind/apply-secrets.sh"
-grep -Fq \
   'alpine:3.22@sha256:3e9b4b680bfc9fb5269227cffbd6d42be39fbf7c0b908123913864aa4447e764' \
   "${repo_root}/images/ssh-target/Dockerfile"
 grep -Fq "expected 'Ansible,Dynflow,Script'" \
@@ -847,7 +832,10 @@ grep -q 'name: test-foreman-stack-foreman' "${rendered}"
 grep -q 'name: test-foreman-stack-candlepin' "${rendered}"
 grep -q 'name: test-foreman-stack-dynflow-orchestrator' "${rendered}"
 grep -q 'name: test-foreman-stack-pulp-worker' "${rendered}"
-grep -q 'name: test-foreman-stack-katello-event-daemon' "${rendered}"
+if grep -Eq 'katello-event-daemon|CANDLEPIN_AUDIT_HORNETQ_BROKER_URL|artemis-broker-url' "${rendered}"; then
+  echo 'rendered manifests must not restore removed Katello event-daemon or external Candlepin broker contracts' >&2
+  exit 1
+fi
 RUBY_RENDERED_MANIFEST="${rendered}" ruby <<'RUBY'
 require 'yaml'
 
@@ -908,8 +896,8 @@ grep -q 'runAsUser: 994' "${rendered}"
 grep -q 'runAsUser: 700' "${rendered}"
 grep -q 'type: RuntimeDefault' "${rendered}"
 grep -q 'name: test-foreman-stack-dynflow-worker' "${rendered}"
-if [[ "$(grep -c 'startupProbe:' "${rendered}")" -ne 9 ]]; then
-  echo 'expected startup probes for Foreman, Dynflow, Katello events, Candlepin, Pulp API/content, and the Pulp control proxy' >&2
+if [[ "$(grep -c 'startupProbe:' "${rendered}")" -ne 8 ]]; then
+  echo 'expected startup probes for Foreman, Dynflow, Candlepin, Pulp API/content, and the Pulp control proxy' >&2
   exit 1
 fi
 if [[ "$(grep -A3 'livenessProbe:' "${rendered}" | grep -c 'tcpSocket:')" -ne 5 ]]; then
@@ -948,21 +936,6 @@ grep -q 'cidr: 192.0.2.10/32' "${rendered_egress}"
 grep -q 'cidr: 192.0.2.11/32' "${rendered_egress}"
 grep -q 'cidr: 198.51.100.0/24' "${rendered_egress}"
 grep -q 'cidr: 203.0.113.0/24' "${rendered_egress}"
-
-grep -q '^  replicas: 2$' "${rendered_ha}"
-grep -q 'candlepin.audit.hornetq.embedded=false' "${rendered_ha}"
-grep -q 'candlepin.messaging.activemq.embedded.enabled=false' "${rendered_ha}"
-grep -q 'org.quartz.scheduler.instanceId=AUTO' "${rendered_ha}"
-grep -q 'org.quartz.jobStore.isClustered=true' "${rendered_ha}"
-grep -q 'org.quartz.jobStore.clusterCheckinInterval=15000' "${rendered_ha}"
-grep -q 'name: CANDLEPIN_AUDIT_HORNETQ_BROKER_URL' "${rendered_ha}"
-grep -q 'key: artemis-broker-url' "${rendered_ha}"
-grep -q 'secretName: candlepin-artemis-tls' "${rendered_ha}"
-grep -q 'cidr: 192.0.2.12/32' "${rendered_ha}"
-if [[ "$(grep -c '^kind: PodDisruptionBudget$' "${rendered_ha}")" -ne 7 ]]; then
-  echo 'expected a Candlepin disruption budget only in the redundant HA profile' >&2
-  exit 1
-fi
 
 grep -q 'name: PULP_STORAGES__default__BACKEND' "${rendered_s3}"
 grep -q 'value: storages.backends.s3.S3Storage' "${rendered_s3}"
@@ -1041,29 +1014,25 @@ if grep -q 'CHANGE_ME' "${rendered}"; then
 fi
 
 if helm template test "${chart}" --set candlepin.replicas=2 >/dev/null 2>&1; then
-  echo 'expected multiple Candlepin replicas without the HA contract to be rejected' >&2
+  echo 'expected multiple Candlepin replicas to be rejected until an upstream HA contract is qualified' >&2
+  exit 1
+fi
+
+if helm template test "${chart}" \
+  --set candlepin.highAvailability.enabled=true >/dev/null 2>&1; then
+  echo 'expected the removed Candlepin external-broker HA values to be rejected' >&2
+  exit 1
+fi
+
+if helm template test "${chart}" \
+  --set foreman.katelloEventDaemon.enabled=true >/dev/null 2>&1; then
+  echo 'expected the removed standalone Katello event-daemon values to be rejected' >&2
   exit 1
 fi
 
 if helm template test "${chart}" \
   --set candlepin.shutdown.terminationGracePeriodSeconds=600 >/dev/null 2>&1; then
   echo 'expected an undersized Candlepin shutdown window to be rejected' >&2
-  exit 1
-fi
-
-if helm template test "${chart}" \
-  --values "${repo_root}/tests/ha-values.yaml" \
-  --set migrations.enabled=false >/dev/null 2>&1; then
-  echo 'expected Candlepin HA without migration ownership to be rejected' >&2
-  exit 1
-fi
-
-if helm template test "${chart}" \
-  --values "${repo_root}/profiles/nightly-candidate-2026-09-23.yaml" \
-  --values "${repo_root}/tests/egress-values.yaml" \
-  --set candlepin.replicas=2 \
-  --set candlepin.highAvailability.enabled=true >/dev/null 2>&1; then
-  echo 'expected restricted Candlepin HA without an Artemis egress peer to be rejected' >&2
   exit 1
 fi
 
@@ -1200,12 +1169,6 @@ helm template test "${chart}" \
   --set backup.enabled=true \
   --set backup.requestId=20260924-s3 \
   --set-string backup.objectStorageRecoveryPoint=provider-snapshot-20260924 >/dev/null
-
-if helm template test "${chart}" \
-  --set candlepin.highAvailability.enabled=true >/dev/null 2>&1; then
-  echo 'expected Candlepin HA with only one replica to be rejected' >&2
-  exit 1
-fi
 
 if ! grep -q 'candlepin.db.database_manage_on_startup=Manage' "${rendered_no_migrations}"; then
   echo 'Candlepin must retain upstream startup migration ownership when chart migrations are disabled' >&2

@@ -30,7 +30,6 @@ virt_who_config_lifecycle_state="${temporary_directory}/virt-who-config-lifecycl
 kubevirt_lifecycle_state="${temporary_directory}/kubevirt-lifecycle.json"
 image_runtime_contract_file="${IMAGE_RUNTIME_CONTRACT_FILE:-artifacts/image-runtime-contract.json}"
 image_platform_contract_file="${IMAGE_PLATFORM_CONTRACT_FILE:-artifacts/image-platform-contract.json}"
-candlepin_job_delivery_file="${CANDLEPIN_JOB_DELIVERY_FILE:-artifacts/candlepin-job-delivery.json}"
 operator_release_evidence_file="${OPERATOR_RELEASE_EVIDENCE_FILE:-artifacts/operator-release.json}"
 pulp_object_storage_evidence_file="${PULP_OBJECT_STORAGE_EVIDENCE_FILE:-artifacts/pulp-object-storage.json}"
 foreman_database_url_backup=""
@@ -384,39 +383,7 @@ assert_cluster_platform() {
   fi
 }
 
-candlepin_quartz_instances() {
-  kubectl --namespace "${namespace}" exec deployment/postgresql -- \
-    env PGPASSWORD=candlepin-test \
-    psql \
-    --host=127.0.0.1 \
-    --username=candlepin \
-    --dbname=candlepin \
-    --tuples-only \
-    --no-align \
-    --command="SELECT instance_name FROM qrtz_scheduler_state WHERE sched_name = 'ForemanCandlepinKind' ORDER BY instance_name"
-}
-
-wait_for_candlepin_quartz_instances() {
-  local expected_count="$1"
-  local actual_count
-  local instances
-
-  for _ in $(seq 1 120); do
-    instances="$(candlepin_quartz_instances)"
-    actual_count="$(printf '%s\n' "${instances}" | awk 'NF { count++ } END { print count + 0 }')"
-    if [[ "${actual_count}" == "${expected_count}" ]]; then
-      printf '%s\n' "${instances}"
-      return 0
-    fi
-    sleep 2
-  done
-
-  echo "Quartz has ${actual_count} registered instances, expected ${expected_count}" >&2
-  printf '%s\n' "${instances}" >&2
-  return 1
-}
-
-assert_candlepin_ha() {
+assert_candlepin_ready() {
   local ready_replicas
 
   kubectl --namespace "${namespace}" rollout status \
@@ -428,36 +395,10 @@ assert_candlepin_ha() {
       deployment/foreman-foreman-stack-candlepin \
       --output=jsonpath='{.status.readyReplicas}'
   )"
-  if [[ "${ready_replicas}" != 2 ]]; then
-    echo "Candlepin has ${ready_replicas:-0} ready replicas, expected 2" >&2
+  if [[ "${ready_replicas}" != 1 ]]; then
+    echo "Candlepin has ${ready_replicas:-0} ready replicas, expected 1" >&2
     exit 1
   fi
-
-  wait_for_candlepin_quartz_instances 2 >/dev/null
-}
-
-assert_candlepin_pod_recovery() {
-  local after_instances
-  local before_instances
-  local candlepin_pod
-
-  before_instances="$(candlepin_quartz_instances)"
-  candlepin_pod="$(
-    kubectl --namespace "${namespace}" get pod \
-      --selector=app.kubernetes.io/component=candlepin \
-      --output=jsonpath='{.items[0].metadata.name}'
-  )"
-  kubectl --namespace "${namespace}" delete pod "${candlepin_pod}" \
-    --wait=true \
-    --timeout=5m
-
-  assert_candlepin_ha
-  after_instances="$(candlepin_quartz_instances)"
-  if [[ "${before_instances}" == "${after_instances}" ]]; then
-    echo "Quartz did not replace the terminated scheduler instance" >&2
-    exit 1
-  fi
-  assert_foreman_ready
 }
 
 set_database_probes() {
@@ -638,40 +579,6 @@ assert_database_probes_absent() {
   done
 }
 
-ensure_artemis_queue() {
-  local queue="$1"
-  local address="$2"
-  local routing_type="$3"
-  local output
-
-  if output="$(
-    kubectl --namespace "${namespace}" exec deployment/artemis -- \
-      /var/lib/artemis-instance/bin/artemis queue create \
-        --silent \
-        --url tcp://127.0.0.1:61616 \
-        --user artemis \
-        --password artemis \
-        --name "${queue}" \
-        --address "${address}" \
-        --"${routing_type}" \
-        --durable \
-        --auto-create-address 2>&1
-  )"; then
-    printf 'Created Artemis queue %s on %s (%s).\n' "${queue}" "${address}" "${routing_type}"
-  elif grep --fixed-strings --quiet "Queue ${queue} already exists" <<<"${output}"; then
-    printf 'Artemis queue %s already exists.\n' "${queue}"
-  else
-    printf '%s\n' "${output}" >&2
-    return 1
-  fi
-}
-
-configure_artemis_queues() {
-  ensure_artemis_queue event.org.candlepin.audit.LoggingListener event.default multicast
-  ensure_artemis_queue event.org.candlepin.audit.ActivationListener event.default multicast
-  ensure_artemis_queue jobs job anycast
-}
-
 secret_rollout_digest() {
   local secret
 
@@ -689,8 +596,6 @@ install_dependencies() {
   kubectl apply --filename="${repo_root}/tests/kind/dependencies.yaml"
   kubectl --namespace "${namespace}" rollout status deployment/postgresql --timeout=5m
   kubectl --namespace "${namespace}" rollout status deployment/valkey --timeout=5m
-  kubectl --namespace "${namespace}" rollout status deployment/artemis --timeout=5m
-  configure_artemis_queues
   kubectl --namespace "${namespace}" rollout status deployment/content-source --timeout=5m
   "${repo_root}/tests/kind/apply-secrets.sh" "${temporary_directory}"
   application_secret_rollout_token="$(secret_rollout_digest \
@@ -898,7 +803,7 @@ assert_failed_migration_gate() {
   restore_candlepin_database_password
 
   assert_application_workloads_unchanged "${application_workload_uids_before}"
-  assert_candlepin_ha
+  assert_candlepin_ready
   assert_foreman_ready
   finish_execution_upgrade_job failed-migration-upgrade "${upgrade_state}"
   assert_application_smoke_test
@@ -913,7 +818,7 @@ assert_failed_migration_gate() {
     'app.kubernetes.io/component=dynflow-worker-hosts-queue' \
     "${dynflow_hosts_queue_uids_before}"
   assert_pods_replaced 'app.kubernetes.io/component=candlepin' "${candlepin_uids_before}"
-  assert_candlepin_ha
+  assert_candlepin_ready
   assert_foreman_ready
   assert_application_smoke_test
 }
@@ -1252,8 +1157,7 @@ kubectl --namespace "${namespace}" wait \
 
 assert_foreman_ready
 assert_shared_foreman_tmp
-assert_candlepin_ha
-assert_candlepin_pod_recovery
+assert_candlepin_ready
 assert_application_smoke_test
 "${repo_root}/tests/kind/application-availability.sh" "${temporary_directory}"
 
@@ -1293,9 +1197,6 @@ if [[ "${kubevirt_qualify}" == 1 ]]; then
   NAMESPACE="${namespace}" "${repo_root}/tests/kind/kubevirt-lifecycle.sh" \
     seed "${temporary_directory}" "${kubevirt_lifecycle_state}"
 fi
-NAMESPACE="${namespace}" "${repo_root}/tests/kind/candlepin-job-delivery.sh" \
-  "${candlepin_job_delivery_file}"
-
 if [[ "${skip_recovery_test}" != 1 ]]; then
   set_database_probes before-backup
   set_pulp_probe before-backup
@@ -1322,7 +1223,7 @@ if [[ "${skip_recovery_test}" != 1 ]]; then
   run_recovery restore e2e-restore
 
   assert_foreman_ready
-  assert_candlepin_ha
+  assert_candlepin_ready
   assert_pulp_registration
   assert_application_smoke_test
   "${repo_root}/tests/kind/content-lifecycle.sh" \
@@ -1414,7 +1315,7 @@ if [[ "${kubevirt_qualify}" == 1 ]]; then
 fi
 
 if [[ "${skip_recovery_test}" == 1 ]]; then
-  echo "Kind install, Candlepin HA, webhooks, virt-who configuration, mTLS, content replacement, execution, proxy restart, scale, and upgrade checks passed; recovery drill skipped."
+  echo "Kind install, singleton Candlepin, webhooks, virt-who configuration, mTLS, content replacement, execution, proxy restart, scale, and upgrade checks passed; recovery drill skipped."
 else
-  echo "Kind install, Candlepin HA, webhooks, virt-who configuration, mTLS, content replacement, execution, proxy restart, backup, restore, scale, and upgrade checks passed."
+  echo "Kind install, singleton Candlepin, webhooks, virt-who configuration, mTLS, content replacement, execution, proxy restart, backup, restore, scale, and upgrade checks passed."
 fi

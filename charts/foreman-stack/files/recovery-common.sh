@@ -35,7 +35,6 @@ wait_for_quiescence() {
               $component == "pulp-api" or
               $component == "pulp-content" or
               $component == "pulp-worker" or
-              $component == "katello-event-daemon" or
               $component == "foreman-cron" or
               $component == "candlepin-migrate" or
               $component == "foreman-migrate" or

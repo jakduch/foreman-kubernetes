@@ -7,7 +7,7 @@ deployments = YAML.load_stream(File.read(ARGV.fetch(0))).compact.select do |reso
   resource['kind'] == 'Deployment'
 end
 
-recreate = %w[candlepin dynflow-orchestrator katello-event-daemon].freeze
+recreate = %w[candlepin dynflow-orchestrator].freeze
 zero_downtime = %w[foreman pulp-api pulp-content pulp-control-proxy].freeze
 bounded_worker_loss = %w[dynflow-worker dynflow-worker-hosts-queue pulp-worker].freeze
 expected = recreate + zero_downtime + bounded_worker_loss
