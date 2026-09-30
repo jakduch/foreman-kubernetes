@@ -22,7 +22,8 @@
         "repository": "https://github.com/theforeman/foreman.git",
         "localPath": "foreman",
         "branch": "feature/configurable-puma-run-dir",
-        "commit": "aca9dcbb8d4f82e7ac753b39ca27751d9a6bbb28"
+        "commit": "e428e97b5a3c4012c2b6ce70339d46a044235054",
+        "pullRequest": "https://github.com/theforeman/foreman/pull/11301"
       },
       "standaloneDefault": "FOREMAN_RUN_DIR remains unset and Puma keeps using Rails.root/tmp.",
       "kubernetesConsumers": ["foreman web Deployment"]
@@ -37,7 +38,8 @@
         "repository": "https://github.com/theforeman/foreman.git",
         "localPath": "foreman",
         "branch": "feature/dynflow-readiness",
-        "commit": "e5e37698dd880bc664fd2e09500d3c25c28938e5"
+        "commit": "c34eca2350aff90275018175d7d8c7df99cc1ea8",
+        "pullRequest": "https://github.com/theforeman/foreman/pull/11302"
       },
       "standaloneDefault": "No readiness file is written unless DYNFLOW_READINESS_FILE is set.",
       "kubernetesConsumers": ["Dynflow orchestrator Deployment", "Dynflow worker Deployments"]
@@ -52,7 +54,8 @@
         "repository": "https://github.com/theforeman/foreman.git",
         "localPath": "foreman",
         "branch": "fix/escaped-client-certificate",
-        "commit": "d5019fb1be0759ff930fe9956ba73b3a4a742c98"
+        "commit": "ca931e3083893de5ec22e9454faa432e511c6739",
+        "pullRequest": "https://github.com/theforeman/foreman/pull/11303"
       },
       "standaloneDefault": "Existing PEM and DER certificate inputs keep their previous parsing path.",
       "kubernetesConsumers": ["Foreman ingress client-certificate authentication"]
@@ -67,7 +70,8 @@
         "repository": "https://github.com/theforeman/foreman.git",
         "localPath": "foreman",
         "branch": "feature/dynflow-redis-tls-ca",
-        "commit": "3c3444364aa51c3e6a316949ed35ec8f887e8bf4"
+        "commit": "e8992eab23203e787fe695acd8aa290391ae08f9",
+        "pullRequest": "https://github.com/theforeman/foreman/pull/11304"
       },
       "standaloneDefault": "Dynflow Redis configuration is unchanged unless DYNFLOW_REDIS_SSL_CA_FILE is set.",
       "kubernetesConsumers": ["Dynflow orchestrator Deployment", "Dynflow worker Deployments"]
@@ -82,7 +86,8 @@
         "repository": "https://github.com/Katello/katello.git",
         "localPath": "katello",
         "branch": "fix/pulp-non-default-port",
-        "commit": "d083c9894246daf539d8aa21e1e030e8055a6b54"
+        "commit": "ffd3b2de203f208f1e2c4abaf28394d8eeefe77e",
+        "pullRequest": "https://github.com/Katello/katello/pull/11884"
       },
       "standaloneDefault": "Default HTTP and HTTPS ports keep producing host-only Pulp client configuration.",
       "kubernetesConsumers": ["Katello Pulp control client"]
@@ -97,7 +102,8 @@
         "repository": "https://github.com/Katello/katello.git",
         "localPath": "katello",
         "branch": "feature/container-registry-api-url",
-        "commit": "c903c88b889d0f12f3084e4fb7bcd7c47c4c529a"
+        "commit": "8fe54afff2faf4520c8300d9db3cfae581ee992a",
+        "pullRequest": "https://github.com/Katello/katello/pull/11885"
       },
       "standaloneDefault": "Katello keeps deriving /pulpcore_registry/ from content_app_url when the dedicated setting is absent.",
       "kubernetesConsumers": ["Katello container registry control client"]
@@ -112,25 +118,11 @@
         "repository": "https://github.com/theforeman/candlepin-oci-images.git",
         "localPath": "candlepin-oci-images",
         "branch": "feature/container-runtime-contracts",
-        "commit": "f11365cad697bd515d6292ca66e72c1c69460d1b"
+        "commit": "13575fa6d49ce6942d1cf8684d0e8c676d7dbc64",
+        "pullRequest": "https://github.com/theforeman/candlepin-oci-images/pull/90"
       },
       "standaloneDefault": "The image still starts Candlepin through the packaged Tomcat server command.",
       "kubernetesConsumers": ["Candlepin Deployment", "Candlepin migration Job"]
-    },
-    {
-      "id": "pulpcore-el10-botocore-dateutil-epoch",
-      "component": "pulp",
-      "profiles": ["object-storage"],
-      "state": "local-upstream-commit",
-      "availableInReleaseSets": [],
-      "upstream": {
-        "repository": "https://github.com/theforeman/pulpcore-packaging.git",
-        "localPath": "pulp-oci-images/images/pulp-source/pulpcore-packaging",
-        "branch": "fix/el10-botocore-dateutil-epoch",
-        "commit": "7d30b547d99b2cc04b884a1ea2ed68cc2828c65e"
-      },
-      "standaloneDefault": "Only EL9 and newer dependency resolution changes; other package targets keep their existing requirements.",
-      "kubernetesConsumers": ["Pulp object-storage image build"]
     },
     {
       "id": "pulpcore-package-django-storages",
@@ -142,7 +134,8 @@
         "repository": "https://github.com/theforeman/pulpcore-packaging.git",
         "localPath": "pulp-oci-images/images/pulp-source/pulpcore-packaging",
         "branch": "feature/package-django-storages",
-        "commit": "25807bc3bff541cea6b39fe10a172ef2751edeff"
+        "commit": "58a61f6655f8918cc3d2099b59e5524cebf1676a",
+        "pullRequest": "https://github.com/theforeman/pulpcore-packaging/pull/3186"
       },
       "standaloneDefault": "The package is available to consumers but does not change Pulpcore storage selection.",
       "kubernetesConsumers": ["Pulp object-storage image build"]
@@ -157,7 +150,8 @@
         "repository": "https://github.com/theforeman/pulp-oci-images.git",
         "localPath": "pulp-oci-images",
         "branch": "feature/object-storage-runtime",
-        "commit": "080849047935d5a38083420ac4890ebabed78536"
+        "commit": "7ba2c356eaf92177c40fc02cb74c3c0e515153da",
+        "pullRequest": "https://github.com/theforeman/pulp-oci-images/pull/117"
       },
       "standaloneDefault": "Pulp continues to use filesystem storage unless its normal Django storage settings select S3.",
       "kubernetesConsumers": ["Pulp S3-compatible storage profile"]
@@ -172,7 +166,8 @@
         "repository": "https://github.com/theforeman/pulp_smart_proxy.git",
         "localPath": "pulp_smart_proxy",
         "branch": "feature/container-registry-api-url",
-        "commit": "9818376b13500c360902e9ba7bf2ceaeb8f978fe"
+        "commit": "9818376b13500c360902e9ba7bf2ceaeb8f978fe",
+        "pullRequest": "https://github.com/theforeman/pulp_smart_proxy/pull/80"
       },
       "standaloneDefault": "The advertised registry API URL defaults to the traditional /pulpcore_registry/ path on CONTENT_ORIGIN.",
       "kubernetesConsumers": ["Katello container registry control client"]
@@ -187,7 +182,8 @@
         "repository": "https://github.com/theforeman/foreman_kubevirt.git",
         "localPath": "foreman_kubevirt",
         "branch": "fix/discover-kubevirt-api-version",
-        "commit": "b5a1d3bee546394d62fa77514e36dcfc77893c0c"
+        "commit": "d684138299b9a0068a37116eb7a20e588a50f7ac",
+        "pullRequest": "https://github.com/theforeman/foreman_kubevirt/pull/205"
       },
       "standaloneDefault": "The provider keeps using its configured Kubernetes endpoint and namespace with safer discovery and lifecycle behavior.",
       "kubernetesConsumers": ["Optional Foreman KubeVirt compute provider"]
@@ -202,7 +198,8 @@
         "repository": "https://github.com/fog/fog-kubevirt.git",
         "localPath": "fog-kubevirt",
         "branch": "fix/scope-network-attachments",
-        "commit": "baa222aaec7ada452989eed40c96c355eb6c5c81"
+        "commit": "baa222aaec7ada452989eed40c96c355eb6c5c81",
+        "pullRequest": "https://github.com/fog/fog-kubevirt/pull/180"
       },
       "standaloneDefault": "KubeVirt requests remain provider-scoped while using the configured namespace and grouped API version.",
       "kubernetesConsumers": ["Optional Foreman KubeVirt compute provider"]

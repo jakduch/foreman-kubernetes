@@ -36,9 +36,13 @@ therefore deliberately still a candidate.
 
 | Contract | Upstream behavior | Kubernetes use |
 | --- | --- | --- |
-| `pulpcore-el10-botocore-dateutil-epoch` | Corrects the EL10 botocore dependency without changing other package targets. | Allows the object-storage dependencies to resolve in the official image build. |
 | `pulpcore-package-django-storages` | Publishes `django-storages` without selecting it automatically. | Supplies Pulpcore's supported S3 storage backend. |
 | `pulp-image-object-storage-runtime` | Includes boto3 and django-storages; filesystem storage remains the default. | Enables the chart's opt-in S3-compatible storage profile. |
+
+[pulpcore-packaging#3185](https://github.com/theforeman/pulpcore-packaging/pull/3185)
+adds regression coverage for the existing botocore dateutil epoch policy. It
+does not change a runtime requirement and is therefore not tracked as a release
+contract.
 
 ## Optional KubeVirt provider
 

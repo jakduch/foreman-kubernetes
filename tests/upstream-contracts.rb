@@ -47,6 +47,7 @@ contracts.each do |contract|
   upstream = contract.fetch('upstream')
   raise "invalid upstream repository for #{id}" unless upstream.fetch('repository').match?(%r{\Ahttps://github\.com/[^/]+/[^/]+\.git\z})
   raise "invalid upstream commit for #{id}" unless upstream.fetch('commit').match?(sha_pattern)
+  raise "invalid upstream pull request for #{id}" unless upstream.fetch('pullRequest').match?(%r{\Ahttps://github\.com/[^/]+/[^/]+/pull/[1-9][0-9]*\z})
   raise "missing standalone-default contract for #{id}" if contract.fetch('standaloneDefault').empty?
   raise "missing Kubernetes consumer for #{id}" if contract.fetch('kubernetesConsumers').empty?
   raise "upstream readiness documentation omits #{id}" unless documentation.include?("`#{id}`")

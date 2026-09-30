@@ -80,7 +80,6 @@
         }
       ],
       "contracts": [
-        "pulpcore-el10-botocore-dateutil-epoch",
         "pulpcore-package-django-storages",
         "pulp-image-object-storage-runtime"
       ],

@@ -15,11 +15,11 @@ unpublished derivative images for the amd64 integration environment:
 - Candlepin receives the recorded migration entry point and keeps the numeric
   packaged Tomcat identity.
 - Pulp receives the exact `django-storages`, boto3, botocore, jmespath, and
-  s3transfer versions represented by the prepared packaging changes. Every
+  s3transfer versions needed by the prepared object-storage image change. Every
   wheel is hash-pinned; already packaged dateutil, urllib3, and six remain in
-  use. This is a qualification bridge only because the current EL10 repository
-  cannot resolve botocore's dateutil epoch. The supported image must ultimately
-  install the dependency chain from the corrected Pulpcore RPM repository.
+  use. This is a qualification bridge only because `django-storages` is not yet
+  published in the current EL10 repository. The supported image must ultimately
+  install the dependency chain from the Pulpcore RPM repository.
 
 Every base is the immutable digest from the normal candidate profile. The
 generated evidence records each upstream commit, a deterministic context hash,
