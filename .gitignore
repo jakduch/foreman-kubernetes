@@ -1,0 +1,6 @@
+.DS_Store
+*.tgz
+charts/foreman-stack/charts/
+__pycache__/
+*.pyc
+artifacts/
