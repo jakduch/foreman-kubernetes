@@ -142,7 +142,7 @@ required_lifecycle_contracts = [
   'deb_releases: "stable"',
   'deb_components: "main"',
   'deb_architectures: "amd64"',
-  '/debs?per_page=all',
+  '/debs?per_page=1000',
   'published Debian package checksum',
   'published_deb_repository_id',
   'restored Debian package checksum'

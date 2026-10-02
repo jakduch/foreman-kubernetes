@@ -14,10 +14,11 @@ values = YAML.safe_load(File.read(File.join(root, 'tests/kind/values.yaml')), al
 plugins = values.dig('pulp', 'enabledPlugins')
 abort 'kind integration profile does not enable pulp_container' unless plugins.include?('pulp_container')
 
-config_json = '{"architecture":"amd64","config":{},"os":"linux","rootfs":{"diff_ids":[],"type":"layers"}}'
-config_digest = '067c4dd72da4d166811c210f3d96a24e0f1c7ed7f02f905f6f78e03d500f7c59'
-manifest_json = '{"schemaVersion":2,"mediaType":"application/vnd.oci.image.manifest.v1+json","config":{"mediaType":"application/vnd.oci.image.config.v1+json","size":90,"digest":"sha256:067c4dd72da4d166811c210f3d96a24e0f1c7ed7f02f905f6f78e03d500f7c59"},"layers":[]}'
-manifest_digest = 'ee2cdbe59e4f2fd7d147f75965389f494b67b1b33107f3b8d487eef5f41b1f36'
+config_json = '{"architecture":"amd64","config":{},"os":"linux","rootfs":{"diff_ids":["sha256:eb57f143f4ee487e8f0820d587bd67ab288abac1158e499ee7a83a510c842189"],"type":"layers"}}'
+config_digest = '98226886452c6e4e0b8abba680ce0c95e15dc9622bffb76aa6659d175cd2aa2f'
+layer_digest = '29323aea56b32b194aacc068c802f8378b79490bab824489a01a203ea5ed9159'
+manifest_json = '{"schemaVersion":2,"mediaType":"application/vnd.oci.image.manifest.v1+json","config":{"mediaType":"application/vnd.oci.image.config.v1+json","size":163,"digest":"sha256:98226886452c6e4e0b8abba680ce0c95e15dc9622bffb76aa6659d175cd2aa2f"},"layers":[{"mediaType":"application/vnd.oci.image.layer.v1.tar+gzip","size":121,"digest":"sha256:29323aea56b32b194aacc068c802f8378b79490bab824489a01a203ea5ed9159"}]}'
+manifest_digest = 'dbb1deb2e285b7d0e8d3f6d00aed58ea5fd7f4b7772862889935f36cc58718bd'
 tag_json = '{"name":"foreman-kubernetes-fixture","tags":["1.0.0"]}'
 
 dependencies = YAML.load_stream(File.read(File.join(root, 'tests/kind/dependencies.yaml'))).compact
@@ -30,9 +31,12 @@ data = fixture.fetch('data')
 abort 'content source has no OCI config fixture' unless data['oci-config.json'] == config_json
 abort 'content source has no OCI manifest fixture' unless data['oci-manifest.json'] == manifest_json
 abort 'content source has no OCI tag fixture' unless data['oci-tags.json'] == tag_json
-abort 'OCI config fixture has the wrong size' unless config_json.bytesize == 90
+layer = Base64.strict_decode64(fixture.fetch('binaryData').fetch('oci-layer.tar.gz'))
+abort 'OCI config fixture has the wrong size' unless config_json.bytesize == 163
 abort 'OCI config fixture has the wrong checksum' unless Digest::SHA256.hexdigest(config_json) == config_digest
-abort 'OCI manifest fixture has the wrong size' unless manifest_json.bytesize == 247
+abort 'OCI layer fixture has the wrong size' unless layer.bytesize == 121
+abort 'OCI layer fixture has the wrong checksum' unless Digest::SHA256.hexdigest(layer) == layer_digest
+abort 'OCI manifest fixture has the wrong size' unless manifest_json.bytesize == 401
 abort 'OCI manifest fixture has the wrong checksum' unless Digest::SHA256.hexdigest(manifest_json) == manifest_digest
 JSON.parse(config_json)
 JSON.parse(manifest_json)
@@ -44,6 +48,7 @@ nginx = data.fetch('nginx.conf')
   Docker-Content-Digest
   application/vnd.oci.image.manifest.v1+json
   application/vnd.oci.image.config.v1+json
+  application/vnd.oci.image.layer.v1.tar+gzip
   /v2/
   /manifests/
   /blobs/
@@ -61,7 +66,7 @@ builder = deployment.dig('spec', 'template', 'spec', 'initContainers')&.find do 
 end
 abort 'content source has no OCI repository builder' unless builder
 builder_script = builder.fetch('command').last
-%w[oci-config.json oci-manifest.json oci-tags.json /v2/ manifests blobs tags/list].each do |contract|
+%w[oci-config.json oci-layer.tar.gz oci-manifest.json oci-tags.json /v2/ manifests blobs tags/list].each do |contract|
   abort "OCI repository builder is missing #{contract}" unless builder_script.include?(contract)
 end
 
@@ -80,15 +85,17 @@ Dir.mktmpdir('foreman-kubernetes-container-source') do |directory|
   abort "OCI fixture builder failed: #{stderr}" unless status.success?
 
   manifest = File.join(served, 'v2/foreman-kubernetes-fixture/manifests/1.0.0')
-  manifest_by_digest = File.join(served, 'v2/foreman-kubernetes-fixture/manifests/sha256:ee2cdbe59e4f2fd7d147f75965389f494b67b1b33107f3b8d487eef5f41b1f36')
-  config = File.join(served, 'v2/foreman-kubernetes-fixture/blobs/sha256:067c4dd72da4d166811c210f3d96a24e0f1c7ed7f02f905f6f78e03d500f7c59')
+  manifest_by_digest = File.join(served, "v2/foreman-kubernetes-fixture/manifests/sha256:#{manifest_digest}")
+  config = File.join(served, "v2/foreman-kubernetes-fixture/blobs/sha256:#{config_digest}")
+  layer_path = File.join(served, "v2/foreman-kubernetes-fixture/blobs/sha256:#{layer_digest}")
   tags = File.join(served, 'v2/foreman-kubernetes-fixture/tags/list')
-  [manifest, manifest_by_digest, config, tags].each do |path|
+  [manifest, manifest_by_digest, config, layer_path, tags].each do |path|
     abort "OCI fixture builder did not create #{path}" unless File.file?(path)
   end
   abort 'served OCI manifest has the wrong checksum' unless Digest::SHA256.file(manifest).hexdigest == manifest_digest
   abort 'served OCI digest manifest has the wrong checksum' unless Digest::SHA256.file(manifest_by_digest).hexdigest == manifest_digest
   abort 'served OCI config has the wrong checksum' unless Digest::SHA256.file(config).hexdigest == config_digest
+  abort 'served OCI layer has the wrong checksum' unless Digest::SHA256.file(layer_path).hexdigest == layer_digest
   abort 'served OCI tag list differs from the fixture' unless File.read(tags) == tag_json
 end
 
@@ -96,8 +103,10 @@ lifecycle = File.read(File.join(root, 'tests/kind/content-lifecycle.sh'))
 required_lifecycle_contracts = [
   'content_type: "docker"',
   'docker_upstream_name',
-  '/docker_tags?per_page=all',
-  '/docker_manifests?per_page=all',
+  '/docker_tags?per_page=1000',
+  '/docker_manifests?per_page=1000',
+  'organization_label="Kubernetes_Integration_${run_id}"',
+  '--arg label "${organization_label}"',
   'published container tag manifest digest',
   'published_container_repository_id',
   'restored library container'

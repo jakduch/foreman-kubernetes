@@ -116,8 +116,8 @@ end
 lifecycle = File.read(File.join(root, 'tests/kind/content-lifecycle.sh'))
 required_lifecycle_contracts = [
   'content_type: "yum"',
-  'url: "http://content-source.foreman.svc.cluster.local/rpm/"',
-  '/packages?per_page=all',
+  'url: "http://content-source/rpm/"',
+  '/packages?per_page=1000',
   'published RPM package checksum',
   'published_rpm_repository_id',
   'restored RPM package checksum'

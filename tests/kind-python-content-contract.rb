@@ -88,7 +88,7 @@ end
 lifecycle = File.read(File.join(root, 'tests/kind/content-lifecycle.sh'))
 required_lifecycle_contracts = [
   'content_type: "python"',
-  '/python_packages?per_page=all',
+  '/python_packages?per_page=1000',
   '/pypi/${normalized_path}/simple/${python_package_name}/',
   'published Python package checksum',
   'published_python_repository_id',

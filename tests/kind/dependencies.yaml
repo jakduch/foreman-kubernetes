@@ -141,9 +141,9 @@ data:
   python-module.py: |
     VERSION = "1.0.0"
   oci-config.json: |-
-    {"architecture":"amd64","config":{},"os":"linux","rootfs":{"diff_ids":[],"type":"layers"}}
+    {"architecture":"amd64","config":{},"os":"linux","rootfs":{"diff_ids":["sha256:eb57f143f4ee487e8f0820d587bd67ab288abac1158e499ee7a83a510c842189"],"type":"layers"}}
   oci-manifest.json: |-
-    {"schemaVersion":2,"mediaType":"application/vnd.oci.image.manifest.v1+json","config":{"mediaType":"application/vnd.oci.image.config.v1+json","size":90,"digest":"sha256:067c4dd72da4d166811c210f3d96a24e0f1c7ed7f02f905f6f78e03d500f7c59"},"layers":[]}
+    {"schemaVersion":2,"mediaType":"application/vnd.oci.image.manifest.v1+json","config":{"mediaType":"application/vnd.oci.image.config.v1+json","size":163,"digest":"sha256:98226886452c6e4e0b8abba680ce0c95e15dc9622bffb76aa6659d175cd2aa2f"},"layers":[{"mediaType":"application/vnd.oci.image.layer.v1.tar+gzip","size":121,"digest":"sha256:29323aea56b32b194aacc068c802f8378b79490bab824489a01a203ea5ed9159"}]}
   oci-tags.json: |-
     {"name":"foreman-kubernetes-fixture","tags":["1.0.0"]}
   nginx.conf: |
@@ -161,20 +161,33 @@ data:
       location ~ ^/v2/.+/manifests/ {
         default_type application/vnd.oci.image.manifest.v1+json;
         add_header Docker-Distribution-Api-Version "registry/2.0" always;
-        add_header Docker-Content-Digest "sha256:ee2cdbe59e4f2fd7d147f75965389f494b67b1b33107f3b8d487eef5f41b1f36" always;
+        add_header Docker-Content-Digest "sha256:dbb1deb2e285b7d0e8d3f6d00aed58ea5fd7f4b7772862889935f36cc58718bd" always;
         try_files $uri =404;
       }
 
-      location ~ ^/v2/.+/blobs/ {
+      location = /v2/foreman-kubernetes-fixture/blobs/sha256:98226886452c6e4e0b8abba680ce0c95e15dc9622bffb76aa6659d175cd2aa2f {
         default_type application/vnd.oci.image.config.v1+json;
         add_header Docker-Distribution-Api-Version "registry/2.0" always;
-        add_header Docker-Content-Digest "sha256:067c4dd72da4d166811c210f3d96a24e0f1c7ed7f02f905f6f78e03d500f7c59" always;
+        add_header Docker-Content-Digest "sha256:98226886452c6e4e0b8abba680ce0c95e15dc9622bffb76aa6659d175cd2aa2f" always;
+        try_files $uri =404;
+      }
+
+      location = /v2/foreman-kubernetes-fixture/blobs/sha256:29323aea56b32b194aacc068c802f8378b79490bab824489a01a203ea5ed9159 {
+        default_type application/vnd.oci.image.layer.v1.tar+gzip;
+        add_header Docker-Distribution-Api-Version "registry/2.0" always;
+        add_header Docker-Content-Digest "sha256:29323aea56b32b194aacc068c802f8378b79490bab824489a01a203ea5ed9159" always;
         try_files $uri =404;
       }
 
       location ~ ^/v2/.+/tags/list$ {
         default_type application/json;
         add_header Docker-Distribution-Api-Version "registry/2.0" always;
+        try_files $uri =404;
+      }
+
+      location ^~ /pypi/ {
+        default_type application/json;
+        add_header X-PyPI-Last-Serial "1" always;
         try_files $uri =404;
       }
 
@@ -188,6 +201,9 @@ data:
       }
     }
 binaryData:
+  # Deterministic gzip-compressed OCI layer containing fixture.txt.
+  # SHA-256: 29323aea56b32b194aacc068c802f8378b79490bab824489a01a203ea5ed9159
+  oci-layer.tar.gz: H4sIGAEAAAACAwAAS8usKCktStUrqShhoBUwAAIzExMwDQTotIGBsSGCDRI3NDYyNmNQMGCgAygtLkksAlpflJ+PNwQIyaN7boiAtPyi1NzEPN3s0qTUorzUktRi3ZzEytQiLoZRMApGwSgYBcMZAAAyep6tAAgAAA==
   # Katello test fixture: test/fixtures/files/squirrel-0.3-0.8.noarch.rpm
   # SHA-256: 251768bdd15f13d78487c27638aa6aecd01551e253756093cde1c0ae878a17d2
   rpm-squirrel.rpm: 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
@@ -274,7 +290,7 @@ spec:
                     "size": ${size},
                     "upload_time": "2026-09-25T00:00:00",
                     "upload_time_iso_8601": "2026-09-25T00:00:00Z",
-                    "url": "http://content-source.foreman.svc.cluster.local/packages/foreman_kubernetes_pkg-1.0.0.tar.gz",
+                    "url": "http://content-source/packages/foreman_kubernetes_pkg-1.0.0.tar.gz",
                     "yanked": false,
                     "yanked_reason": null
                   }]
@@ -292,7 +308,7 @@ spec:
                   "size": ${size},
                   "upload_time": "2026-09-25T00:00:00",
                   "upload_time_iso_8601": "2026-09-25T00:00:00Z",
-                  "url": "http://content-source.foreman.svc.cluster.local/packages/foreman_kubernetes_pkg-1.0.0.tar.gz",
+                  "url": "http://content-source/packages/foreman_kubernetes_pkg-1.0.0.tar.gz",
                   "yanked": false,
                   "yanked_reason": null
                 }],
@@ -470,11 +486,13 @@ spec:
 
               oci_name=foreman-kubernetes-fixture
               oci_tag=1.0.0
-              oci_config_digest=067c4dd72da4d166811c210f3d96a24e0f1c7ed7f02f905f6f78e03d500f7c59
-              oci_manifest_digest=ee2cdbe59e4f2fd7d147f75965389f494b67b1b33107f3b8d487eef5f41b1f36
+              oci_config_digest=98226886452c6e4e0b8abba680ce0c95e15dc9622bffb76aa6659d175cd2aa2f
+              oci_layer_digest=29323aea56b32b194aacc068c802f8378b79490bab824489a01a203ea5ed9159
+              oci_manifest_digest=dbb1deb2e285b7d0e8d3f6d00aed58ea5fd7f4b7772862889935f36cc58718bd
               oci_root="/served/v2/${oci_name}"
               mkdir -p "${oci_root}/blobs" "${oci_root}/manifests" "${oci_root}/tags"
               cp /source/oci-config.json "${oci_root}/blobs/sha256:${oci_config_digest}"
+              cp /source/oci-layer.tar.gz "${oci_root}/blobs/sha256:${oci_layer_digest}"
               cp /source/oci-manifest.json "${oci_root}/manifests/${oci_tag}"
               cp /source/oci-manifest.json "${oci_root}/manifests/sha256:${oci_manifest_digest}"
               cp /source/oci-tags.json "${oci_root}/tags/list"
