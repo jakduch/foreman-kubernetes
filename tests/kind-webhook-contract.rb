@@ -17,14 +17,15 @@ unless values.dig('foreman', 'enabledPlugins').include?('foreman_webhooks')
 end
 
 required_lifecycle_contracts = {
-  'create a payload template' => 'WebhookTemplate.create!',
-  'create an event webhook' => 'Webhook.create!',
-  'use a real domain event' => 'domain_created.event.foreman',
+  'create a payload template through the public API' => 'POST /api/webhook_templates',
+  'create an event webhook through the public API' => 'POST /api/webhooks',
+  'use a real domain event' => 'event: "domain_created"',
+  'create domains through the public API' => 'POST /api/domains',
   'surface destination failure' => '/failure',
-  'require the HTTP 503 result' => 'result[:http_status] == 503',
+  'require the HTTP 503 result' => '"path":"/failure","status":503',
   'replace the receiver Pod' => 'delete pod',
   'reject a retained Pod UID' => 'webhook receiver Pod was not replaced',
-  'verify restored webhook state' => 'Webhook.unscoped.find_by!',
+  'verify restored webhook state through the public API' => 'GET "/api/webhooks/${webhook_id}"',
   'exercise post-restore delivery' => 'recovery_domain'
 }
 required_lifecycle_contracts.each do |description, contract|

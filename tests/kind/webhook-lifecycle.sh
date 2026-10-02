@@ -13,10 +13,71 @@ namespace="${NAMESPACE:-foreman}"
 receiver_name="webhook-receiver"
 receiver_url="http://${receiver_name}:9999"
 
-foreman_pod() {
-  kubectl --namespace "${namespace}" get pod \
-    --selector=app.kubernetes.io/component=foreman \
-    --output=jsonpath='{.items[0].metadata.name}'
+foreman_api() {
+  local method="$1"
+  local path="$2"
+  local payload="${3:-}"
+  local -a curl_args=(
+    --fail-with-body
+    --silent
+    --show-error
+    --cacert "${temporary_directory}/ca.crt"
+    --resolve foreman.test:8443:127.0.0.1
+    --user admin:foreman-test
+    --request "${method}"
+    --header 'Accept: application/json'
+    --header 'Content-Type: application/json'
+  )
+
+  if [[ -n "${payload}" ]]; then
+    curl_args+=(--data "${payload}")
+  fi
+
+  curl "${curl_args[@]}" "https://foreman.test:8443${path}"
+}
+
+foreman_api_status() {
+  local method="$1"
+  local path="$2"
+  local payload="$3"
+  local output="$4"
+
+  curl \
+    --silent \
+    --show-error \
+    --cacert "${temporary_directory}/ca.crt" \
+    --resolve foreman.test:8443:127.0.0.1 \
+    --user admin:foreman-test \
+    --request "${method}" \
+    --header 'Accept: application/json' \
+    --header 'Content-Type: application/json' \
+    --data "${payload}" \
+    --output "${output}" \
+    --write-out '%{http_code}' \
+    "https://foreman.test:8443${path}"
+}
+
+default_taxonomy_id() {
+  foreman_api GET "/api/$1?per_page=1000" | jq --exit-status --raw-output '.results[0].id'
+}
+
+create_domain() {
+  local name="$1"
+  local organization_id="$2"
+  local location_id="$3"
+
+  foreman_api POST /api/domains "$(
+    jq --compact-output --null-input \
+      --arg name "${name}" \
+      --argjson organization_id "${organization_id}" \
+      --argjson location_id "${location_id}" '{
+        domain: {
+          name: $name,
+          organization_ids: [$organization_id],
+          location_ids: [$location_id]
+        }
+      }'
+  )" | jq --exit-status --raw-output '.id'
 }
 
 receiver_uid() {
@@ -152,10 +213,6 @@ wait_for_delivery() {
   exit 1
 }
 
-rails_runner() {
-  kubectl --namespace "${namespace}" exec "$(foreman_pod)" -- "$@"
-}
-
 seed_lifecycle() {
   local identifier
   local template_name
@@ -163,6 +220,15 @@ seed_lifecycle() {
   local first_domain
   local second_domain
   local receiver_uid_before
+  local organization_id
+  local location_id
+  local template_id
+  local webhook_id
+  local first_domain_id
+  local second_domain_id
+  local failure_response
+  local failure_status
+  local state_file_tmp
 
   identifier="$(date -u +%Y%m%d%H%M%S)-${RANDOM}"
   template_name="Kubernetes webhook template ${identifier}"
@@ -178,45 +244,74 @@ seed_lifecycle() {
     > "${state_file}"
 
   deploy_receiver
-  rails_runner env \
-    "TEMPLATE_NAME=${template_name}" \
-    "WEBHOOK_NAME=${webhook_name}" \
-    "DOMAIN_NAME=${first_domain}" \
-    "RECEIVER_URL=${receiver_url}" \
-    bin/rails runner '
-      Webhook.unscoped.where(name: ENV.fetch("WEBHOOK_NAME")).destroy_all
-      WebhookTemplate.unscoped.where(name: ENV.fetch("TEMPLATE_NAME")).destroy_all
-      Domain.unscoped.where(name: ENV.fetch("DOMAIN_NAME")).destroy_all
-      template = WebhookTemplate.create!(
-        name: ENV.fetch("TEMPLATE_NAME"),
-        template: %q({"id": <%= @object.id %>, "name": "<%= @object.name %>"})
-      )
-      Webhook.create!(
-        name: ENV.fetch("WEBHOOK_NAME"),
-        target_url: "#{ENV.fetch("RECEIVER_URL")}/success",
-        http_method: "POST",
-        http_content_type: "application/json",
-        event: "domain_created.event.foreman",
-        webhook_template: template,
-        enabled: true,
-        verify_ssl: false
-      )
-      Domain.create!(name: ENV.fetch("DOMAIN_NAME"))
-    '
+  organization_id="$(default_taxonomy_id organizations)"
+  location_id="$(default_taxonomy_id locations)"
+  template_id="$(
+    foreman_api POST /api/webhook_templates "$(
+      jq --compact-output --null-input \
+        --arg name "${template_name}" \
+        --arg template '{"id": <%= @object.id %>, "name": "<%= @object.name %>"}' \
+        --argjson organization_id "${organization_id}" \
+        --argjson location_id "${location_id}" '{
+          webhook_template: {
+            name: $name,
+            template: $template,
+            organization_ids: [$organization_id],
+            location_ids: [$location_id]
+          }
+        }'
+    )" | jq --exit-status --raw-output '.id'
+  )"
+  webhook_id="$(
+    foreman_api POST /api/webhooks "$(
+    jq --compact-output --null-input \
+      --arg name "${webhook_name}" \
+      --arg target_url "${receiver_url}/success" \
+      --argjson template_id "${template_id}" '{
+        webhook: {
+          name: $name,
+          target_url: $target_url,
+          http_method: "POST",
+          http_content_type: "application/json",
+          event: "domain_created",
+          webhook_template_id: $template_id,
+          enabled: true,
+          verify_ssl: false
+        }
+      }'
+    )" | jq --exit-status --raw-output '.id'
+  )"
+  first_domain_id="$(create_domain "${first_domain}" "${organization_id}" "${location_id}")"
   wait_for_delivery "${first_domain}"
 
-  rails_runner env \
-    "WEBHOOK_NAME=${webhook_name}" \
-    "RECEIVER_URL=${receiver_url}" \
-    bin/rails runner '
-      webhook = Webhook.unscoped.find_by!(name: ENV.fetch("WEBHOOK_NAME"))
-      webhook.update!(target_url: "#{ENV.fetch("RECEIVER_URL")}/failure")
-      result = webhook.test(payload: {probe: "expected-failure"})
-      abort "Expected HTTP 503, got #{result.inspect}" unless result[:status] == :error && result[:http_status] == 503
-      webhook.update!(target_url: "#{ENV.fetch("RECEIVER_URL")}/success")
-      result = webhook.test(payload: {probe: "corrected-destination"})
-      abort "Corrected destination failed: #{result.inspect}" unless result[:status] == :success && result[:http_status] == 204
-    '
+  foreman_api PUT "/api/webhooks/${webhook_id}" "$({
+    jq --compact-output --null-input \
+      --arg target_url "${receiver_url}/failure" \
+      '{webhook: {target_url: $target_url}}'
+  })" >/dev/null
+  failure_response="${temporary_directory}/webhook-expected-failure.json"
+  failure_status="$(
+    foreman_api_status POST "/api/webhooks/${webhook_id}/test" \
+      '{"payload":"expected-failure"}' "${failure_response}"
+  )"
+  if [[ "${failure_status}" != 422 ]] || \
+     ! jq --exit-status '.error.message == "Service Unavailable"' "${failure_response}" >/dev/null; then
+    echo "Expected visible webhook destination failure, got HTTP ${failure_status}" >&2
+    cat "${failure_response}" >&2
+    exit 1
+  fi
+  if ! kubectl --namespace "${namespace}" logs deployment/"${receiver_name}" \
+    --all-containers=true | grep --fixed-strings '"path":"/failure","status":503' >/dev/null; then
+    echo 'Webhook receiver did not record the controlled HTTP 503 response' >&2
+    exit 1
+  fi
+  foreman_api PUT "/api/webhooks/${webhook_id}" "$({
+    jq --compact-output --null-input \
+      --arg target_url "${receiver_url}/success" \
+      '{webhook: {target_url: $target_url}}'
+  })" >/dev/null
+  foreman_api POST "/api/webhooks/${webhook_id}/test" \
+    '{"payload":"corrected-destination"}' >/dev/null
 
   receiver_uid_before="$(receiver_uid)"
   kubectl --namespace "${namespace}" delete pod \
@@ -228,10 +323,22 @@ seed_lifecycle() {
     exit 1
   fi
 
-  rails_runner env \
-    "DOMAIN_NAME=${second_domain}" \
-    bin/rails runner 'Domain.create!(name: ENV.fetch("DOMAIN_NAME"))'
+  second_domain_id="$(create_domain "${second_domain}" "${organization_id}" "${location_id}")"
   wait_for_delivery "${second_domain}"
+
+  state_file_tmp="${state_file}.tmp"
+  jq \
+    --argjson templateId "${template_id}" \
+    --argjson webhookId "${webhook_id}" \
+    --argjson firstDomainId "${first_domain_id}" \
+    --argjson secondDomainId "${second_domain_id}" \
+    '. + {
+      templateId: $templateId,
+      webhookId: $webhookId,
+      firstDomainId: $firstDomainId,
+      secondDomainId: $secondDomainId
+    }' "${state_file}" > "${state_file_tmp}"
+  mv "${state_file_tmp}" "${state_file}"
 }
 
 assert_recovered_lifecycle() {
@@ -240,6 +347,13 @@ assert_recovered_lifecycle() {
   local first_domain
   local second_domain
   local recovery_domain
+  local organization_id
+  local location_id
+  local template_id
+  local webhook_id
+  local first_domain_id
+  local second_domain_id
+  local recovery_domain_id
 
   deploy_receiver
   template_name="$(jq --exit-status --raw-output '.templateName' "${state_file}")"
@@ -247,29 +361,25 @@ assert_recovered_lifecycle() {
   first_domain="$(jq --exit-status --raw-output '.firstDomain' "${state_file}")"
   second_domain="$(jq --exit-status --raw-output '.secondDomain' "${state_file}")"
   recovery_domain="recovered-${second_domain}"
+  organization_id="$(default_taxonomy_id organizations)"
+  location_id="$(default_taxonomy_id locations)"
+  template_id="$(jq --exit-status --raw-output '.templateId' "${state_file}")"
+  webhook_id="$(jq --exit-status --raw-output '.webhookId' "${state_file}")"
+  first_domain_id="$(jq --exit-status --raw-output '.firstDomainId' "${state_file}")"
+  second_domain_id="$(jq --exit-status --raw-output '.secondDomainId' "${state_file}")"
 
-  rails_runner env \
-    "TEMPLATE_NAME=${template_name}" \
-    "WEBHOOK_NAME=${webhook_name}" \
-    "DOMAIN_NAME=${recovery_domain}" \
-    bin/rails runner '
-      WebhookTemplate.unscoped.find_by!(name: ENV.fetch("TEMPLATE_NAME"))
-      Webhook.unscoped.find_by!(name: ENV.fetch("WEBHOOK_NAME"))
-      Domain.create!(name: ENV.fetch("DOMAIN_NAME"))
-    '
+  foreman_api GET "/api/webhook_templates/${template_id}" | \
+    jq --exit-status --arg name "${template_name}" '.name == $name' >/dev/null
+  foreman_api GET "/api/webhooks/${webhook_id}" | \
+    jq --exit-status --arg name "${webhook_name}" '.name == $name and .enabled == true' >/dev/null
+  recovery_domain_id="$(create_domain "${recovery_domain}" "${organization_id}" "${location_id}")"
   wait_for_delivery "${recovery_domain}"
 
-  rails_runner env \
-    "TEMPLATE_NAME=${template_name}" \
-    "WEBHOOK_NAME=${webhook_name}" \
-    "FIRST_DOMAIN=${first_domain}" \
-    "SECOND_DOMAIN=${second_domain}" \
-    "RECOVERY_DOMAIN=${recovery_domain}" \
-    bin/rails runner '
-      Webhook.unscoped.find_by!(name: ENV.fetch("WEBHOOK_NAME")).destroy!
-      WebhookTemplate.unscoped.find_by!(name: ENV.fetch("TEMPLATE_NAME")).destroy!
-      Domain.unscoped.where(name: [ENV.fetch("FIRST_DOMAIN"), ENV.fetch("SECOND_DOMAIN"), ENV.fetch("RECOVERY_DOMAIN")]).destroy_all
-    '
+  foreman_api DELETE "/api/webhooks/${webhook_id}" >/dev/null
+  foreman_api DELETE "/api/webhook_templates/${template_id}" >/dev/null
+  foreman_api DELETE "/api/domains/${first_domain_id}" >/dev/null
+  foreman_api DELETE "/api/domains/${second_domain_id}" >/dev/null
+  foreman_api DELETE "/api/domains/${recovery_domain_id}" >/dev/null
   cleanup_receiver
 }
 
