@@ -1,0 +1,15 @@
+apiVersion: v2
+name: foreman-stack
+description: Kubernetes orchestration for separately released Foreman, Katello, Candlepin, and Pulp components
+type: application
+version: 0.1.0
+appVersion: nightly
+kubeVersion: ">=1.30.0-0"
+home: https://theforeman.org/
+sources:
+  - https://github.com/theforeman/foreman
+  - https://github.com/theforeman/katello
+  - https://github.com/candlepin/candlepin
+  - https://github.com/pulp/pulpcore
+annotations:
+  foreman.org/status: experimental

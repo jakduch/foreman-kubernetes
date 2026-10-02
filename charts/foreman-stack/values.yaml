@@ -1,0 +1,587 @@
+nameOverride: ""
+fullnameOverride: ""
+
+imagePullSecrets: []
+
+# Existing Secret contents are intentionally not read by Helm. Change this
+# value after rotating any referenced credential or certificate to restart all
+# long-running processes that may cache it or mount it through subPath.
+secretRolloutToken: initial
+
+platform:
+  # Guarded releases override this with the exact digest-pinned compatibility
+  # set. Recovery refuses the unqualified value.
+  compatibilitySet: unqualified
+  fqdn: foreman.example.test
+  domain: example.test
+  externalUrl: https://foreman.example.test
+  aliases: []
+  trustedProxies: []
+  # Kubernetes reports ProgressDeadlineExceeded before the controller's wider
+  # application phase timeout expires.
+  deploymentProgressDeadlineSeconds: 900
+
+# Set together only by a release controller. The operation ID makes migration
+# and registration Jobs stable across reconciliation retries; the owner UID
+# prevents adopting Jobs created for a different ForemanRelease object.
+releaseOperation:
+  id: ""
+  ownerUid: ""
+  skipMigrationJobs: false
+
+ingress:
+  enabled: false
+  className: nginx
+  # The mTLS and header-sanitization contract uses ingress-nginx annotations
+  # and variables. A different implementation is not interchangeable.
+  controller: k8s.io/ingress-nginx
+  foreman:
+    host: foreman.example.test
+    tlsSecret: foreman-ingress-tls
+    clientCaSecret: ingress-client-ca
+    annotations: {}
+  pulpContent:
+    host: content.example.test
+    tlsSecret: pulp-content-ingress-tls
+    clientCaSecret: ingress-client-ca
+    annotations: {}
+
+valkey:
+  existingSecret: foreman-valkey
+  foremanCacheUriAuthSecretKey: foreman-cache-uri-auth
+  dynflowUriAuthSecretKey: dynflow-uri-auth
+  pulpPasswordSecretKey: pulp-password
+  tls:
+    enabled: true
+    existingCaSecret: valkey-ca
+    caSecretKey: ca.crt
+  # Cache data may use an eviction policy. Dynflow contains durable job state
+  # and should point at a persistent noeviction service in production.
+  foremanCache:
+    host: foreman-cache.valkey.example.test
+    port: 6379
+    database: 4
+  dynflow:
+    host: dynflow.valkey.example.test
+    port: 6379
+    database: 6
+  pulp:
+    host: pulp.valkey.example.test
+    port: 6379
+    database: 8
+
+# Optional outbound HTTP(S) proxy for Foreman/Katello, Pulp, and recovery
+# clients. Keep credentials only in the referenced Secret. Internal services,
+# cluster domains, and metadata/workload-identity endpoints belong in no-proxy.
+outboundProxy:
+  enabled: false
+  existingSecret: foreman-outbound-proxy
+  httpProxySecretKey: http-proxy
+  httpsProxySecretKey: https-proxy
+  noProxySecretKey: no-proxy
+
+sharedSecret:
+  name: foreman-shared
+  candlepinOAuthSecretKey: candlepin-oauth-secret
+
+serviceAccount:
+  create: true
+  name: ""
+
+smartProxy:
+  # Smart Proxies are independent edge or execution-plane services. This
+  # application chart deliberately does not co-locate one with Foreman.
+  mode: external
+  executionRegistration:
+    # Enable only when the paired foreman-execution-proxy release is present.
+    # The controller adopts this test hook after the proxy rollout.
+    enabled: false
+    releaseName: execution
+    name: Kubernetes execution proxy
+    url: https://execution-foreman-execution-proxy:8443
+    port: 8443
+    expectedFeatures:
+      - Ansible
+      - Dynflow
+      - Script
+    retryAttempts: 30
+    retryIntervalSeconds: 5
+
+foreman:
+  image:
+    repository: quay.io/foreman/foreman
+    tag: nightly
+    pullPolicy: IfNotPresent
+  replicas: 2
+  autoscaling:
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+  service:
+    port: 3000
+  existingEnvSecret: foreman-runtime
+  databaseUrlSecretKey: DATABASE_URL
+  encryptionKeySecretKey: ENCRYPTION_KEY
+  secretKeyBaseSecretKey: SECRET_KEY_BASE
+  seedAdminUserSecretKey: SEED_ADMIN_USER
+  seedAdminPasswordSecretKey: SEED_ADMIN_PASSWORD
+  existingCertificateSecret: foreman-certificates
+  existingDatabaseCaSecret: foreman-database-ca
+  database:
+    # Injected through libpq so web, workers, migrations, and recovery all use
+    # the same certificate-verification policy.
+    sslMode: verify-full
+  email:
+    enabled: false
+    replyAddress: foreman-noreply@example.test
+    subjectPrefix: "[foreman]"
+    smtp:
+      address: ""
+      port: 587
+      domain: ""
+      authentication: none
+      existingSecret: ""
+      usernameSecretKey: username
+      passwordSecretKey: password
+  enabledPlugins:
+    - foreman-tasks
+    - katello
+  pluginPolicy:
+    # The official image contains additional plugins, but they need their own
+    # runtime contracts and integration tests before being supported here.
+    allowUnverified: false
+  puma:
+    workers: 2
+    threadsMin: 5
+    threadsMax: 5
+    # Stop accepting routed requests before Puma receives SIGTERM, then leave
+    # enough time for active requests to finish gracefully.
+    requestDrainSeconds: 10
+    terminationGracePeriodSeconds: 150
+  databasePools:
+    # Active Record allocates one pool per process. Keep the web pool at least
+    # as large as Puma's maximum thread count and each Dynflow pool at least as
+    # large as that process's Sidekiq concurrency.
+    web: 5
+    dynflowWorker: 10
+    dynflowHostsQueue: 5
+    utility: 5
+  dynflow:
+    workers: 2
+    workerConcurrency: 10
+    workerAutoscaling:
+      enabled: false
+      minReplicas: 2
+      maxReplicas: 10
+      targetCPUUtilizationPercentage: 70
+    hostsQueueWorkers: 1
+    hostsQueueConcurrency: 5
+    hostsQueueAutoscaling:
+      enabled: false
+      minReplicas: 1
+      maxReplicas: 5
+      targetCPUUtilizationPercentage: 70
+    # Matches the upstream systemd service's five-minute stop allowance. The
+    # Pod receives another 30 seconds so Sidekiq can finish its own shutdown.
+    shutdownTimeoutSeconds: 300
+  sharedTmp:
+    # Katello hands uploaded manifests and repository files from web requests
+    # to Dynflow workers by path, so every Foreman-derived pod needs this RWX
+    # filesystem even though its contents are operationally temporary.
+    existingClaim: ""
+    storageClass: ""
+    accessMode: ReadWriteMany
+    size: 20Gi
+  avatarStorage:
+    # LDAP avatar hashes live in PostgreSQL, but the image bytes are served
+    # from Rails public storage and must survive and be visible to every pod.
+    existingClaim: ""
+    storageClass: ""
+    accessMode: ReadWriteMany
+    size: 1Gi
+  resources:
+    requests:
+      cpu: 500m
+      memory: 2Gi
+    limits:
+      memory: 4Gi
+
+candlepin:
+  image:
+    repository: quay.io/foreman/candlepin
+    tag: foreman-nightly
+    pullPolicy: IfNotPresent
+  # The initial contract is deliberately singleton. The chart does not expose
+  # Candlepin's internal messaging implementation or operate an external
+  # broker. Horizontal scaling needs a separately reviewed upstream contract.
+  replicas: 1
+  existingRuntimeSecret: candlepin-runtime
+  databasePasswordSecretKey: database-password
+  existingCertificateSecret: candlepin-certificates
+  existingDatabaseCaSecret: candlepin-database-ca
+  database:
+    host: postgres.example.test
+    port: 5432
+    name: candlepin
+    user: candlepin
+    sslMode: verify-full
+  java:
+    xms: 1g
+    xmx: 4g
+  shutdown:
+    requestDrainSeconds: 10
+    # Candlepin can wait this long for each of its two asynchronous job pools.
+    asyncJobsTimeoutSeconds: 600
+    terminationGracePeriodSeconds: 1230
+  service:
+    port: 23443
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      memory: 4Gi
+
+pulp:
+  image:
+    repository: quay.io/foreman/pulp
+    tag: foreman-nightly
+    pullPolicy: IfNotPresent
+  serviceAccount:
+    create: true
+    name: ""
+    # Used by cloud workload identity integrations such as AWS IRSA and Azure.
+    annotations: {}
+    # Applied only to Pulp runtime pods. Required by providers such as Azure
+    # workload identity; core selector and release labels cannot be replaced.
+    podLabels: {}
+    # Admission-webhook settings applied only to Pulp runtime pods.
+    podAnnotations: {}
+  existingRuntimeSecret: pulp-runtime
+  databasePasswordSecretKey: database-password
+  djangoSecretKey: django-secret-key
+  existingConfigSecret: pulp-config
+  existingDatabaseCaSecret: pulp-database-ca
+  database:
+    host: postgres.example.test
+    port: 5432
+    name: pulp
+    user: pulp
+    sslMode: verify-full
+  contentOrigin: https://content.example.test
+  enabledPlugins:
+    - pulp_certguard
+    - pulp_container
+    - pulp_deb
+    - pulp_file
+    - pulp_rpm
+    - pulp_smart_proxy
+  controlProxy:
+    image:
+      repository: nginxinc/nginx-unprivileged
+      tag: stable-alpine
+      pullPolicy: IfNotPresent
+    replicas: 2
+    port: 8443
+    service:
+      port: 8443
+    existingCertificateSecret: pulp-control-proxy-certificates
+    trustedClientCommonNames: []
+    registration:
+      enabled: true
+      name: ""
+      retryAttempts: 120
+      retryIntervalSeconds: 5
+    resources:
+      requests:
+        cpu: 25m
+        memory: 32Mi
+      limits:
+        memory: 128Mi
+  api:
+    replicas: 2
+    port: 24817
+    gunicornWorkers: 2
+    # Keep these aligned with the official image wrapper. The chart invokes
+    # pulpcore-api directly so it can bind a configurable port.
+    gunicornTimeoutSeconds: 90
+    gunicornGracefulTimeoutSeconds: 120
+    requestDrainSeconds: 10
+    terminationGracePeriodSeconds: 150
+    gunicornMaxRequests: 800
+    gunicornMaxRequestsJitter: 100
+    autoscaling:
+      enabled: false
+      minReplicas: 2
+      maxReplicas: 10
+      targetCPUUtilizationPercentage: 70
+  content:
+    replicas: 2
+    port: 24816
+    gunicornWorkers: 2
+    gunicornTimeoutSeconds: 90
+    gunicornGracefulTimeoutSeconds: 120
+    requestDrainSeconds: 10
+    terminationGracePeriodSeconds: 150
+    autoscaling:
+      enabled: false
+      minReplicas: 2
+      maxReplicas: 10
+      targetCPUUtilizationPercentage: 70
+  workers:
+    replicas: 4
+    # Pulpcore handles SIGTERM by finishing the active task before exiting.
+    # Repository sync and publication tasks can legitimately run for minutes.
+    terminationGracePeriodSeconds: 3600
+  storage:
+    # filesystem keeps Pulp artifacts on a shared RWX claim. s3 moves the
+    # authoritative artifacts to S3 or an S3-compatible object store.
+    backend: filesystem
+    existingClaim: ""
+    storageClass: ""
+    accessMode: ReadWriteMany
+    size: 100Gi
+    scratch:
+      # Per-pod temporary space used by Pulp when object storage is enabled.
+      sizeLimit: 20Gi
+    s3:
+      bucket: ""
+      # Optional key prefix within the bucket.
+      location: ""
+      region: ""
+      endpointUrl: ""
+      addressingStyle: auto
+      signatureVersion: s3v4
+      redirectToObjectStorage: true
+      # Leave empty to use the cloud SDK's workload identity/default chain.
+      existingSecret: ""
+      accessKeySecretKey: access-key-id
+      secretKeySecretKey: secret-access-key
+      sessionTokenSecretKey: ""
+      # Optional private CA for an S3-compatible HTTPS endpoint.
+      existingCaSecret: ""
+      caSecretKey: ca.crt
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      memory: 2Gi
+
+migrations:
+  enabled: true
+  checkIntervalSeconds: 5
+  activeDeadlineSeconds: 1800
+
+smokeTest:
+  # Executed only by `helm test`; it is not part of normal installation hooks.
+  enabled: true
+  activeDeadlineSeconds: 300
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      memory: 128Mi
+
+recurringTasks:
+  enabled: true
+  timeZone: Etc/UTC
+  startingDeadlineSeconds: 1800
+  # Prevent a permanently stuck task from blocking all later schedules through
+  # concurrencyPolicy=Forbid. Large installations may raise this value.
+  activeDeadlineSeconds: 21600
+  tasks:
+    - name: hourly
+      schedule: "7 * * * *"
+      rakeTask: cron:hourly
+    - name: daily
+      schedule: "17 0 * * *"
+      rakeTask: cron:daily
+    - name: weekly
+      schedule: "27 0 * * 0"
+      rakeTask: cron:weekly
+    - name: monthly
+      schedule: "37 0 1 * *"
+      rakeTask: cron:monthly
+
+podDisruptionBudget:
+  enabled: true
+
+monitoring:
+  prometheusRule:
+    # Requires Prometheus Operator and kube-state-metrics. The release
+    # preflight verifies the PrometheusRule CRD when this is enabled.
+    enabled: false
+    labels: {}
+
+networkPolicy:
+  enabled: true
+  ingressController:
+    namespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: ingress-nginx
+    podSelector:
+      matchLabels:
+        app.kubernetes.io/component: controller
+  egress:
+    # Standard NetworkPolicy cannot match DNS names. Enable only after declaring
+    # selectors or CIDRs for the PostgreSQL and Valkey endpoints.
+    enabled: false
+    dns:
+      namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+      podSelector:
+        matchLabels:
+          k8s-app: kube-dns
+    database:
+      peers: []
+      ports:
+        - 5432
+    valkey:
+      peers: []
+      ports:
+        - 6379
+    outboundProxy:
+      peers: []
+      ports:
+        - 3128
+    recovery:
+      # The recovery Job talks directly to the Kubernetes API and, unless a
+      # repository PVC is used, to the external Restic backend.
+      apiServer:
+        peers: []
+        ports:
+          - 443
+      repository:
+        peers: []
+        ports:
+          - 22
+          - 443
+    external:
+      foreman:
+        peers: []
+        ports:
+          - 80
+          - 443
+      pulp:
+        peers: []
+        ports:
+          - 80
+          - 443
+      smtp:
+        peers: []
+        ports:
+          - 25
+          - 465
+          - 587
+      webhooks:
+        peers: []
+        ports:
+          - 443
+      computeProviders:
+        # Direct endpoints used by optional compute-resource plugins. Use exact
+        # selectors or CIDRs; hostnames cannot be represented by NetworkPolicy.
+        peers: []
+        ports:
+          - 443
+          - 6443
+
+affinity:
+  spreadAcrossNodes: true
+  # Apply both constraints so redundant replicas survive a node loss and, in
+  # a labelled multi-zone cluster, an entire availability-zone loss.
+  topologyKeys:
+    - topology.kubernetes.io/zone
+    - kubernetes.io/hostname
+  # Use DoNotSchedule in a production cluster that has enough failure domains.
+  whenUnsatisfiable: ScheduleAnyway
+
+# Keep every release workload, including migrations, smoke tests, and recovery,
+# on nodes that can mount the same storage and reach the same dependencies.
+scheduling:
+  priorityClassName: ""
+  nodeSelector: {}
+  tolerations: []
+
+maintenance:
+  # Removes all database-writing workloads while retaining Services, Ingresses,
+  # configuration, and persistent storage. Required for backup and restore Jobs.
+  enabled: false
+
+recovery:
+  # The guarded helper replaces this with the execution proxy Pod scheduling
+  # contract so the Job can mount the same RWO claims. Empty values inherit
+  # the application's global scheduling policy for manual chart use.
+  scheduling:
+    priorityClassName: ""
+    nodeSelector: {}
+    tolerations: []
+  image:
+    # Build images/recovery-toolbox and override this before enabling a recovery Job.
+    repository: foreman-kubernetes-recovery-toolbox
+    tag: dev
+    pullPolicy: IfNotPresent
+    # Only the disposable Kind harness may use its locally built mutable tag.
+    allowMutableTagForTesting: false
+  repository:
+    # Must contain RESTIC_PASSWORD and, for remote backends, RESTIC_REPOSITORY
+    # plus any provider credentials required by Restic.
+    existingSecret: foreman-backup-repository
+    # Set for a local Restic repository. Keep empty for S3, Azure, SFTP, and
+    # other repositories configured through RESTIC_REPOSITORY.
+    existingClaim: ""
+    path: /repository
+  work:
+    # Database dumps are staged here. Use a dedicated claim when they may exceed
+    # the node's safe ephemeral-storage allowance.
+    existingClaim: ""
+    sizeLimit: 20Gi
+  executionProxy:
+    # The guarded recovery helper derives these values from the separately
+    # rendered execution release. Set them explicitly only for a manual Helm
+    # recovery that coordinates both releases itself.
+    enabled: false
+    release: ""
+    stateClaim: ""
+    ansibleClaim: ""
+    secretNames: []
+  activeDeadlineSeconds: 21600
+  quiescenceTimeoutSeconds: 600
+  extraSecretNames: []
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 2Gi
+
+backup:
+  enabled: false
+  # Change for every requested backup. It becomes part of the immutable Job name.
+  requestId: ""
+  # Provider snapshot/versioning point captured after the guarded helper has
+  # quiesced an S3-backed release. Stored in the encrypted recovery manifest.
+  objectStorageRecoveryPoint: ""
+  initializeRepository: false
+  retention:
+    enabled: true
+    keepDaily: 7
+    keepWeekly: 5
+    keepMonthly: 12
+    prune: false
+
+restore:
+  enabled: false
+  # Change for every requested restore. It becomes part of the immutable Job name.
+  requestId: ""
+  snapshot: latest
+  # Secret escrow is restored only when explicitly requested. Database access
+  # credentials must still match the externally managed PostgreSQL roles.
+  secrets: false
+  confirmation: ""
+  # Exact provider snapshot/versioning point restored for the external bucket.
+  # It must match the point stored by the selected backup.
+  objectStorageRecoveryPoint: ""
