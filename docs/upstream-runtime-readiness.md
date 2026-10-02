@@ -31,6 +31,7 @@ therefore deliberately still a candidate.
 | `katello-container-registry-api-url` | Uses an advertised dedicated registry API URL when present and retains the existing `content_app_url` fallback. | Reaches the private registry compatibility route without publishing it on the content ingress. |
 | `candlepin-container-runtime` | Keeps the packaged Tomcat server as the default command and adds a numeric image user plus a migration entry point. | Runs Candlepin as non-root and invokes Liquibase in a bounded migration Job. |
 | `pulp-smart-proxy-container-registry-api-url` | Advertises the traditional content-origin route by default and permits a separate registry control URL. | Directs Katello to the internal mTLS Pulp control service. |
+| `smart-proxy-rex-dynflow-recovery-actions` | Loads Remote Execution action classes before Dynflow starts restoring persisted plans; command behavior remains unchanged. | Lets the execution proxy resume an active plan after its Pod is replaced. |
 
 ## Optional Pulp object storage
 

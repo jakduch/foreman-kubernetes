@@ -19,7 +19,7 @@ raise 'upstream contract IDs must be unique' unless ids == ids.uniq
 raise 'upstream contract registry must not be empty' if contracts.empty?
 
 allowed_states = %w[local-upstream-commit merged-upstream published]
-allowed_components = %w[foreman candlepin pulp]
+allowed_components = %w[foreman candlepin execution-proxy pulp]
 sha_pattern = /\A[0-9a-f]{40}\z/
 
 contracts.each do |contract|

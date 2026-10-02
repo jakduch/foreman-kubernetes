@@ -11,20 +11,28 @@ contracts = JSON.parse((root / 'compatibility/upstream-contracts.json').read)
   .fetch('contracts').to_h { |contract| [contract.fetch('id'), contract] }
 profile = YAML.safe_load((root / 'profiles/local-amd64-candidate.yaml').read)
 release_profile = YAML.safe_load((root / 'profiles/nightly-candidate-2026-09-23.yaml').read)
+execution_profile = YAML.safe_load((root / 'profiles/execution-proxy-local-amd64-candidate.yaml').read)
+execution_release_profile = YAML.safe_load((root / 'profiles/execution-proxy-nightly-candidate-2026-09-24.yaml').read)
 
 abort 'unsupported local candidate schema' unless registry.fetch('schemaVersion') == 1
 abort 'local candidate pipeline must be native amd64' unless registry.fetch('platform') == 'linux/amd64'
-abort 'local candidate pipeline must cover every application image' unless registry.fetch('images').keys.sort == %w[candlepin foreman pulp]
+expected_components = %w[candlepin execution-proxy foreman pulp]
+abort 'local candidate pipeline must cover every runtime image' unless registry.fetch('images').keys.sort == expected_components
 
 seen_contracts = []
 registry.fetch('images').each do |component, image|
   base = image.fetch('baseReference')
   abort "#{component} local candidate base is not digest-pinned" unless base.match?(/@sha256:[0-9a-f]{64}\z/)
-  expected_base = "#{release_profile.fetch(component).fetch('image').fetch('repository')}:#{release_profile.fetch(component).fetch('image').fetch('tag')}"
+  release_image = if component == 'execution-proxy'
+                    execution_release_profile.fetch('image')
+                  else
+                    release_profile.fetch(component).fetch('image')
+                  end
+  expected_base = "#{release_image.fetch('repository')}:#{release_image.fetch('tag')}"
   abort "#{component} local candidate base differs from the release profile" unless base == expected_base
 
   local = image.fetch('localReference')
-  local_image = profile.fetch(component).fetch('image')
+  local_image = component == 'execution-proxy' ? execution_profile.fetch('image') : profile.fetch(component).fetch('image')
   expected_local = "#{local_image.fetch('repository')}:#{local_image.fetch('tag')}"
   abort "#{component} profile differs from the build registry" unless local == expected_local
   abort "#{component} local candidate must not pull from a registry" unless local_image.fetch('pullPolicy') == 'Never'
@@ -37,7 +45,8 @@ registry.fetch('images').each do |component, image|
     seen_contracts << id
   end
   overlays.each do |overlay|
-    abort 'unsupported overlay target' unless %w[foreman katello candlepin pulp_smart_proxy].include?(overlay.fetch('target'))
+    allowed_targets = %w[foreman katello candlepin pulp_smart_proxy smart_proxy_remote_execution_ssh]
+    abort 'unsupported overlay target' unless allowed_targets.include?(overlay.fetch('target'))
     overlay.fetch('paths').each do |source_path|
       path = Pathname.new(source_path)
       abort "unsafe overlay path: #{source_path}" if path.absolute? || path.each_filename.include?('..')
@@ -62,6 +71,8 @@ end
 
 node_selector = profile.dig('scheduling', 'nodeSelector')
 abort 'local candidate profile does not require amd64 nodes' unless node_selector == {'kubernetes.io/arch' => 'amd64'}
+execution_node_selector = execution_profile.dig('scheduling', 'nodeSelector')
+abort 'local execution-proxy profile does not require amd64 nodes' unless execution_node_selector == {'kubernetes.io/arch' => 'amd64'}
 builder = (root / 'scripts/build-local-candidate-images.rb').read
 unless builder.include?("'--file', (directory / 'Containerfile').to_s")
   abort 'candidate builder does not explicitly select the generated Containerfile'

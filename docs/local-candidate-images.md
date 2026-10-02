@@ -6,7 +6,7 @@ local upstream commits. A chart render cannot prove those commits work together,
 and rebuilding an OCI repository that installs released RPMs would not include
 the local application source.
 
-`scripts/build-local-candidate-images.rb` therefore creates three temporary,
+`scripts/build-local-candidate-images.rb` therefore creates four temporary,
 unpublished derivative images for the amd64 integration environment:
 
 - Foreman receives only the runtime files from the recorded Foreman and Katello
@@ -14,6 +14,8 @@ unpublished derivative images for the amd64 integration environment:
   rather than assuming a versioned filesystem path.
 - Candlepin receives the recorded migration entry point and keeps the numeric
   packaged Tomcat identity.
+- The execution proxy receives the Remote Execution action load-order fix so
+  Dynflow can deserialize persisted plans immediately after a Pod restart.
 - Pulp receives the exact `django-storages`, boto3, botocore, jmespath, and
   s3transfer versions needed by the prepared object-storage image change. Every
   wheel is hash-pinned; already packaged dateutil, urllib3, and six remain in
@@ -53,7 +55,7 @@ candidate evidence for image-ID verification:
 REUSE_CLUSTER=1 \
 KEEP_CLUSTER=1 \
 IMAGE_PROFILE=profiles/local-amd64-candidate.yaml \
-EXECUTION_PROXY_IMAGE_PROFILE=profiles/execution-proxy-nightly-candidate-2026-09-24.yaml \
+EXECUTION_PROXY_IMAGE_PROFILE=profiles/execution-proxy-local-amd64-candidate.yaml \
 LOCAL_CANDIDATE_EVIDENCE_FILE=artifacts/local-candidate-images.json \
 tests/kind/run.sh
 ```

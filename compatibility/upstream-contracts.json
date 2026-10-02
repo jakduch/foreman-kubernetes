@@ -173,6 +173,22 @@
       "kubernetesConsumers": ["Katello container registry control client"]
     },
     {
+      "id": "smart-proxy-rex-dynflow-recovery-actions",
+      "component": "execution-proxy",
+      "profiles": ["default"],
+      "state": "local-upstream-commit",
+      "availableInReleaseSets": [],
+      "upstream": {
+        "repository": "https://github.com/theforeman/smart_proxy_remote_execution_ssh.git",
+        "localPath": "smart_proxy_remote_execution_ssh",
+        "branch": "fix/load-actions-before-dynflow-recovery",
+        "commit": "e8f87f7af7f42bce4336a3920e69fe99f6ce0905",
+        "pullRequest": "https://github.com/theforeman/smart_proxy_remote_execution_ssh/pull/135"
+      },
+      "standaloneDefault": "Remote Execution behavior is unchanged; action classes are loaded before Dynflow can restore persisted execution plans.",
+      "kubernetesConsumers": ["Execution-proxy restart recovery"]
+    },
+    {
       "id": "foreman-kubevirt-provider-correctness",
       "component": "foreman",
       "profiles": ["kubevirt"],

@@ -53,6 +53,19 @@
         }
       ]
     },
+    "execution-proxy": {
+      "baseReference": "quay.io/foreman/foreman-proxy:nightly@sha256:244c756844a137990779ad153998c426eb0326d8d6f376192ea6e84947affd47",
+      "localReference": "foreman-kubernetes/execution-proxy:candidate",
+      "overlays": [
+        {
+          "contract": "smart-proxy-rex-dynflow-recovery-actions",
+          "target": "smart_proxy_remote_execution_ssh",
+          "paths": [
+            "lib/smart_proxy_remote_execution_ssh.rb"
+          ]
+        }
+      ]
+    },
     "candlepin": {
       "baseReference": "quay.io/foreman/candlepin:foreman-nightly@sha256:b9fe6c5f161132b39982e1951e8b4a16bf00d2565ecb17e53b13b56196a1f280",
       "localReference": "foreman-kubernetes/candlepin:candidate",

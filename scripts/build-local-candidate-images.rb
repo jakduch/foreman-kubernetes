@@ -85,7 +85,8 @@ class LocalCandidateImages
   def validate_registry!
     raise 'unsupported local candidate image schema' unless registry.fetch('schemaVersion') == 1
     raise 'local candidate images are currently qualified only on linux/amd64' unless registry.fetch('platform') == 'linux/amd64'
-    raise 'candidate image registry must contain foreman, candlepin, and pulp' unless registry.fetch('images').keys.sort == %w[candlepin foreman pulp]
+    expected = %w[candlepin execution-proxy foreman pulp]
+    raise 'candidate image registry must contain foreman, execution-proxy, candlepin, and pulp' unless registry.fetch('images').keys.sort == expected
 
     referenced = registry.fetch('images').values.flat_map do |definition|
       Array(definition['overlays']).map { |overlay| overlay.fetch('contract') } + Array(definition['contracts'])
@@ -189,6 +190,22 @@ class LocalCandidateImages
               org.theforeman.kubernetes.contracts="#{contracts_label}" \
               org.theforeman.kubernetes.unpublished="true"
         USER 53:53
+      CONTAINERFILE
+    when 'execution-proxy'
+      <<~CONTAINERFILE
+        ARG BASE_IMAGE=#{base_reference}
+        FROM ${BASE_IMAGE}
+        USER 0
+        COPY smart_proxy_remote_execution_ssh/ /tmp/smart-proxy-rex-candidate-overlay/
+        RUN set -eu; \
+            plugin_root="$(ruby -e 'require "rubygems"; print Gem::Specification.find_by_name("smart_proxy_remote_execution_ssh").full_gem_path')"; \
+            cp -a /tmp/smart-proxy-rex-candidate-overlay/. "${plugin_root}/"; \
+            chown -R 0:0 "${plugin_root}"; \
+            rm -rf /tmp/smart-proxy-rex-candidate-overlay
+        LABEL org.opencontainers.image.title="Foreman execution-proxy Kubernetes local candidate" \
+              org.theforeman.kubernetes.contracts="#{contracts_label}" \
+              org.theforeman.kubernetes.unpublished="true"
+        USER 991:991
       CONTAINERFILE
     when 'pulp'
       requirements = definition.fetch('pythonRequirements')
