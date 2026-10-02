@@ -193,22 +193,36 @@ run_recovery() {
       "${request_id}"
 }
 
+ready_pod() {
+  local selector="$1"
+  local pod
+
+  pod="$(kubectl --namespace "${namespace}" get pods \
+    --selector="${selector}" \
+    --output=json | jq --raw-output '
+      [.items[] |
+       select(.status.phase == "Running") |
+       select(any(.status.conditions[]?; .type == "Ready" and .status == "True"))] |
+      sort_by(.metadata.creationTimestamp) |
+      last |
+      .metadata.name // empty')"
+  if [[ -z "${pod}" ]]; then
+    echo "No ready Pod found for selector ${selector}" >&2
+    return 1
+  fi
+  printf '%s\n' "${pod}"
+}
+
 foreman_pod() {
-  kubectl --namespace "${namespace}" get pod \
-    --selector=app.kubernetes.io/component=foreman \
-    --output=jsonpath='{.items[0].metadata.name}'
+  ready_pod 'app.kubernetes.io/component=foreman'
 }
 
 pulp_worker_pod() {
-  kubectl --namespace "${namespace}" get pod \
-    --selector=app.kubernetes.io/component=pulp-worker \
-    --output=jsonpath='{.items[0].metadata.name}'
+  ready_pod 'app.kubernetes.io/component=pulp-worker'
 }
 
 dynflow_worker_pod() {
-  kubectl --namespace "${namespace}" get pod \
-    --selector=app.kubernetes.io/component=dynflow-worker \
-    --output=jsonpath='{.items[0].metadata.name}'
+  ready_pod 'app.kubernetes.io/component=dynflow-worker'
 }
 
 pod_uids() {
@@ -216,7 +230,11 @@ pod_uids() {
 
   kubectl --namespace "${namespace}" get pods \
     --selector="${selector}" \
-    --output=json | jq --raw-output '.items[].metadata.uid' | sort
+    --output=json | jq --raw-output '
+      .items[] |
+      select(.metadata.deletionTimestamp == null) |
+      select(.status.phase != "Succeeded" and .status.phase != "Failed") |
+      .metadata.uid' | sort
 }
 
 application_workload_pod_uids() {
@@ -225,6 +243,8 @@ application_workload_pod_uids() {
     --output=json | jq --raw-output '
       [.items[] |
        select(any(.metadata.ownerReferences[]?; .kind == "ReplicaSet")) |
+       select(.metadata.deletionTimestamp == null) |
+       select(.status.phase != "Succeeded" and .status.phase != "Failed") |
        [.metadata.labels["app.kubernetes.io/component"], .metadata.uid]] |
       sort_by(.[0], .[1])[] |
       @tsv'
@@ -251,19 +271,34 @@ assert_pods_replaced() {
   local selector="$1"
   local previous_uids="$2"
   local current_uids
+  local deadline
+  local pending_replacement
   local previous_uid
 
-  current_uids="$(pod_uids "${selector}")"
-  if [[ -z "${previous_uids}" || -z "${current_uids}" ]]; then
+  if [[ -z "${previous_uids}" ]]; then
     echo "Cannot prove Pod replacement for selector ${selector}" >&2
     exit 1
   fi
-  while IFS= read -r previous_uid; do
-    if grep -Fxq "${previous_uid}" <<<"${current_uids}"; then
-      echo "Pod ${previous_uid} for selector ${selector} survived a configuration-changing upgrade" >&2
-      exit 1
+
+  deadline=$((SECONDS + 120))
+  while ((SECONDS < deadline)); do
+    current_uids="$(pod_uids "${selector}")"
+    pending_replacement='false'
+    while IFS= read -r previous_uid; do
+      if grep -Fxq "${previous_uid}" <<<"${current_uids}"; then
+        pending_replacement='true'
+        break
+      fi
+    done <<<"${previous_uids}"
+
+    if [[ -n "${current_uids}" && "${pending_replacement}" == 'false' ]]; then
+      return
     fi
-  done <<<"${previous_uids}"
+    sleep 2
+  done
+
+  echo "Previous Pods for selector ${selector} remained after a configuration-changing upgrade" >&2
+  exit 1
 }
 
 assert_pods_unchanged() {
@@ -755,9 +790,9 @@ assert_failed_migration_gate() {
     jq --exit-status --argjson revision "${helm_revision_before}" \
       '.info.status == "deployed" and .version == $revision' >/dev/null
   kubectl --namespace "${namespace}" get jobs \
-    --selector=app.kubernetes.io/component=foreman-migrate \
+    --selector=app.kubernetes.io/component=dependency-preflight \
     --output=json | jq --exit-status \
-      'sort_by(.metadata.creationTimestamp) | last |
+      '.items | sort_by(.metadata.creationTimestamp) | last |
        ((.status.failed // 0) >= 1 or
         any(.status.conditions[]?; .type == "Failed" and .status == "True"))' >/dev/null
   restore_foreman_database_url
@@ -796,9 +831,9 @@ assert_failed_migration_gate() {
     jq --exit-status --argjson revision "${helm_revision_before}" \
       '.info.status == "deployed" and .version == $revision' >/dev/null
   kubectl --namespace "${namespace}" get jobs \
-    --selector=app.kubernetes.io/component=candlepin-migrate \
+    --selector=app.kubernetes.io/component=dependency-preflight \
     --output=json | jq --exit-status \
-      'sort_by(.metadata.creationTimestamp) | last |
+      '.items | sort_by(.metadata.creationTimestamp) | last |
        any(.status.conditions[]?; .type == "Failed" and .status == "True")' >/dev/null
   restore_candlepin_database_password
 

@@ -34,7 +34,13 @@ done
 foreman_pod() {
   kubectl --namespace "${namespace}" get pod \
     --selector=app.kubernetes.io/component=foreman \
-    --output=jsonpath='{.items[0].metadata.name}'
+    --output=json | jq --exit-status --raw-output '
+      [.items[] |
+       select(.status.phase == "Running") |
+       select(any(.status.conditions[]?; .type == "Ready" and .status == "True"))] |
+      sort_by(.metadata.creationTimestamp) |
+      last |
+      .metadata.name'
 }
 
 foreman_api() {

@@ -768,6 +768,25 @@ grep -Fq "expected 'Ansible,Dynflow,Script'" \
 grep -Fq '/ansible/api/v2/ansible_roles/sync' \
   "${repo_root}/tests/kind/execution-plane.sh"
 grep -Fq '/play_roles' "${repo_root}/tests/kind/execution-plane.sh"
+grep -Fq ".task_id // .dynflow_task.id" \
+  "${repo_root}/tests/kind/execution-plane.sh"
+grep -Fq 'if task.state == "stopped"' \
+  "${repo_root}/tests/kind/content-lifecycle.sh"
+if grep -Rq 'content-source\.foreman\.svc\.cluster\.local' \
+  "${repo_root}/tests/kind/content-lifecycle.sh" \
+  "${repo_root}/tests/kind/dependencies.yaml"; then
+  echo 'Kind content fixtures must use the same-namespace Service name to avoid search-domain capture' >&2
+  exit 1
+fi
+if grep -Fq 'per_page=all' "${repo_root}/tests/kind/content-lifecycle.sh"; then
+  echo 'Katello content checks must use a numeric page size' >&2
+  exit 1
+fi
+grep -Fq 'add_header X-PyPI-Last-Serial "1" always;' \
+  "${repo_root}/tests/kind/dependencies.yaml"
+grep -Fq 'task[:label]' "${repo_root}/tests/kind/content-lifecycle.sh"
+grep -Fq 'deb_package_path="pool/main/f/foreman-kubernetes-deb/' \
+  "${repo_root}/tests/kind/content-lifecycle.sh"
 grep -Fq '/cancel' "${repo_root}/tests/kind/execution-plane.sh"
 grep -Fq 'expected failure' "${repo_root}/tests/kind/execution-plane.sh"
 grep -Fq 'Execution proxy reached an undeclared in-cluster destination' \

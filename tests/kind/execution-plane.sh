@@ -63,7 +63,13 @@ fi
 foreman_pod() {
   kubectl --namespace "${namespace}" get pod \
     --selector=app.kubernetes.io/component=foreman \
-    --output=jsonpath='{.items[0].metadata.name}'
+    --output=json | jq --exit-status --raw-output '
+      [.items[] |
+       select(.status.phase == "Running") |
+       select(any(.status.conditions[]?; .type == "Ready" and .status == "True"))] |
+      sort_by(.metadata.creationTimestamp) |
+      last |
+      .metadata.name'
 }
 
 foreman_api() {
@@ -560,7 +566,7 @@ run_role_job() {
     rm -f "/tmp/${marker}" "/tmp/${unexpected_marker}"
 
   invocation="$(foreman_api POST "/api/hosts/${host_id}/play_roles")"
-  task_id="$(jq --exit-status --raw-output '.dynflow_task.id' <<<"${invocation}")"
+  task_id="$(jq --exit-status --raw-output '.task_id // .dynflow_task.id' <<<"${invocation}")"
   wait_for_task "${task_id}"
 
   kubectl --namespace "${namespace}" exec deployment/execution-target -- \
