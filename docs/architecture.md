@@ -273,23 +273,23 @@ IANA time zone. Missed starts and total runtime are bounded, and
 task blocking every later schedule indefinitely; each Job also waits for the
 Foreman schema migration barrier before loading application code.
 
-Foreman web, Dynflow, migration, registration, and cron processes share
-an RWX volume at `/usr/share/foreman/tmp`. Katello passes uploaded repository
-files and subscription manifests between web requests and asynchronous Dynflow
-steps by filesystem path, so pod-local temporary storage would make those
-workflows nondeterministically fail. This volume is an operational hand-off
-area, not authoritative backup state; maintenance must drain active tasks
-before backup or restore.
+Foreman web, Dynflow, migration, registration, and cron processes each receive
+a bounded `emptyDir` at `/usr/share/foreman/tmp`. Katello stages uploaded
+repository files and subscription manifests in Active Storage before an
+asynchronous Dynflow step consumes them, so no filesystem path crosses a Pod
+boundary. Production profiles select S3-compatible Active Storage to make
+those blobs available to every process.
 
 Puma's control socket directory and `puma.state` are overlaid from a bounded
 per-Pod `emptyDir`. Those process-local files cannot be shared by overlapping
-web replicas during a rolling update, while all other Katello hand-off paths
-remain on the RWX volume.
+web replicas during a rolling update. This runtime directory remains distinct
+from the larger per-Pod Rails scratch directory.
 
-LDAP avatar bytes are different: Foreman stores only their hash in PostgreSQL
-and serves the file from `public/images/avatars`. A second RWX claim keeps those
-durable files consistent across web replicas and the recovery workflow includes
-it alongside the database snapshot.
+LDAP avatar bytes and `foreman_rh_cloud` inventory reports are Active Storage
+attachments. Their metadata is transactionally associated with PostgreSQL
+records while the bytes live in the same S3-compatible object-storage
+contract. Foreman therefore renders neither a shared temporary claim nor an
+avatar claim.
 
 The chart also exposes an opt-in-on-invocation Helm test. Its short-lived,
 unprivileged Job calls the Foreman/Katello aggregate health endpoint and the
@@ -300,8 +300,8 @@ content or provisioning workflow.
 
 ## State and upgrades
 
-PostgreSQL, the three role-specific Valkey endpoints, object/shared storage,
-PKI, and Secrets are external contracts. This keeps the application
+PostgreSQL, the three role-specific Valkey endpoints, object storage, optional
+Pulp filesystem storage, PKI, and Secrets are external contracts. This keeps the application
 chart usable with existing operators and managed services.
 
 Candlepin, Pulp, and Foreman migrations are release-revision Jobs with bounded

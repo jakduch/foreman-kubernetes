@@ -15,15 +15,14 @@ ignored because their processes have already exited.
 The recovery set contains:
 
 - logical, custom-format PostgreSQL dumps for Foreman, Candlepin, and Pulp;
-- Foreman's LDAP avatar files, whose hashes but not bytes live in PostgreSQL;
 - the complete Pulp filesystem mounted at `/var/lib/pulp` when filesystem
   storage is selected;
 - the paired execution proxy's Dynflow/runner state and reviewed Ansible
   content claims;
 - an encrypted escrow copy of the application, certificate, ingress, and image
   pull Secrets known to both Helm releases;
-- a versioned manifest identifying the Helm release, namespace, chart, and
-  exact digest-pinned compatibility set;
+- a versioned manifest identifying the Helm release, namespace, chart, exact
+  digest-pinned compatibility set, and Foreman/Pulp storage backends;
 - an exact SHA-256 inventory of the three dumps, recovery manifest, and every
   Secret escrow file.
 
@@ -160,19 +159,19 @@ can be I/O intensive; enable it in a dedicated maintenance window.
 The backup Job consumes Restic's machine-readable completion record and fails
 unless it contains exactly one new snapshot ID. Before applying retention, it
 reopens that exact snapshot and verifies its release and request tags, declared
-roots, manifest, database dumps, avatar tree, every Secret escrow file, and the
-Pulp tree when filesystem storage is used. The full snapshot ID is emitted in
+roots, manifest, database dumps, every Secret escrow file, and the Pulp tree
+when filesystem storage is used. The full snapshot ID is emitted in
 the Job log only after this validation succeeds; retain it with the change or
 recovery record instead of relying only on `latest`.
 
 The request ID is stored inside the recovery manifest and must match the
 request-specific Restic tag. The Job also records and verifies an exact SHA-256
 inventory before uploading the set. Restic content addressing protects the
-avatar and Pulp trees; the inventory provides an additional explicit boundary
+Pulp tree; the inventory provides an additional explicit boundary
 for the independently restored logical dumps and Secret escrow.
 
-For S3, use a two-step operation so the bucket point cannot be taken while
-Pulp is still writing:
+For S3, use a two-step operation so the coordinated Foreman and Pulp bucket
+point cannot be taken while either application is still writing:
 
 ```sh
 scripts/recover-release.sh quiesce \
@@ -240,15 +239,15 @@ releases, inspect them and continue with the normal guarded restore path and a
 new request ID; do not retry with the bootstrap flag or delete the retained
 claims.
 
-The Job validates the snapshot owner, tag, compatibility set, storage backend, manifest, all three
-dumps, the avatar tree, the Pulp tree in filesystem mode, and every requested
+The Job validates the snapshot owner, tag, compatibility set, both storage backends, manifest, all three
+dumps, the Pulp tree in filesystem mode, and every requested
 Secret escrow file before modifying state. It also verifies the paths against
 Restic's snapshot inventory, so stale files on a reused work volume cannot make
 an incomplete snapshot appear valid. The exact checksum inventory is checked
 again after restoring `/work`; a missing, extra, or modified dump, manifest, or
 Secret export therefore fails before the destructive boundary. Only after that
 preflight boundary does it delete or replace current data. In S3 mode it leaves
-objects untouched and requires the exact point stored in the selected manifest
+Foreman and Pulp objects untouched and requires the exact coordinated point stored in the selected manifest
 before leaving maintenance mode. It replaces objects inside
 the existing databases but never drops or creates the databases or their roles.
 
@@ -283,10 +282,11 @@ migrations, re-registers the private Pulp endpoint, and executes the smoke
 test. The restore Job compares the supplied provider ID with the encrypted
 manifest before crossing its destructive boundary.
 
-Filesystem snapshots using manifest schema 5 remain restorable. Schema 5 S3
-snapshots are deliberately rejected because they contain only the former
-generic acknowledgement and cannot bind a database dump to an exact external
-bucket point.
+The current chart restores manifest schema 7. Older schema 5 and 6 snapshots
+must first be restored with their original compatible chart, then upgraded so
+filesystem-backed LDAP avatars can be migrated into Active Storage before a
+new schema 7 recovery point is created. This avoids silently restoring a
+database without the attachment bytes it references.
 
 After diagnosing a failed backup, restore, or interrupted recovery helper,
 leave maintenance mode through the same guarded path. Resume restores the

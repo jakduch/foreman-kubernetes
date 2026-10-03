@@ -118,6 +118,13 @@ if helm lint "${chart}" --set foreman.activeStorage.service=s3 >/dev/null 2>&1; 
   echo 'values schema accepted Foreman S3 storage without a bucket' >&2
   exit 1
 fi
+if helm lint "${chart}" \
+  --values "${repo_root}/examples/foreman-s3-values.yaml" \
+  --set backup.enabled=true \
+  --set-string backup.requestId=s3-test >/dev/null 2>&1; then
+  echo 'values schema accepted a Foreman S3 backup without an exact object-storage recovery point' >&2
+  exit 1
+fi
 helm template test "${chart}" > "${rendered}"
 helm template test "${chart}" \
   --values "${repo_root}/tests/dynflow-autoscaling-values.yaml" \
@@ -551,8 +558,8 @@ ruby "${repo_root}/tests/candlepin-migration-barrier.rb" "${rendered}" true
 ruby "${repo_root}/tests/candlepin-migration-barrier.rb" "${rendered_no_migrations}" false
 ruby "${repo_root}/tests/recurring-tasks-migration-barrier.rb" "${rendered}" true
 ruby "${repo_root}/tests/recurring-tasks-migration-barrier.rb" "${rendered_no_migrations}" false
-ruby "${repo_root}/tests/foreman-shared-tmp-contract.rb" "${rendered}" true
-ruby "${repo_root}/tests/foreman-shared-tmp-contract.rb" "${rendered_s3}" false
+ruby "${repo_root}/tests/foreman-ephemeral-tmp-contract.rb" "${rendered}" true
+ruby "${repo_root}/tests/foreman-ephemeral-tmp-contract.rb" "${rendered_s3}" false
 ruby "${repo_root}/tests/foreman-database-pool-contract.rb" "${rendered}"
 ruby "${repo_root}/tests/database-tls-contract.rb" "${rendered}" verify-full true
 ruby "${repo_root}/tests/database-tls-contract.rb" "${rendered_database_tls_disabled}" disable false
@@ -565,8 +572,6 @@ ruby "${repo_root}/tests/smoke-network-policy-contract.rb" "${rendered_egress}" 
 ruby "${repo_root}/tests/smoke-network-policy-contract.rb" "${rendered_foreman_service_port}" 3100
 ruby "${repo_root}/tests/default-deny-ingress-contract.rb" "${rendered}" test
 ruby "${repo_root}/tests/pvc-retention-contract.rb" "${rendered}" \
-  test-foreman-stack-foreman-tmp \
-  test-foreman-stack-foreman-avatars \
   test-foreman-stack-pulp
 ruby "${repo_root}/tests/disruption-budget-contract.rb" "${rendered}"
 ruby "${repo_root}/tests/rollout-strategy-contract.rb" "${rendered}"

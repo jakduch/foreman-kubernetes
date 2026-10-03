@@ -584,64 +584,6 @@ spec:
 apiVersion: v1
 kind: PersistentVolume
 metadata:
-  name: foreman-kind-tmp
-spec:
-  capacity:
-    storage: 5Gi
-  accessModes:
-    - ReadWriteMany
-  persistentVolumeReclaimPolicy: Retain
-  storageClassName: foreman-kind-rwx
-  hostPath:
-    path: /var/local/foreman-kind-tmp
-    type: DirectoryOrCreate
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: foreman-tmp
-  namespace: foreman
-spec:
-  accessModes:
-    - ReadWriteMany
-  storageClassName: foreman-kind-rwx
-  volumeName: foreman-kind-tmp
-  resources:
-    requests:
-      storage: 5Gi
----
-apiVersion: v1
-kind: PersistentVolume
-metadata:
-  name: foreman-kind-avatars
-spec:
-  capacity:
-    storage: 1Gi
-  accessModes:
-    - ReadWriteMany
-  persistentVolumeReclaimPolicy: Retain
-  storageClassName: foreman-kind-rwx
-  hostPath:
-    path: /var/local/foreman-kind-avatars
-    type: DirectoryOrCreate
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: foreman-avatars
-  namespace: foreman
-spec:
-  accessModes:
-    - ReadWriteMany
-  storageClassName: foreman-kind-rwx
-  volumeName: foreman-kind-avatars
-  resources:
-    requests:
-      storage: 1Gi
----
-apiVersion: v1
-kind: PersistentVolume
-metadata:
   name: foreman-kind-recovery-repository
 spec:
   capacity:

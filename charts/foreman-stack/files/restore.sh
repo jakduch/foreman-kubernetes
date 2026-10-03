@@ -13,8 +13,9 @@ if [ "${RESTORE_CONFIRMATION}" != RESTORE ]; then
   exit 1
 fi
 
-if [ "${PULP_STORAGE_BACKEND}" = s3 ] && [ -z "${PULP_OBJECT_STORAGE_RECOVERY_POINT}" ]; then
-  log "The exact restored object-storage recovery point is required before restoring the Pulp database" >&2
+if { [ "${FOREMAN_ACTIVE_STORAGE_SERVICE}" = s3 ] || [ "${PULP_STORAGE_BACKEND}" = s3 ]; } &&
+   [ -z "${OBJECT_STORAGE_RECOVERY_POINT}" ]; then
+  log "The exact restored object-storage recovery point is required before restoring the Foreman and Pulp databases" >&2
   exit 1
 fi
 
@@ -65,21 +66,21 @@ jq -e \
   --arg release "${HELM_RELEASE}" \
   --arg namespace "${POD_NAMESPACE}" \
   --arg compatibility_set "${COMPATIBILITY_SET}" \
+  --arg foreman_active_storage_service "${FOREMAN_ACTIVE_STORAGE_SERVICE}" \
   --arg pulp_storage_backend "${PULP_STORAGE_BACKEND}" \
-  --arg pulp_object_storage_recovery_point "${PULP_OBJECT_STORAGE_RECOVERY_POINT}" \
+  --arg object_storage_recovery_point "${OBJECT_STORAGE_RECOVERY_POINT}" \
   --argjson execution_proxy_enabled "${EXECUTION_PROXY_RECOVERY_ENABLED}" \
   --arg execution_proxy_release "${EXECUTION_PROXY_RELEASE:-}" \
-  '((.schema_version == "6" and
-      .pulp_storage_backend == $pulp_storage_backend and
-      .object_storage.backend == $pulp_storage_backend and
-      (if $pulp_storage_backend == "s3" then
-         .object_storage.recovery_point == $pulp_object_storage_recovery_point
-       else
-         .object_storage.recovery_point == null
-       end)) or
-     (.schema_version == "5" and
-      $pulp_storage_backend == "filesystem" and
-      (.pulp_storage_backend // (if .includes_pulp_filesystem then "filesystem" else "unknown" end)) == "filesystem")) and
+  '(.schema_version == "7" and
+   .foreman_active_storage_service == $foreman_active_storage_service and
+   .pulp_storage_backend == $pulp_storage_backend and
+   .object_storage.foreman_backend == $foreman_active_storage_service and
+   .object_storage.pulp_backend == $pulp_storage_backend and
+   (if ($foreman_active_storage_service == "s3" or $pulp_storage_backend == "s3") then
+      .object_storage.recovery_point == $object_storage_recovery_point
+    else
+      .object_storage.recovery_point == null
+    end) and
    (.request_id |
      type == "string" and
      length > 0 and length <= 16 and
@@ -91,7 +92,6 @@ jq -e \
    (.secret_names | type == "array" and length > 0 and length == (unique | length)) and
    all(.secret_names[]; test("^[a-z0-9]([-a-z0-9]*[a-z0-9])?$")) and
    .integrity == {algorithm: "sha256", manifest: "/work/metadata/checksums.sha256"} and
-   .includes_foreman_avatars == true and
    (if $pulp_storage_backend == "filesystem" then .includes_pulp_filesystem == true else true end) and
    .execution_proxy.enabled == $execution_proxy_enabled and
    (if $execution_proxy_enabled then
@@ -107,7 +107,6 @@ restic snapshots --json "${snapshot_id}" |
     length == 1 and (.[0].tags | index($request_tag)) != null
   ' >/dev/null
 
-require_snapshot_path /var/lib/foreman/avatars
 if [ "${PULP_STORAGE_BACKEND}" = filesystem ]; then
   require_snapshot_path /var/lib/pulp
 fi
@@ -141,13 +140,6 @@ validate_database_dump Pulp /work/databases/pulp.dump
 
 log "Snapshot validation completed; starting destructive restore"
 
-log "Replacing Foreman LDAP avatars from the selected recovery snapshot"
-find /var/lib/foreman/avatars -mindepth 1 -maxdepth 1 -exec rm -rf {} +
-restic restore "${snapshot_id}" \
-  --target / \
-  --include '/var/lib/foreman/avatars/**'
-chmod -R u+rwX,g+rwX /var/lib/foreman/avatars
-
 if [ "${PULP_STORAGE_BACKEND}" = filesystem ]; then
   log "Replacing Pulp filesystem from the selected recovery snapshot"
   find /var/lib/pulp -mindepth 1 -maxdepth 1 -exec rm -rf {} +
@@ -156,7 +148,11 @@ if [ "${PULP_STORAGE_BACKEND}" = filesystem ]; then
     --include '/var/lib/pulp/**'
   chmod -R u+rwX,g+rwX /var/lib/pulp
 else
-  log "Pulp objects were restored from coordinated recovery point ${PULP_OBJECT_STORAGE_RECOVERY_POINT}"
+  log "Pulp objects were restored from coordinated recovery point ${OBJECT_STORAGE_RECOVERY_POINT}"
+fi
+
+if [ "${FOREMAN_ACTIVE_STORAGE_SERVICE}" = s3 ]; then
+  log "Foreman Active Storage objects were restored from coordinated recovery point ${OBJECT_STORAGE_RECOVERY_POINT}"
 fi
 
 if [ "${EXECUTION_PROXY_RECOVERY_ENABLED}" = true ]; then

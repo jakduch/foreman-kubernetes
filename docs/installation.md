@@ -382,8 +382,8 @@ Existing releases must use `scripts/upgrade-release.sh` and the procedure in
 
 Every PVC created by the application and execution-proxy charts carries
 `helm.sh/resource-policy: keep`. Removing either Helm release therefore leaves
-Foreman shared temporary storage and avatars, filesystem-backed Pulp content,
-execution Dynflow state, and Ansible content intact. This protects against an
+filesystem-backed Pulp content, execution Dynflow state, and Ansible content
+intact; Foreman attachments remain in external object storage. This protects against an
 accidental application uninstall; it does not protect against namespace
 deletion, direct PVC deletion, storage failure, or a destructive storage-class
 reclaim policy.

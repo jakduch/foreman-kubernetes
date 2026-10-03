@@ -52,10 +52,6 @@ foreman:
   existingDatabaseCaSecret: ""
   database:
     sslMode: disable
-  sharedTmp:
-    existingClaim: foreman-tmp
-  avatarStorage:
-    existingClaim: foreman-avatars
   dynflow:
     workers: 1
     workerConcurrency: 2

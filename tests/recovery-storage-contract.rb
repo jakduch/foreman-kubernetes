@@ -23,12 +23,11 @@ environment = Array(container&.fetch('env', nil)).to_h { |entry| [entry['name'],
 volumes = Array(pod_spec&.fetch('volumes', nil)).to_h { |volume| [volume['name'], volume] }
 mounts = Array(container&.fetch('volumeMounts', nil)).to_h { |mount| [mount['name'], mount] }
 
-avatar_mount = mounts['foreman-avatars']
-avatar_volume = volumes['foreman-avatars']
-abort 'recovery Job does not mount Foreman avatars' unless avatar_mount&.fetch('mountPath', nil) == '/var/lib/foreman/avatars'
-abort 'Foreman avatar recovery volume is not a PVC' unless avatar_volume&.dig('persistentVolumeClaim', 'claimName')
+abort 'recovery Job still mounts the removed Foreman avatar volume' if mounts.key?('foreman-avatars') || volumes.key?('foreman-avatars')
 abort 'recovery Job does not receive the coordinated object-storage point' unless
-  environment.key?('PULP_OBJECT_STORAGE_RECOVERY_POINT')
+  environment.key?('OBJECT_STORAGE_RECOVERY_POINT')
+abort 'recovery Job does not receive the Foreman Active Storage backend' unless
+  environment.key?('FOREMAN_ACTIVE_STORAGE_SERVICE')
 abort 'recovery Job does not require its unprivileged Pod identity' unless
   pod_spec.dig('securityContext', 'runAsNonRoot') == true &&
   pod_spec.dig('securityContext', 'runAsUser') == 700 &&
@@ -61,12 +60,16 @@ backup = scripts&.dig('data', 'backup.sh').to_s
 restore = scripts&.dig('data', 'restore.sh').to_s
 common = scripts&.dig('data', 'recovery-common.sh').to_s
 
-abort 'backup manifest does not record Foreman avatars' unless backup.include?('includes_foreman_avatars: true')
-abort 'backup does not include Foreman avatars' unless backup.include?('set -- /work /var/lib/foreman/avatars')
+abort 'backup still includes the removed Foreman avatar filesystem' if backup.include?('/var/lib/foreman/avatars')
+abort 'backup does not record the Foreman Active Storage backend' unless
+  backup.include?('foreman_active_storage_service: $foreman_active_storage_service')
 abort 'backup manifest does not record the compatibility set' unless backup.include?('compatibility_set: $compatibility_set')
 abort 'backup manifest does not record its request ID' unless backup.include?('request_id: $request_id')
 abort 'backup manifest does not bind an external object-storage recovery point' unless
-  backup.include?('recovery_point: (if $pulp_storage_backend == "s3" then $pulp_object_storage_recovery_point else null end)')
+  backup.include?('recovery_point: (if ($foreman_active_storage_service == "s3" or $pulp_storage_backend == "s3") then $object_storage_recovery_point else null end)')
+abort 'backup manifest does not bind both object-storage backends' unless
+  backup.include?('foreman_backend: $foreman_active_storage_service') &&
+  backup.include?('pulp_backend: $pulp_storage_backend')
 abort 'backup does not create an integrity manifest' unless backup.include?('write_recovery_integrity')
 abort 'backup does not verify its recovery set before upload' unless backup.index('verify_recovery_integrity') <
                                                                   backup.index('restic backup --json')
@@ -81,17 +84,13 @@ abort 'backup reports completion before validation' unless backup.index('Validat
                                                            backup.index('Recovery snapshot completed:')
 abort 'backup does not report the bound object-storage point for the recovery record' unless
   backup.include?('Retain object-storage recovery point with this snapshot:')
-abort 'restore does not require the release-aware schema' unless restore.include?('.schema_version == "6"')
-abort 'restore drops supported schema 5 filesystem recovery sets' unless
-  restore.include?('.schema_version == "5"') &&
-  restore.include?('$pulp_storage_backend == "filesystem"')
+abort 'restore does not require the attachment-aware recovery schema' unless restore.include?('.schema_version == "7"')
 abort 'restore accepts a snapshot from another release set' unless restore.include?('.compatibility_set == $compatibility_set')
 abort 'restore accepts a different object-storage recovery point' unless
-  restore.include?('.object_storage.recovery_point == $pulp_object_storage_recovery_point')
+  restore.include?('.object_storage.recovery_point == $object_storage_recovery_point')
 abort 'restore does not bind the manifest request ID to the Restic tag' unless restore.include?('request-${manifest_request_id}')
-abort 'restore does not replace Foreman avatars' unless restore.include?("--include '/var/lib/foreman/avatars/**'")
+abort 'restore still replaces the removed Foreman avatar filesystem' if restore.include?('/var/lib/foreman/avatars')
 abort 'restore does not make cross-UID volume data group-accessible' unless
-  restore.include?('chmod -R u+rwX,g+rwX /var/lib/foreman/avatars') &&
   restore.include?('chmod -R u+rwX,g+rwX /var/lib/pulp') &&
   restore.include?('/var/lib/foreman-execution-proxy/ansible')
 abort 'backup does not include execution state' unless backup.include?('/var/lib/foreman-execution-proxy/state')
@@ -101,10 +100,8 @@ abort 'restore does not replace execution state' unless restore.include?("--incl
 abort 'restore does not replace execution Ansible content' unless restore.include?("--include '/var/lib/foreman-execution-proxy/ansible/**'")
 abort 'restore does not inspect snapshot contents' unless restore.include?('restic ls --json')
 validation_boundary = restore.index('Snapshot validation completed; starting destructive restore')
-avatar_deletion = restore.index('find /var/lib/foreman/avatars')
 pulp_deletion = restore.index('find /var/lib/pulp')
 abort 'restore is missing the destructive validation boundary' unless validation_boundary
-abort 'restore validates the snapshot after deleting avatars' unless avatar_deletion && validation_boundary < avatar_deletion
 abort 'restore validates the snapshot after deleting Pulp data' unless pulp_deletion && validation_boundary < pulp_deletion
 execution_deletion = restore.index('find /var/lib/foreman-execution-proxy/state')
 abort 'restore validates the snapshot after deleting execution state' unless execution_deletion && validation_boundary < execution_deletion
@@ -131,4 +128,4 @@ abort 'recovery ignores terminating writers' if common.include?('.metadata.delet
 abort 'recovery does not ignore successful Jobs' unless common.include?('(.status.phase // "") != "Succeeded"')
 abort 'recovery does not ignore failed Jobs' unless common.include?('(.status.phase // "") != "Failed"')
 
-puts "Recovery storage includes avatars; Pulp filesystem mounted=#{expect_pulp}; execution proxy mounted=#{expect_execution}."
+puts "Recovery coordinates Foreman and Pulp object storage; Pulp filesystem mounted=#{expect_pulp}; execution proxy mounted=#{expect_execution}."

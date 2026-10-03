@@ -1,8 +1,9 @@
 # Foreman object storage
 
 Foreman uses Active Storage for plugin-owned blobs. The chart keeps `local` as
-the package-compatible default and can select AWS S3 or an S3-compatible
-service such as MinIO or Ceph RGW:
+the package-compatible development default and can select AWS S3 or an
+S3-compatible service such as MinIO or Ceph RGW. Production releases with
+separate web and Dynflow pods must select `s3`:
 
 ```yaml
 foreman:
@@ -55,13 +56,14 @@ This validates the same configuration and credentials used by web and Dynflow
 pods rather than testing the S3 API independently of Foreman.
 
 The profile requires the upstream Foreman Active Storage foundation and S3
-configuration work plus plugin migrations that move shared files into Active
-Storage. Until those changes ship in a compatible Foreman image, keep this
-profile disabled. The chart intentionally retains the Foreman shared-tmp and
-avatar RWX claims in this change; removing them before Katello uploads, LDAP
-avatars, and `foreman_rh_cloud` reports use object storage would lose data or
-break cross-pod jobs.
+configuration work plus the Katello upload staging, LDAP avatar, and
+`foreman_rh_cloud` attachment migrations. The chart's qualified image contract
+pins all of them together. Once present, durable hand-offs use Active Storage;
+`/usr/share/foreman/tmp` is a bounded per-Pod `emptyDir` and Foreman renders no
+shared-tmp or avatar PVC. Do not use the multi-pod production profile with the
+`local` service because attachments would remain pod-local.
 
 Object-store backup is an external consistency boundary. Record and test an
-exact provider recovery point together with the PostgreSQL snapshot before
-claiming disaster-recovery coverage for an S3-backed release.
+exact provider recovery point for the Foreman and Pulp buckets together with
+the PostgreSQL snapshot before claiming disaster-recovery coverage for an
+S3-backed release.

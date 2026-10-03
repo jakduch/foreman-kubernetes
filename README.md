@@ -62,9 +62,9 @@ The initial Helm chart is under [`charts/foreman-stack`](charts/foreman-stack). 
   Foreman's and Pulp's Valkey endpoints, and Pulp S3 access before migrations;
 - Foreman recurring tasks as non-overlapping CronJobs.
 - maintenance-gated, encrypted backup and restore Jobs covering all three
-  PostgreSQL databases, both releases' Secrets, Foreman avatars, execution
-  state and Ansible content, plus Pulp filesystem content when that backend is
-  selected, with an explicit external recovery gate for S3.
+  PostgreSQL databases, both releases' Secrets, execution state and Ansible
+  content, plus Pulp filesystem content when that backend is selected, with a
+  coordinated external recovery gate for Foreman and Pulp object storage.
 - explicit non-root identities, restricted container privileges, scoped
   disruption budgets, release-wide default-deny ingress, and optional
   component-level egress isolation.
@@ -120,9 +120,9 @@ Foreman plugin blobs can use the same storage model through
 [`examples/foreman-s3-values.yaml`](examples/foreman-s3-values.yaml). The
 credential, private-CA, preflight, Helm-test, and upstream compatibility
 contract is documented in
-[`docs/foreman-object-storage.md`](docs/foreman-object-storage.md). The current
-chart retains its Foreman RWX claims until every named plugin hand-off has been
-migrated upstream.
+[`docs/foreman-object-storage.md`](docs/foreman-object-storage.md). With the
+named plugin hand-offs on Active Storage, Foreman uses bounded per-Pod scratch
+space and no longer requires an RWX claim of its own.
 
 The example Secrets contain placeholders only. Populate them outside Git. For
 a paired, digest-pinned installation, create the namespace and Secrets, prepare

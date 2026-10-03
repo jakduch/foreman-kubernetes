@@ -79,9 +79,10 @@ implementation, or change how upstream elects and observes it. A future
 independently supervised process would first need an upstream-supported
 entrypoint and an official image containing it.
 
-Katello passes some uploads and manifests to Dynflow by a path below
-`Rails.root/tmp`; the chart mounts one RWX claim there for every Foreman-derived
-process so an asynchronous step can run on a different pod.
+Katello stages uploads and manifests as Active Storage attachments before
+Dynflow consumes them. `/usr/share/foreman/tmp` is therefore process-local
+scratch space, rendered as a bounded `emptyDir` for each Foreman-derived Pod.
+Cross-pod hand-offs must never rely on a path in that directory.
 
 ## Candlepin image
 

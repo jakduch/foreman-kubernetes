@@ -497,8 +497,8 @@ server {
 
 {{- define "foreman-stack.foremanVolumes" -}}
 - name: foreman-tmp
-  persistentVolumeClaim:
-    claimName: {{ default (printf "%s-foreman-tmp" (include "foreman-stack.fullname" .)) .Values.foreman.sharedTmp.existingClaim }}
+  emptyDir:
+    sizeLimit: {{ .Values.foreman.tmp.sizeLimit }}
 - name: foreman-generated-config
   configMap:
     name: {{ include "foreman-stack.foremanConfigName" . }}
@@ -542,17 +542,6 @@ server {
       - key: {{ .Values.foreman.activeStorage.s3.caSecretKey }}
         path: {{ .Values.foreman.activeStorage.s3.caSecretKey }}
 {{- end }}
-{{- end }}
-
-{{- define "foreman-stack.foremanAvatarVolumeMount" -}}
-- name: foreman-avatars
-  mountPath: /usr/share/foreman/public/images/avatars
-{{- end }}
-
-{{- define "foreman-stack.foremanAvatarVolume" -}}
-- name: foreman-avatars
-  persistentVolumeClaim:
-    claimName: {{ default (printf "%s-foreman-avatars" (include "foreman-stack.fullname" .)) .Values.foreman.avatarStorage.existingClaim }}
 {{- end }}
 
 {{- define "foreman-stack.pulpEnv" -}}

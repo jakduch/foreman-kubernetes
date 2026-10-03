@@ -242,7 +242,9 @@ spec:
             {{- end }}
             - name: PULP_STORAGE_BACKEND
               value: {{ .Values.pulp.storage.backend | quote }}
-            - name: PULP_OBJECT_STORAGE_RECOVERY_POINT
+            - name: FOREMAN_ACTIVE_STORAGE_SERVICE
+              value: {{ .Values.foreman.activeStorage.service | quote }}
+            - name: OBJECT_STORAGE_RECOVERY_POINT
               value: {{ ternary .Values.backup.objectStorageRecoveryPoint .Values.restore.objectStorageRecoveryPoint .Values.backup.enabled | quote }}
             - name: EXECUTION_PROXY_RECOVERY_ENABLED
               value: {{ .Values.recovery.executionProxy.enabled | quote }}
@@ -297,8 +299,6 @@ spec:
               mountPath: /work
             - name: recovery-tmp
               mountPath: /tmp
-            - name: foreman-avatars
-              mountPath: /var/lib/foreman/avatars
             {{- if eq .Values.pulp.storage.backend "filesystem" }}
             - name: pulp-data
               mountPath: /var/lib/pulp
@@ -343,9 +343,6 @@ spec:
           {{- end }}
         - name: recovery-tmp
           emptyDir: {}
-        - name: foreman-avatars
-          persistentVolumeClaim:
-            claimName: {{ default (printf "%s-foreman-avatars" (include "foreman-stack.fullname" .)) .Values.foreman.avatarStorage.existingClaim }}
         {{- if eq .Values.pulp.storage.backend "filesystem" }}
         - name: pulp-data
           persistentVolumeClaim:

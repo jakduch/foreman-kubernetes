@@ -460,9 +460,7 @@ end
 prepared_kinds = kubernetes.created_resources.each_with_object(Hash.new(0)) do |item, counts|
   counts[item['kind']] += 1
 end
-unless prepared_kinds.slice('PersistentVolumeClaim', 'ServiceAccount') == {
-  'PersistentVolumeClaim' => 1, 'ServiceAccount' => 2
-}
+unless prepared_kinds.slice('PersistentVolumeClaim', 'ServiceAccount') == {'ServiceAccount' => 2}
   raise "migration prerequisites were not prepared: #{prepared_kinds.inspect}"
 end
 updated_foreman_config = kubernetes.resource('platform', 'configmap', desired_foreman_config.dig('metadata', 'name'))

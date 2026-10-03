@@ -185,18 +185,14 @@ foreman:
     # Matches the upstream systemd service's five-minute stop allowance. The
     # Pod receives another 30 seconds so Sidekiq can finish its own shutdown.
     shutdownTimeoutSeconds: 300
-  sharedTmp:
-    # Katello hands uploaded manifests and repository files from web requests
-    # to Dynflow workers by path, so every Foreman-derived pod needs this RWX
-    # filesystem even though its contents are operationally temporary.
-    existingClaim: ""
-    storageClass: ""
-    accessMode: ReadWriteMany
-    size: 20Gi
+  tmp:
+    # Rails and plugin scratch files are process-local after upload staging is
+    # backed by Active Storage. Kubernetes enforces this upper bound per Pod.
+    sizeLimit: 20Gi
   activeStorage:
-    # local preserves Foreman's package default. s3 stores plugin-owned blobs
-    # in AWS S3 or a compatible service and is required before the remaining
-    # shared Foreman filesystems can be removed safely.
+    # local preserves Foreman's package default for development. Production
+    # deployments with separate web and Dynflow pods must use s3 so durable
+    # plugin-owned blobs are available to every process.
     service: local
     s3:
       bucket: ""
@@ -211,13 +207,6 @@ foreman:
       # HTTPS endpoint.
       existingCaSecret: ""
       caSecretKey: ca.crt
-  avatarStorage:
-    # LDAP avatar hashes live in PostgreSQL, but the image bytes are served
-    # from Rails public storage and must survive and be visible to every pod.
-    existingClaim: ""
-    storageClass: ""
-    accessMode: ReadWriteMany
-    size: 1Gi
   resources:
     requests:
       cpu: 500m

@@ -136,8 +136,8 @@
   cleanup, rejected retired credentials, and a complete repeat after Secret
   rotation, with a separate evidence record.
 - One-shot, maintenance-gated recovery Jobs produce encrypted Restic snapshots
-  of all three databases, Foreman's LDAP avatars, Pulp filesystem storage, and
-  both releases' Secrets plus execution Dynflow/runner and Ansible-content
+  of all three databases, Pulp filesystem storage, and both releases' Secrets
+  plus execution Dynflow/runner and Ansible-content
   claims. The guarded path stops application dispatchers and the paired
   execution proxy before a Job can access that recovery set.
 - S3 recovery now has a guarded two-phase hand-off: both releases are quiesced

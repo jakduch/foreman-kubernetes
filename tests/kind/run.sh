@@ -499,29 +499,6 @@ assert_pulp_probe() {
   fi
 }
 
-set_avatar_probe() {
-  local expected_value="$1"
-
-  # The inner shell expands its positional argument inside the container.
-  # shellcheck disable=SC2016
-  kubectl --namespace "${namespace}" exec "$(foreman_pod)" -- \
-    sh -c 'printf "%s\n" "$1" > /usr/share/foreman/public/images/avatars/recovery-probe' sh "${expected_value}"
-}
-
-assert_avatar_probe() {
-  local expected_value="$1"
-  local actual_value
-
-  actual_value="$(
-    kubectl --namespace "${namespace}" exec "$(foreman_pod)" -- \
-      sh -c 'cat /usr/share/foreman/public/images/avatars/recovery-probe'
-  )"
-  if [[ "${actual_value}" != "${expected_value}" ]]; then
-    echo "Foreman avatar recovery probe is '${actual_value}', expected '${expected_value}'" >&2
-    exit 1
-  fi
-}
-
 set_execution_state_probe() {
   local expected_value="$1"
 
@@ -670,10 +647,6 @@ prepare_kind_storage() {
     install -d -m 2770 -o 700 -g 700 \
     /var/local/foreman-kind-pulp \
     /var/local/foreman-kind-recovery
-  docker exec "${kind_node}" \
-    install -d -m 2770 -o 994 -g 994 \
-    /var/local/foreman-kind-tmp \
-    /var/local/foreman-kind-avatars
 }
 
 configure_cluster_dns() {
@@ -939,8 +912,6 @@ reset_namespace_for_restore() {
   kubectl delete namespace "${namespace}" --wait=true
   kubectl delete persistentvolume \
     foreman-kind-pulp-data \
-    foreman-kind-tmp \
-    foreman-kind-avatars \
     foreman-kind-object-storage \
     foreman-kind-recovery-repository \
     --ignore-not-found=true \
@@ -948,16 +919,6 @@ reset_namespace_for_restore() {
 
   docker exec "${kind_node}" \
     find /var/local/foreman-kind-pulp \
-    -mindepth 1 \
-    -maxdepth 1 \
-    -exec rm -rf -- '{}' +
-  docker exec "${kind_node}" \
-    find /var/local/foreman-kind-tmp \
-    -mindepth 1 \
-    -maxdepth 1 \
-    -exec rm -rf -- '{}' +
-  docker exec "${kind_node}" \
-    find /var/local/foreman-kind-avatars \
     -mindepth 1 \
     -maxdepth 1 \
     -exec rm -rf -- '{}' +
@@ -973,7 +934,6 @@ reset_namespace_for_restore() {
   assert_secret_probe after-reset
   assert_database_probes_absent
   docker exec "${kind_node}" test ! -e /var/local/foreman-kind-pulp/recovery-probe
-  docker exec "${kind_node}" test ! -e /var/local/foreman-kind-avatars/recovery-probe
 }
 
 cleanup() {
@@ -1235,7 +1195,6 @@ fi
 if [[ "${skip_recovery_test}" != 1 ]]; then
   set_database_probes before-backup
   set_pulp_probe before-backup
-  set_avatar_probe before-backup
   set_execution_state_probe before-backup
   assert_ansible_content_revision v1
   assert_secret_probe before-backup
@@ -1244,11 +1203,9 @@ if [[ "${skip_recovery_test}" != 1 ]]; then
 
   set_database_probes after-backup
   set_pulp_probe after-backup
-  set_avatar_probe after-backup
   set_secret_probe after-backup
   assert_database_probes after-backup
   assert_pulp_probe after-backup
-  assert_avatar_probe after-backup
   assert_execution_state_probe before-backup
   assert_ansible_content_revision v1
   assert_secret_probe after-backup
@@ -1274,7 +1231,6 @@ if [[ "${skip_recovery_test}" != 1 ]]; then
   fi
   assert_database_probes before-backup
   assert_pulp_probe before-backup
-  assert_avatar_probe before-backup
   assert_execution_state_probe before-backup
   assert_ansible_content_revision v1
   assert_secret_probe before-backup

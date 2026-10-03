@@ -77,8 +77,7 @@ abort 'execution target is not recreated under restricted Pod Security' unless
 abort 'object-storage host data is not prepared for its non-root process' unless
   object_storage_drill.include?('install -d -m 0770 -o 1000 -g 1000 /var/local/foreman-kind-object-storage')
 {
-  700 => %w[/var/local/foreman-kind-pulp /var/local/foreman-kind-recovery],
-  994 => %w[/var/local/foreman-kind-tmp /var/local/foreman-kind-avatars]
+  700 => %w[/var/local/foreman-kind-pulp /var/local/foreman-kind-recovery]
 }.each do |identity, paths|
   paths.each do |path|
     contract = "-m 2770 -o #{identity} -g #{identity}"

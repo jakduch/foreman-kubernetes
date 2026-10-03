@@ -11,8 +11,9 @@ done
 wait_for_quiescence
 prepare_work_directory
 
-if [ "${PULP_STORAGE_BACKEND}" = s3 ] && [ -z "${PULP_OBJECT_STORAGE_RECOVERY_POINT}" ]; then
-  log "An exact object-storage recovery point is required for an S3 backup" >&2
+if { [ "${FOREMAN_ACTIVE_STORAGE_SERVICE}" = s3 ] || [ "${PULP_STORAGE_BACKEND}" = s3 ]; } &&
+   [ -z "${OBJECT_STORAGE_RECOVERY_POINT}" ]; then
+  log "An exact object-storage recovery point is required when Foreman or Pulp uses S3" >&2
   exit 1
 fi
 
@@ -45,15 +46,16 @@ if [ "${EXECUTION_PROXY_RECOVERY_ENABLED}" = true ]; then
 fi
 
 jq -n \
-  --arg schema_version "6" \
+  --arg schema_version "7" \
   --arg created_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
   --arg request_id "${BACKUP_REQUEST_ID}" \
   --arg chart_version "${CHART_VERSION}" \
   --arg compatibility_set "${COMPATIBILITY_SET}" \
   --arg release "${HELM_RELEASE}" \
   --arg namespace "${POD_NAMESPACE}" \
+  --arg foreman_active_storage_service "${FOREMAN_ACTIVE_STORAGE_SERVICE}" \
   --arg pulp_storage_backend "${PULP_STORAGE_BACKEND}" \
-  --arg pulp_object_storage_recovery_point "${PULP_OBJECT_STORAGE_RECOVERY_POINT}" \
+  --arg object_storage_recovery_point "${OBJECT_STORAGE_RECOVERY_POINT}" \
   --argjson includes_pulp_filesystem "${includes_pulp_filesystem}" \
   --argjson includes_execution_proxy "${includes_execution_proxy}" \
   --arg execution_proxy_release "${EXECUTION_PROXY_RELEASE:-}" \
@@ -67,11 +69,12 @@ jq -n \
     helm_release: $release,
     namespace: $namespace,
     databases: ["foreman", "candlepin", "pulp"],
-    includes_foreman_avatars: true,
+    foreman_active_storage_service: $foreman_active_storage_service,
     pulp_storage_backend: $pulp_storage_backend,
     object_storage: {
-      backend: $pulp_storage_backend,
-      recovery_point: (if $pulp_storage_backend == "s3" then $pulp_object_storage_recovery_point else null end)
+      foreman_backend: $foreman_active_storage_service,
+      pulp_backend: $pulp_storage_backend,
+      recovery_point: (if ($foreman_active_storage_service == "s3" or $pulp_storage_backend == "s3") then $object_storage_recovery_point else null end)
     },
     includes_pulp_filesystem: $includes_pulp_filesystem,
     execution_proxy: {
@@ -100,7 +103,7 @@ if ! restic cat config >/dev/null 2>&1; then
 fi
 
 log "Creating encrypted recovery snapshot"
-set -- /work /var/lib/foreman/avatars
+set -- /work
 if [ "${PULP_STORAGE_BACKEND}" = filesystem ]; then
   set -- "$@" /var/lib/pulp
 else
@@ -147,7 +150,6 @@ printf '%s' "${snapshot_json}" | jq -e \
     (.[0].tags | index("foreman-stack")) != null and
     (.[0].tags | index($request_tag)) != null and
     (.[0].paths | index("/work")) != null and
-    (.[0].paths | index("/var/lib/foreman/avatars")) != null and
     (if $includes_execution_proxy then
       (.[0].paths | index("/var/lib/foreman-execution-proxy/state")) != null and
       (.[0].paths | index("/var/lib/foreman-execution-proxy/ansible")) != null
@@ -175,7 +177,6 @@ for required_file in \
   /work/databases/pulp.dump; do
   require_created_snapshot_path "${required_file}"
 done
-require_created_snapshot_path /var/lib/foreman/avatars
 for secret_name in ${BACKUP_SECRET_NAMES}; do
   require_created_snapshot_path "/work/secrets/${secret_name}.json"
 done
@@ -190,8 +191,8 @@ if [ "${EXECUTION_PROXY_RECOVERY_ENABLED}" = true ]; then
 fi
 
 log "Validated encrypted recovery snapshot ${snapshot_id}"
-if [ "${PULP_STORAGE_BACKEND}" = s3 ]; then
-  log "Retain object-storage recovery point with this snapshot: ${PULP_OBJECT_STORAGE_RECOVERY_POINT}"
+if [ "${FOREMAN_ACTIVE_STORAGE_SERVICE}" = s3 ] || [ "${PULP_STORAGE_BACKEND}" = s3 ]; then
+  log "Retain object-storage recovery point with this snapshot: ${OBJECT_STORAGE_RECOVERY_POINT}"
 fi
 
 if [ "${RETENTION_ENABLED}" = true ]; then

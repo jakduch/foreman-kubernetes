@@ -160,7 +160,7 @@
     "foreman": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["image", "replicas", "autoscaling", "service", "existingEnvSecret", "databaseUrlSecretKey", "encryptionKeySecretKey", "secretKeyBaseSecretKey", "seedAdminUserSecretKey", "seedAdminPasswordSecretKey", "existingCertificateSecret", "existingDatabaseCaSecret", "database", "email", "enabledPlugins", "pluginPolicy", "puma", "databasePools", "dynflow", "sharedTmp", "activeStorage", "avatarStorage", "resources"],
+      "required": ["image", "replicas", "autoscaling", "service", "existingEnvSecret", "databaseUrlSecretKey", "encryptionKeySecretKey", "secretKeyBaseSecretKey", "seedAdminUserSecretKey", "seedAdminPasswordSecretKey", "existingCertificateSecret", "existingDatabaseCaSecret", "database", "email", "enabledPlugins", "pluginPolicy", "puma", "databasePools", "dynflow", "tmp", "activeStorage", "resources"],
       "properties": {
         "image": { "$ref": "#/definitions/image" },
         "replicas": { "type": "integer", "minimum": 1 },
@@ -267,14 +267,12 @@
             "utility": { "type": "integer", "minimum": 1 }
           }
         },
-        "sharedTmp": {
+        "tmp": {
           "type": "object",
-          "required": ["existingClaim", "storageClass", "accessMode", "size"],
+          "additionalProperties": false,
+          "required": ["sizeLimit"],
           "properties": {
-            "existingClaim": { "type": "string" },
-            "storageClass": { "type": "string" },
-            "accessMode": { "const": "ReadWriteMany" },
-            "size": { "type": "string", "minLength": 1 }
+            "sizeLimit": { "type": "string", "minLength": 1 }
           }
         },
         "activeStorage": {
@@ -305,16 +303,6 @@
                 "caSecretKey": { "type": "string", "minLength": 1 }
               }
             }
-          }
-        },
-        "avatarStorage": {
-          "type": "object",
-          "required": ["existingClaim", "storageClass", "accessMode", "size"],
-          "properties": {
-            "existingClaim": { "type": "string" },
-            "storageClass": { "type": "string" },
-            "accessMode": { "const": "ReadWriteMany" },
-            "size": { "type": "string", "minLength": 1 }
           }
         },
         "resources": { "$ref": "#/definitions/resources" }
@@ -937,14 +925,31 @@
     },
     {
       "if": {
-        "properties": {
-          "backup": { "properties": { "enabled": { "const": true } } },
-          "pulp": {
-            "properties": {
-              "storage": { "properties": { "backend": { "const": "s3" } } }
-            }
+        "allOf": [
+          { "properties": { "backup": { "properties": { "enabled": { "const": true } } } } },
+          {
+            "anyOf": [
+              {
+                "properties": {
+                  "foreman": {
+                    "properties": {
+                      "activeStorage": { "properties": { "service": { "const": "s3" } } }
+                    }
+                  }
+                }
+              },
+              {
+                "properties": {
+                  "pulp": {
+                    "properties": {
+                      "storage": { "properties": { "backend": { "const": "s3" } } }
+                    }
+                  }
+                }
+              }
+            ]
           }
-        }
+        ]
       },
       "then": {
         "properties": {
@@ -958,14 +963,31 @@
     },
     {
       "if": {
-        "properties": {
-          "restore": { "properties": { "enabled": { "const": true } } },
-          "pulp": {
-            "properties": {
-              "storage": { "properties": { "backend": { "const": "s3" } } }
-            }
+        "allOf": [
+          { "properties": { "restore": { "properties": { "enabled": { "const": true } } } } },
+          {
+            "anyOf": [
+              {
+                "properties": {
+                  "foreman": {
+                    "properties": {
+                      "activeStorage": { "properties": { "service": { "const": "s3" } } }
+                    }
+                  }
+                }
+              },
+              {
+                "properties": {
+                  "pulp": {
+                    "properties": {
+                      "storage": { "properties": { "backend": { "const": "s3" } } }
+                    }
+                  }
+                }
+              }
+            ]
           }
-        }
+        ]
       },
       "then": {
         "properties": {

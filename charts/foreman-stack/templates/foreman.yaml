@@ -96,7 +96,6 @@ spec:
               value: {{ .Values.platform.fqdn | quote }}
           volumeMounts:
             {{- include "foreman-stack.foremanVolumeMounts" . | nindent 12 }}
-            {{- include "foreman-stack.foremanAvatarVolumeMount" . | nindent 12 }}
             - name: foreman-puma-runtime
               mountPath: /run/foreman-puma
           startupProbe:
@@ -125,7 +124,6 @@ spec:
             {{- toYaml .Values.foreman.resources | nindent 12 }}
       volumes:
         {{- include "foreman-stack.foremanVolumes" . | nindent 8 }}
-        {{- include "foreman-stack.foremanAvatarVolume" . | nindent 8 }}
         - name: foreman-puma-runtime
           emptyDir:
             sizeLimit: 1Mi

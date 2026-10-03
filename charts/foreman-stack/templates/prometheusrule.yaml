@@ -50,7 +50,7 @@ spec:
             description: Job {{ "{{" }} $labels.namespace {{ "}}" }}/{{ "{{" }} $labels.job_name {{ "}}" }} failed and requires inspection.
         - alert: ForemanStackPersistentVolumeClaimPending
           expr: >-
-            max by (namespace, persistentvolumeclaim, phase) (kube_persistentvolumeclaim_status_phase{namespace={{ .Release.Namespace | quote }},persistentvolumeclaim=~{{ printf "%s-(foreman-tmp|foreman-avatars|pulp)" $fullname | quote }},phase=~"Pending|Lost"}) > 0
+            max by (namespace, persistentvolumeclaim, phase) (kube_persistentvolumeclaim_status_phase{namespace={{ .Release.Namespace | quote }},persistentvolumeclaim=~{{ printf "%s-pulp" $fullname | quote }},phase=~"Pending|Lost"}) > 0
           for: 10m
           labels:
             severity: critical

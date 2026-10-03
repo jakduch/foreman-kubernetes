@@ -30,11 +30,11 @@ unless runtime_mount&.fetch('name', nil) == 'foreman-puma-runtime' && !runtime_m
   abort 'Foreman Puma runtime directory is not isolated per Pod'
 end
 
-shared_tmp = mounts['/usr/share/foreman/tmp']
-unless shared_tmp && volumes.dig(shared_tmp['name'], 'persistentVolumeClaim', 'claimName')
-  abort 'Foreman web no longer retains the shared Katello hand-off volume'
+pod_tmp = mounts['/usr/share/foreman/tmp']
+unless pod_tmp && volumes.dig(pod_tmp['name'], 'emptyDir', 'sizeLimit') == '20Gi'
+  abort 'Foreman web does not use bounded per-Pod temporary storage'
 end
-abort 'Foreman shared tmp aliases the Puma runtime directory' if shared_tmp['mountPath'] == run_dir.fetch('value')
+abort 'Foreman temporary storage aliases the Puma runtime directory' if pod_tmp['mountPath'] == run_dir.fetch('value')
 
 unless container['command'] == ['/bin/sh', '-ec'] &&
        Array(container['args']).join("\n").include?('mkdir -p "${FOREMAN_RUN_DIR}/sockets"') &&
@@ -42,4 +42,4 @@ unless container['command'] == ['/bin/sh', '-ec'] &&
   abort 'Foreman does not create its isolated Puma socket directory before startup'
 end
 
-puts 'Foreman uses its upstream runtime-directory contract while retaining shared Katello tmp.'
+puts 'Foreman uses isolated bounded emptyDir volumes for its Puma runtime and process-local temporary files.'
