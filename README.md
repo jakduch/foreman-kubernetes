@@ -116,6 +116,14 @@ Pulp can replace its shared RWX claim with S3-compatible object storage through
 credential, egress, direct-download, and recovery contract is documented in
 [`docs/pulp-object-storage.md`](docs/pulp-object-storage.md).
 
+Foreman plugin blobs can use the same storage model through
+[`examples/foreman-s3-values.yaml`](examples/foreman-s3-values.yaml). The
+credential, private-CA, preflight, Helm-test, and upstream compatibility
+contract is documented in
+[`docs/foreman-object-storage.md`](docs/foreman-object-storage.md). The current
+chart retains its Foreman RWX claims until every named plugin hand-off has been
+migrated upstream.
+
 The example Secrets contain placeholders only. Populate them outside Git. For
 a paired, digest-pinned installation, create the namespace and Secrets, prepare
 separate application and execution-proxy values files, then use the guarded
@@ -177,6 +185,7 @@ credential, and recovery-drill contracts.
 - [`docs/disaster-recovery.md`](docs/disaster-recovery.md) defines portable recovery sets and the destructive restore gate.
 - [`docs/diagnostics.md`](docs/diagnostics.md) defines the read-only, Secret-redacted support bundle.
 - [`docs/pulp-object-storage.md`](docs/pulp-object-storage.md) defines the optional S3-compatible artifact backend and its recovery boundary.
+- [`docs/foreman-object-storage.md`](docs/foreman-object-storage.md) defines the optional Active Storage S3 backend and its remaining upstream gates.
 - [`docs/kubevirt.md`](docs/kubevirt.md) defines KubeVirt compatibility gates, least-privilege provider RBAC, safe token rotation, egress, and external qualification.
 - [`docs/orchestration-boundary.md`](docs/orchestration-boundary.md) records why
   the project uses Helm plus a release operator, how it relates to

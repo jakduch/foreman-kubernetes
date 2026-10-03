@@ -160,7 +160,7 @@
     "foreman": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["image", "replicas", "autoscaling", "service", "existingEnvSecret", "databaseUrlSecretKey", "encryptionKeySecretKey", "secretKeyBaseSecretKey", "seedAdminUserSecretKey", "seedAdminPasswordSecretKey", "existingCertificateSecret", "existingDatabaseCaSecret", "database", "email", "enabledPlugins", "pluginPolicy", "puma", "databasePools", "dynflow", "sharedTmp", "avatarStorage", "resources"],
+      "required": ["image", "replicas", "autoscaling", "service", "existingEnvSecret", "databaseUrlSecretKey", "encryptionKeySecretKey", "secretKeyBaseSecretKey", "seedAdminUserSecretKey", "seedAdminPasswordSecretKey", "existingCertificateSecret", "existingDatabaseCaSecret", "database", "email", "enabledPlugins", "pluginPolicy", "puma", "databasePools", "dynflow", "sharedTmp", "activeStorage", "avatarStorage", "resources"],
       "properties": {
         "image": { "$ref": "#/definitions/image" },
         "replicas": { "type": "integer", "minimum": 1 },
@@ -275,6 +275,36 @@
             "storageClass": { "type": "string" },
             "accessMode": { "const": "ReadWriteMany" },
             "size": { "type": "string", "minLength": 1 }
+          }
+        },
+        "activeStorage": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["service", "s3"],
+          "properties": {
+            "service": { "enum": ["local", "s3"] },
+            "s3": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["bucket", "region", "endpoint", "forcePathStyle", "existingSecret", "accessKeyIdSecretKey", "secretAccessKeySecretKey", "existingCaSecret", "caSecretKey"],
+              "properties": {
+                "bucket": { "type": "string" },
+                "region": { "type": "string", "minLength": 1 },
+                "endpoint": {
+                  "type": "string",
+                  "anyOf": [
+                    { "maxLength": 0 },
+                    { "pattern": "^https?://" }
+                  ]
+                },
+                "forcePathStyle": { "type": "boolean" },
+                "existingSecret": { "type": "string" },
+                "accessKeyIdSecretKey": { "type": "string", "minLength": 1 },
+                "secretAccessKeySecretKey": { "type": "string", "minLength": 1 },
+                "existingCaSecret": { "type": "string" },
+                "caSecretKey": { "type": "string", "minLength": 1 }
+              }
+            }
           }
         },
         "avatarStorage": {
@@ -826,6 +856,53 @@
       "then": {
         "properties": {
           "networkPolicy": { "properties": { "enabled": { "const": true } } }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "foreman": {
+            "properties": {
+              "activeStorage": {
+                "properties": { "service": { "const": "s3" } }
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "foreman": {
+            "properties": {
+              "activeStorage": {
+                "properties": {
+                  "s3": {
+                    "properties": { "bucket": { "minLength": 1 } }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "foreman": {
+            "properties": {
+              "activeStorage": {
+                "properties": {
+                  "s3": {
+                    "properties": {
+                      "bucket": { "maxLength": 0 },
+                      "existingSecret": { "maxLength": 0 },
+                      "existingCaSecret": { "maxLength": 0 }
+                    }
+                  }
+                }
+              }
+            }
+          }
         }
       }
     },

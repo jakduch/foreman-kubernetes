@@ -51,9 +51,31 @@ spec:
                 end
                 raise 'Foreman Valkey returned an unexpected response' unless Redis.new(**options).ping == 'PONG'
               end
-              puts 'Foreman database and Valkey dependencies are reachable'
+
+              if ENV.fetch('FOREMAN_ACTIVE_STORAGE_SERVICE') == 's3'
+                require 'aws-sdk-s3'
+
+                options = {
+                  region: ENV.fetch('FOREMAN_ACTIVE_STORAGE_S3_REGION'),
+                  force_path_style: ENV.fetch('FOREMAN_ACTIVE_STORAGE_S3_FORCE_PATH_STYLE') == 'true',
+                }
+                endpoint = ENV['FOREMAN_ACTIVE_STORAGE_S3_ENDPOINT']
+                options[:endpoint] = endpoint unless endpoint.to_s.empty?
+                if ENV['FOREMAN_ACTIVE_STORAGE_S3_ACCESS_KEY_ID']
+                  options[:credentials] = Aws::Credentials.new(
+                    ENV.fetch('FOREMAN_ACTIVE_STORAGE_S3_ACCESS_KEY_ID'),
+                    ENV.fetch('FOREMAN_ACTIVE_STORAGE_S3_SECRET_ACCESS_KEY')
+                  )
+                end
+                Aws::S3::Client.new(**options).list_objects_v2(
+                  bucket: ENV.fetch('FOREMAN_ACTIVE_STORAGE_S3_BUCKET'),
+                  max_keys: 1
+                )
+              end
+              puts 'Foreman database, Valkey, and storage dependencies are reachable'
               RUBY
           env:
+            {{- include "foreman-stack.foremanActiveStorageEnv" . | nindent 12 }}
             - name: VALKEY_FOREMAN_CACHE_URI_AUTH
               valueFrom:
                 secretKeyRef:
@@ -98,6 +120,7 @@ spec:
               subPath: {{ .Values.valkey.tls.caSecretKey }}
               readOnly: true
             {{- end }}
+            {{- include "foreman-stack.foremanActiveStorageCaVolumeMount" . | nindent 12 }}
         - name: pulp
           image: {{ include "foreman-stack.image" .Values.pulp.image }}
           imagePullPolicy: {{ .Values.pulp.image.pullPolicy }}
@@ -234,4 +257,5 @@ spec:
               - key: db-ca.crt
                 path: db-ca.crt
         {{- end }}
+        {{- include "foreman-stack.foremanActiveStorageCaVolume" . | nindent 8 }}
 {{- end }}

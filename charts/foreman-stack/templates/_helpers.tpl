@@ -317,8 +317,42 @@ server {
 }
 {{- end }}
 
+{{- define "foreman-stack.foremanActiveStorageEnv" -}}
+- name: FOREMAN_ACTIVE_STORAGE_SERVICE
+  value: {{ .Values.foreman.activeStorage.service | quote }}
+{{- if eq .Values.foreman.activeStorage.service "s3" }}
+- name: FOREMAN_ACTIVE_STORAGE_S3_BUCKET
+  value: {{ .Values.foreman.activeStorage.s3.bucket | quote }}
+- name: FOREMAN_ACTIVE_STORAGE_S3_REGION
+  value: {{ .Values.foreman.activeStorage.s3.region | quote }}
+{{- with .Values.foreman.activeStorage.s3.endpoint }}
+- name: FOREMAN_ACTIVE_STORAGE_S3_ENDPOINT
+  value: {{ . | quote }}
+{{- end }}
+- name: FOREMAN_ACTIVE_STORAGE_S3_FORCE_PATH_STYLE
+  value: {{ .Values.foreman.activeStorage.s3.forcePathStyle | quote }}
+{{- if .Values.foreman.activeStorage.s3.existingSecret }}
+- name: FOREMAN_ACTIVE_STORAGE_S3_ACCESS_KEY_ID
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Values.foreman.activeStorage.s3.existingSecret }}
+      key: {{ .Values.foreman.activeStorage.s3.accessKeyIdSecretKey }}
+- name: FOREMAN_ACTIVE_STORAGE_S3_SECRET_ACCESS_KEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Values.foreman.activeStorage.s3.existingSecret }}
+      key: {{ .Values.foreman.activeStorage.s3.secretAccessKeySecretKey }}
+{{- end }}
+{{- if .Values.foreman.activeStorage.s3.existingCaSecret }}
+- name: AWS_CA_BUNDLE
+  value: /etc/foreman/object-storage/ca.crt
+{{- end }}
+{{- end }}
+{{- end }}
+
 {{- define "foreman-stack.foremanEnv" -}}
 {{- include "foreman-stack.outboundProxyEnv" . }}
+{{ include "foreman-stack.foremanActiveStorageEnv" . }}
 - name: RAILS_ENV
   value: production
 - name: RAILS_LOG_TO_STDOUT
@@ -458,6 +492,7 @@ server {
   subPath: {{ .Values.valkey.tls.caSecretKey }}
   readOnly: true
 {{- end }}
+{{- include "foreman-stack.foremanActiveStorageCaVolumeMount" . }}
 {{- end }}
 
 {{- define "foreman-stack.foremanVolumes" -}}
@@ -485,6 +520,27 @@ server {
     items:
       - key: {{ .Values.valkey.tls.caSecretKey }}
         path: {{ .Values.valkey.tls.caSecretKey }}
+{{- end }}
+{{- include "foreman-stack.foremanActiveStorageCaVolume" . }}
+{{- end }}
+
+{{- define "foreman-stack.foremanActiveStorageCaVolumeMount" -}}
+{{- if and (eq .Values.foreman.activeStorage.service "s3") .Values.foreman.activeStorage.s3.existingCaSecret }}
+- name: foreman-object-storage-ca
+  mountPath: /etc/foreman/object-storage/ca.crt
+  subPath: {{ .Values.foreman.activeStorage.s3.caSecretKey }}
+  readOnly: true
+{{- end }}
+{{- end }}
+
+{{- define "foreman-stack.foremanActiveStorageCaVolume" -}}
+{{- if and (eq .Values.foreman.activeStorage.service "s3") .Values.foreman.activeStorage.s3.existingCaSecret }}
+- name: foreman-object-storage-ca
+  secret:
+    secretName: {{ .Values.foreman.activeStorage.s3.existingCaSecret }}
+    items:
+      - key: {{ .Values.foreman.activeStorage.s3.caSecretKey }}
+        path: {{ .Values.foreman.activeStorage.s3.caSecretKey }}
 {{- end }}
 {{- end }}
 

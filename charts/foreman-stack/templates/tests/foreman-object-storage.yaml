@@ -1,0 +1,83 @@
+{{- if and .Values.smokeTest.enabled (not .Values.maintenance.enabled) (eq .Values.foreman.activeStorage.service "s3") }}
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ include "foreman-stack.fullname" . }}-foreman-object-storage-test
+  labels:
+    {{- include "foreman-stack.podLabels" (dict "root" . "component" "foreman-object-storage-test") | nindent 4 }}
+  annotations:
+    helm.sh/hook: test
+    # Retain the completed Pod so `helm test --logs` can collect the checksum
+    # evidence. The next test run removes it before creating a replacement.
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  activeDeadlineSeconds: {{ .Values.smokeTest.activeDeadlineSeconds }}
+  {{- include "foreman-stack.scheduling" . | nindent 2 }}
+  serviceAccountName: {{ include "foreman-stack.serviceAccountName" . }}
+  restartPolicy: Never
+  automountServiceAccountToken: false
+  {{- include "foreman-stack.imagePullSecrets" . | nindent 2 }}
+  securityContext:
+    fsGroup: 994
+    fsGroupChangePolicy: OnRootMismatch
+    runAsGroup: 994
+    runAsNonRoot: true
+    runAsUser: 994
+    seccompProfile:
+      type: RuntimeDefault
+  containers:
+    - name: object-storage-test
+      image: {{ include "foreman-stack.image" .Values.foreman.image }}
+      imagePullPolicy: {{ .Values.foreman.image.pullPolicy }}
+      workingDir: /usr/share/foreman
+      command:
+        - bin/rails
+        - runner
+        - --environment
+        - production
+      args:
+        - |
+          require 'securerandom'
+          require 'stringio'
+
+          block = "foreman-kubernetes-active-storage\n"
+          payload_size = (9 * 1024 * 1024) + 1
+          payload = (block * ((payload_size / block.bytesize) + 1)).byteslice(0, payload_size)
+          blob = ActiveStorage::Blob.create_and_upload!(
+            io: StringIO.new(payload),
+            filename: "foreman-kubernetes-probe-#{SecureRandom.hex}.bin",
+            content_type: 'application/octet-stream'
+          )
+          begin
+            restored = blob.download
+            raise 'Active Storage changed object content' unless restored == payload
+            raise 'Active Storage changed object size' unless blob.byte_size == payload_size
+
+            puts({service: blob.service_name, bytes: payload_size, checksum: blob.checksum}.to_json)
+          ensure
+            blob.purge
+          end
+      env:
+        - name: HOME
+          value: /tmp
+        - name: TMPDIR
+          value: /tmp
+        {{- include "foreman-stack.foremanEnv" . | nindent 8 }}
+        {{- include "foreman-stack.foremanDatabasePoolEnv" .Values.foreman.databasePools.utility | nindent 8 }}
+      securityContext:
+        {{- include "foreman-stack.restrictedContainerSecurityContext" (dict "runAsUser" 994 "runAsGroup" 994) | nindent 8 }}
+      resources:
+        # This probe boots the complete Rails application and must use the
+        # same memory envelope as a Foreman process, not the lightweight
+        # HTTP smoke-test budget.
+        {{- toYaml .Values.foreman.resources | nindent 8 }}
+      volumeMounts:
+        {{- include "foreman-stack.foremanVolumeMounts" . | nindent 8 }}
+        - name: tmp
+          mountPath: /tmp
+  volumes:
+    {{- include "foreman-stack.foremanVolumes" . | nindent 4 }}
+    - name: tmp
+      emptyDir:
+        sizeLimit: 32Mi
+{{- end }}

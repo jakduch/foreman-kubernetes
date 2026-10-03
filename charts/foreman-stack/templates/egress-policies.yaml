@@ -20,6 +20,9 @@
 {{- if and .Values.outboundProxy.enabled (eq (len $outboundProxy.peers) 0) }}
 {{- fail "networkPolicy.egress.outboundProxy.peers must identify the HTTP proxy when outboundProxy is enabled" }}
 {{- end }}
+{{- if and (eq .Values.foreman.activeStorage.service "s3") (eq (len $foremanExternal.peers) 0) (not .Values.outboundProxy.enabled) }}
+{{- fail "networkPolicy.egress.external.foreman.peers or outboundProxy must identify the S3 route when Foreman object storage is enabled" }}
+{{- end }}
 {{- if and (eq .Values.pulp.storage.backend "s3") (eq (len $pulpExternal.peers) 0) (not .Values.outboundProxy.enabled) }}
 {{- fail "networkPolicy.egress.external.pulp.peers or outboundProxy must identify the S3 route when Pulp object storage is enabled" }}
 {{- end }}
@@ -59,6 +62,7 @@ spec:
           - dynflow-worker-hosts-queue
           - foreman-cron
           - foreman-migrate
+          - foreman-object-storage-test
           - dependency-preflight
           - pulp-registration
           {{- if .Values.smartProxy.executionRegistration.enabled }}

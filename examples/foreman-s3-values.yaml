@@ -1,0 +1,23 @@
+foreman:
+  activeStorage:
+    service: s3
+    s3:
+      bucket: foreman-active-storage
+      region: us-east-1
+      endpoint: https://object-storage.example.test
+      forcePathStyle: true
+      existingSecret: foreman-object-storage
+      existingCaSecret: foreman-object-storage-ca
+
+# Required only when egress NetworkPolicy is enabled and traffic does not use
+# the chart's shared outbound proxy. Replace this example CIDR with the exact
+# object-storage endpoint selector or CIDR.
+networkPolicy:
+  egress:
+    external:
+      foreman:
+        peers:
+          - ipBlock:
+              cidr: 192.0.2.40/32
+        ports:
+          - 443
