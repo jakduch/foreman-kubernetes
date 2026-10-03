@@ -164,17 +164,39 @@ class LocalCandidateImages
     base_reference = definition.fetch('baseReference')
     case name
     when 'foreman'
+      ruby_requirements = definition.fetch('rubyRequirements')
+      unless ruby_requirements.all? { |requirement| requirement.match?(/\A[a-z0-9_-]+==[0-9.]+\z/) }
+        raise 'Foreman candidate contains an invalid Ruby requirement'
+      end
+      gem_install = ruby_requirements.map do |requirement|
+        package, version = requirement.split('==', 2)
+        "gem install --no-document --ignore-dependencies #{package} --version #{version}"
+      end.join(' && ')
+      expected_versions = ruby_requirements.to_h { |requirement| requirement.split('==', 2) }
       <<~CONTAINERFILE
         ARG BASE_IMAGE=#{base_reference}
         FROM ${BASE_IMAGE}
         USER 0
-        COPY --chown=994:994 foreman/ /usr/share/foreman/
+        COPY --chown=994:994 foreman/ /tmp/foreman-candidate-overlay/
         COPY katello/ /tmp/katello-candidate-overlay/
+        COPY foreman_rh_cloud/ /tmp/foreman-rh-cloud-candidate-overlay/
         RUN set -eu; \
+            if [ -d /tmp/foreman-candidate-overlay/db/migrate ]; then \
+              cp -a /tmp/foreman-candidate-overlay/db/migrate/. /usr/share/foreman/migrate/; \
+              rm -rf /tmp/foreman-candidate-overlay/db; \
+            fi; \
+            cp -a /tmp/foreman-candidate-overlay/. /usr/share/foreman/; \
+            rm -rf /tmp/foreman-candidate-overlay; \
             katello_root="$(ruby -e 'require "rubygems"; print Gem::Specification.find_by_name("katello").full_gem_path')"; \
             cp -a /tmp/katello-candidate-overlay/. "${katello_root}/"; \
             chown -R 994:994 "${katello_root}"; \
-            rm -rf /tmp/katello-candidate-overlay
+            rm -rf /tmp/katello-candidate-overlay; \
+            rh_cloud_root="$(ruby -e 'require "rubygems"; print Gem::Specification.find_by_name("foreman_rh_cloud").full_gem_path')"; \
+            cp -a /tmp/foreman-rh-cloud-candidate-overlay/. "${rh_cloud_root}/"; \
+            chown -R 994:994 "${rh_cloud_root}"; \
+            rm -rf /tmp/foreman-rh-cloud-candidate-overlay; \
+            #{gem_install}; \
+            ruby -e 'require "rubygems"; expected=#{JSON.generate(expected_versions.to_a)}; abort unless expected.all? { |package, version| Gem::Specification.find_by_name(package).version.to_s == version }; require "aws-sdk-s3"'
         LABEL org.opencontainers.image.title="Foreman Kubernetes local candidate" \
               org.theforeman.kubernetes.contracts="#{contracts_label}" \
               org.theforeman.kubernetes.unpublished="true"

@@ -5,6 +5,15 @@
     "foreman": {
       "baseReference": "quay.io/foreman/foreman:nightly@sha256:9c77128c7acd629c62686a9119816d6f6b7726cd6492d9eaa894d54c345c4941",
       "localReference": "foreman-kubernetes/foreman:candidate",
+      "rubyRequirements": [
+        "aws-eventstream==1.4.0",
+        "aws-partitions==1.1292.0",
+        "aws-sdk-core==3.257.0",
+        "aws-sdk-kms==1.132.0",
+        "aws-sdk-s3==1.233.1",
+        "aws-sigv4==1.12.1",
+        "jmespath==1.6.2"
+      ],
       "overlays": [
         {
           "contract": "foreman-configurable-puma-run-dir",
@@ -38,6 +47,40 @@
           ]
         },
         {
+          "contract": "foreman-active-storage-framework",
+          "target": "foreman",
+          "paths": [
+            "config/application.rb",
+            "config/environments/development.rb",
+            "config/environments/production.rb",
+            "config/environments/test.rb",
+            "config/storage.yml",
+            "db/migrate/20261003000000_create_active_storage_tables.rb"
+          ]
+        },
+        {
+          "contract": "foreman-active-storage-s3-config",
+          "target": "foreman",
+          "paths": [
+            "app/services/foreman/env_settings_loader.rb",
+            "config/environments/production.rb",
+            "config/settings.yaml.example",
+            "config/storage.yml",
+            "lib/foreman/active_storage_config.rb"
+          ]
+        },
+        {
+          "contract": "foreman-active-storage-ldap-avatars",
+          "target": "foreman",
+          "paths": [
+            "app/controllers/users_controller.rb",
+            "app/helpers/application_helper.rb",
+            "app/models/auth_sources/auth_source_ldap.rb",
+            "app/models/user.rb",
+            "config/routes.rb"
+          ]
+        },
+        {
           "contract": "katello-pulp-non-default-port",
           "target": "katello",
           "paths": [
@@ -49,6 +92,37 @@
           "target": "katello",
           "paths": [
             "app/lib/katello/resources/registry.rb"
+          ]
+        },
+        {
+          "contract": "katello-active-storage-upload-staging",
+          "target": "katello",
+          "paths": [
+            "app/lib/actions/katello/repository/upload_files.rb",
+            "app/lib/actions/pulp3/orchestration/repository/upload_content.rb",
+            "app/lib/actions/pulp3/repository/upload_file.rb"
+          ]
+        },
+        {
+          "contract": "foreman-rh-cloud-inventory-report-model",
+          "target": "foreman_rh_cloud",
+          "paths": [
+            "app/models/foreman_inventory_upload/report.rb",
+            "db/migrate/20261003120000_create_foreman_inventory_upload_reports.foreman_rh_cloud.rb"
+          ]
+        },
+        {
+          "contract": "foreman-rh-cloud-active-storage-reports",
+          "target": "foreman_rh_cloud",
+          "paths": [
+            "app/controllers/api/v2/rh_cloud/inventory_controller.rb",
+            "app/controllers/concerns/inventory_upload/report_actions.rb",
+            "app/controllers/foreman_inventory_upload/uploads_controller.rb",
+            "lib/foreman_inventory_upload.rb",
+            "lib/foreman_inventory_upload/async/generate_host_report.rb",
+            "lib/foreman_inventory_upload/async/host_inventory_report_job.rb",
+            "lib/foreman_inventory_upload/async/queue_for_upload_job.rb",
+            "lib/foreman_inventory_upload/async/upload_report_direct_job.rb"
           ]
         }
       ]

@@ -1,0 +1,35 @@
+# Development-only overlay for qualifying unpublished Foreman Active Storage
+# commits on the native linux/amd64 Kind environment.
+foreman:
+  enabledPlugins:
+    - foreman-tasks
+    - katello
+    - foreman_remote_execution
+    - foreman_ansible
+    - foreman_webhooks
+    - foreman_virt_who_configure
+    - foreman_kubevirt
+    - foreman_rh_cloud
+  image:
+    repository: foreman-kubernetes/foreman
+    tag: active-storage-candidate
+    pullPolicy: Never
+  activeStorage:
+    service: s3
+    s3:
+      bucket: foreman-active-storage
+      region: us-east-1
+      endpoint: http://object-storage:8333
+      forcePathStyle: true
+      existingSecret: foreman-object-storage
+
+networkPolicy:
+  egress:
+    external:
+      foreman:
+        peers:
+          - podSelector:
+              matchLabels:
+                app: object-storage
+        ports:
+          - 8333

@@ -45,7 +45,7 @@ registry.fetch('images').each do |component, image|
     seen_contracts << id
   end
   overlays.each do |overlay|
-    allowed_targets = %w[foreman katello candlepin pulp_smart_proxy smart_proxy_remote_execution_ssh]
+    allowed_targets = %w[foreman katello foreman_rh_cloud candlepin pulp_smart_proxy smart_proxy_remote_execution_ssh]
     abort 'unsupported overlay target' unless allowed_targets.include?(overlay.fetch('target'))
     overlay.fetch('paths').each do |source_path|
       path = Pathname.new(source_path)
@@ -60,6 +60,22 @@ required = contracts.values.select { |contract| !(contract.fetch('profiles') & %
   .map { |contract| contract.fetch('id') }
 missing = required - seen_contracts
 abort "local candidate pipeline omits required contracts: #{missing.join(', ')}" unless missing.empty?
+
+foreman_requirements = registry.dig('images', 'foreman', 'rubyRequirements')
+expected_ruby_packages = %w[
+  aws-eventstream
+  aws-partitions
+  aws-sdk-core
+  aws-sdk-kms
+  aws-sdk-s3
+  aws-sigv4
+  jmespath
+]
+actual_ruby_packages = foreman_requirements.map { |requirement| requirement.split('==', 2).first }.sort
+abort 'Foreman candidate does not pin the complete S3 client chain' unless actual_ruby_packages == expected_ruby_packages
+unless foreman_requirements.all? { |requirement| requirement.match?(/\A[a-z0-9_-]+==[0-9.]+\z/) }
+  abort 'Foreman candidate contains an unpinned Ruby requirement'
+end
 
 pulp_requirements = registry.dig('images', 'pulp', 'pythonRequirements')
 expected_python_packages = %w[boto3 botocore django-storages jmespath s3transfer]

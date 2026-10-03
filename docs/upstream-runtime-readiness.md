@@ -33,6 +33,17 @@ therefore deliberately still a candidate.
 | `pulp-smart-proxy-container-registry-api-url` | Advertises the traditional content-origin route by default and permits a separate registry control URL. | Directs Katello to the internal mTLS Pulp control service. |
 | `smart-proxy-rex-dynflow-recovery-actions` | Loads Remote Execution action classes before Dynflow starts restoring persisted plans; command behavior remains unchanged. | Lets the execution proxy resume an active plan after its Pod is replaced. |
 
+## Optional Foreman object storage
+
+| Contract | Upstream behavior | Kubernetes use |
+| --- | --- | --- |
+| `foreman-active-storage-framework` | Enables Rails Active Storage with local disk as its default service. | Supplies the shared attachment framework and database tables. |
+| `foreman-active-storage-s3-config` | Adds an opt-in S3 service with endpoint and path-style settings while preserving local storage by default. | Connects every Foreman process to AWS S3, MinIO, Ceph RGW, or another compatible service. |
+| `foreman-active-storage-ldap-avatars` | Stores LDAP avatar images as Active Storage attachments. | Makes avatars available from every web Pod without a shared public directory. |
+| `katello-active-storage-upload-staging` | Stages repository uploads in Active Storage while retaining compatibility for persisted path-based plans. | Hands uploads from web Pods to Dynflow worker Pods without shared temporary storage. |
+| `foreman-rh-cloud-inventory-report-model` | Adds a persisted inventory report record with an Active Storage attachment. | Gives report generation and upload a durable cross-process identity. |
+| `foreman-rh-cloud-active-storage-reports` | Passes report records through the inventory workflow and retains compatibility for persisted filesystem jobs. | Shares generated reports between Foreman and Dynflow Pods without a shared runtime directory. |
+
 ## Optional Pulp object storage
 
 | Contract | Upstream behavior | Kubernetes use |

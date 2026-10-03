@@ -77,6 +77,108 @@
       "kubernetesConsumers": ["Dynflow orchestrator Deployment", "Dynflow worker Deployments"]
     },
     {
+      "id": "foreman-active-storage-framework",
+      "component": "foreman",
+      "profiles": ["object-storage"],
+      "state": "local-upstream-commit",
+      "availableInReleaseSets": [],
+      "upstream": {
+        "repository": "https://github.com/theforeman/foreman.git",
+        "localPath": "foreman-active-storage",
+        "branch": "feature/active-storage-foundation",
+        "commit": "915979bcd312c6a5baed4ab77ab5110b16221c64",
+        "pullRequest": "https://github.com/theforeman/foreman/pull/11314",
+        "issue": "https://projects.theforeman.org/issues/35330"
+      },
+      "standaloneDefault": "Active Storage uses local disk and does not affect existing Foreman data until an attachment is declared.",
+      "kubernetesConsumers": ["Foreman Active Storage object-storage profile", "Active Storage database migration"]
+    },
+    {
+      "id": "foreman-active-storage-s3-config",
+      "component": "foreman",
+      "profiles": ["object-storage"],
+      "state": "local-upstream-commit",
+      "availableInReleaseSets": [],
+      "upstream": {
+        "repository": "https://github.com/theforeman/foreman.git",
+        "localPath": "foreman-active-storage",
+        "branch": "feature/active-storage-s3-config",
+        "commit": "af92739b02cbc55df0640dc4468634f6e3b9a2e4",
+        "pullRequest": null,
+        "issue": "https://projects.theforeman.org/issues/39856"
+      },
+      "standaloneDefault": "Foreman keeps local Active Storage unless the active_storage service setting explicitly selects S3.",
+      "kubernetesConsumers": ["Foreman web and Dynflow S3-compatible object storage"]
+    },
+    {
+      "id": "foreman-active-storage-ldap-avatars",
+      "component": "foreman",
+      "profiles": ["object-storage"],
+      "state": "local-upstream-commit",
+      "availableInReleaseSets": [],
+      "upstream": {
+        "repository": "https://github.com/theforeman/foreman.git",
+        "localPath": "foreman-active-storage",
+        "branch": "feature/active-storage-ldap-avatars",
+        "commit": "81cc768292c5af8dc313e2a7f9aea90f59d009e5",
+        "pullRequest": null,
+        "issue": "https://projects.theforeman.org/issues/39857"
+      },
+      "standaloneDefault": "LDAP avatars use the configured Active Storage service while existing users without avatars are unchanged.",
+      "kubernetesConsumers": ["LDAP avatar access across Foreman web pods"]
+    },
+    {
+      "id": "katello-active-storage-upload-staging",
+      "component": "foreman",
+      "profiles": ["object-storage"],
+      "state": "local-upstream-commit",
+      "availableInReleaseSets": [],
+      "upstream": {
+        "repository": "https://github.com/Katello/katello.git",
+        "localPath": "katello-active-storage-upload",
+        "branch": "feature/active-storage-upload-staging",
+        "commit": "2b2afc1954f4309ee7d66006be874d515d5a1865",
+        "pullRequest": null,
+        "issue": "https://projects.theforeman.org/issues/39858"
+      },
+      "standaloneDefault": "New repository uploads use the configured Active Storage service and persisted legacy path-based plans remain resumable.",
+      "kubernetesConsumers": ["Katello repository upload handoff from web to Dynflow pods"]
+    },
+    {
+      "id": "foreman-rh-cloud-inventory-report-model",
+      "component": "foreman",
+      "profiles": ["object-storage"],
+      "state": "local-upstream-commit",
+      "availableInReleaseSets": [],
+      "upstream": {
+        "repository": "https://github.com/theforeman/foreman_rh_cloud.git",
+        "localPath": "foreman_rh_cloud",
+        "branch": "feature/active-storage-inventory-report-model",
+        "commit": "90f5381f97fada41a3fa310b0b6a9577c753e5a6",
+        "pullRequest": null,
+        "issue": "https://projects.theforeman.org/issues/39859"
+      },
+      "standaloneDefault": "The inventory report model stores archives in the configured Active Storage service without enabling cloud uploads by itself.",
+      "kubernetesConsumers": ["foreman_rh_cloud inventory report persistence"]
+    },
+    {
+      "id": "foreman-rh-cloud-active-storage-reports",
+      "component": "foreman",
+      "profiles": ["object-storage"],
+      "state": "local-upstream-commit",
+      "availableInReleaseSets": [],
+      "upstream": {
+        "repository": "https://github.com/theforeman/foreman_rh_cloud.git",
+        "localPath": "foreman_rh_cloud",
+        "branch": "feature/active-storage-inventory-report-workflow",
+        "commit": "e75ed9cac13889ce7bc301887b9d37be2ce97298",
+        "pullRequest": null,
+        "issue": "https://projects.theforeman.org/issues/39860"
+      },
+      "standaloneDefault": "Inventory generation and upload use the configured Active Storage service while persisted legacy filesystem jobs retain their compatibility path.",
+      "kubernetesConsumers": ["foreman_rh_cloud report handoff between Foreman and Dynflow pods"]
+    },
+    {
       "id": "katello-pulp-non-default-port",
       "component": "foreman",
       "profiles": ["default"],
@@ -118,7 +220,7 @@
         "repository": "https://github.com/theforeman/candlepin-oci-images.git",
         "localPath": "candlepin-oci-images",
         "branch": "feature/container-runtime-contracts",
-        "commit": "13575fa6d49ce6942d1cf8684d0e8c676d7dbc64",
+        "commit": "2f940b53f1c47a1fee9ff6b7dc2486862eefea03",
         "pullRequest": "https://github.com/theforeman/candlepin-oci-images/pull/90"
       },
       "standaloneDefault": "The image still starts Candlepin through the packaged Tomcat server command.",
